@@ -14,3 +14,5 @@ GROUND_TRUTH_TAXIDS = {
 ```
 For all simulated reads that were inputted into Kraken (and that you want to be checked for accuracy), you must fill in the taxid mapping.
 * File directory should go into line 48, `kraken_counts, total_reads = load_kraken_report("<directory>")`.
+### `split_fq.sh` usage:
+Splits combined reads into separated reads, each with additional information of the taxid. The name of the file is of the following format: `<name_of_read>.fq`.
