@@ -1,136 +1,166 @@
 # Snakefile
-import os
+
+# 1) Load main pipeline config
 configfile: "config.yaml"
 include: config["wepp_workflow"]
 
+# imports
+import os
 
-# module wepp:
-#     snakefile: config["wepp_workflow"]
-#     config: config["wepp_config"]
-
-# use rule * from wepp as wepp_*
-
-
-# 1) Load main pipeline config
-
-
+# Standardize to *.fastq.gz
+def to_fastq_gz(path):
+    if path.endswith(".fastq.gz"):
+        return path
+    elif path.endswith(".fq.gz"):
+        return path.replace(".fq.gz", ".fastq.gz")
+    elif path.endswith(".fq"):
+        return path.replace(".fq", ".fastq.gz")
+    elif path.endswith(".fastq"):
+        return path + ".gz"
+    else:
+        raise ValueError(f"Unsupported FASTQ extension: {path}")
 
 # 2) Constants from config
-DATASET_MAP = config["taxid_to_dataset"]     #  { '2697049':'NC_045512v2', … }
 WEPP_DIR         = config["wepp_results_dir"]
-CLASSIFIED_PREF  = config["classified_prefix"]
-SIM_TOOL         = config.get("simulation_tool", "none").upper()
-#WEPP_SNAKEFILE   = config["wepp_workflow"]   # e.g. /home/.../wepp/SARS2-WBE/workflow/Snakefile
-WEPP_CONFIGFILE  = config["wepp_config"]     # e.g. /home/.../wepp/SARS2-WBE/config/config.yaml
-TARGET_TAXIDS   = config["target_taxids"]
-WEPP_SMK        = config["wepp_workflow"]
-#WEPP_CFG        = config["wepp_config"]
-WEPP_DIR_TPL    = config["wepp_results_dir"]
-DATA_DIR     = "/home/jseangmany@AD.UCSD.EDU/wepp/WEPP/data"
-WEPP_OUT   = config["wepp_results_dir"]   # "/…/results/{taxid}"
-TAXIDS     = config["target_taxids"]
+SIM_TOOL         = config.get("simulation_tool", "none").upper() 
+TAXIDS = config["target_taxids"]
+GENOMES = config["target_genomes"] 
+
+# Error checking
+if SIM_TOOL not in ("ART", "MESS", "NONE"):
+    raise ValueError(f"Unknown SIM_TOOL: {SIM_TOOL}. Must be 'ART', 'MESS', or 'NONE'.")
+
+if SIM_TOOL == "NONE":
+    if "fq1" not in config or "fq2" not in config:
+        raise ValueError(
+            "SIM_TOOL is NONE, but config is missing 'fq1' or 'fq2'.\n"
+            "Please provide real FASTQ files in your config.yaml like:\n"
+            "  fq1: data/sample_R1.fastq\n"
+            "  fq2: data/sample_R2.fastq"
+        )
+
+# Automatically define where merged reads should go
+if SIM_TOOL in ("ART", "MESS"):
+    FQ1 = "simulated/merged_R1.fq"
+    FQ2 = "simulated/merged_R2.fq"
+else:
+    FQ1 = config["fq1"]
+    FQ2 = config["fq2"]
+
+# Define compressed filenames
+FQ1_GZ = to_fastq_gz(FQ1)
+FQ2_GZ = to_fastq_gz(FQ2)
 
 # 3) Top‐level: expect one WEPP/run.txt per taxid under WEPP_DIR
+
 rule all:
     input:
         expand(
-            "{wepp_dir}/{dataset}_run.txt",
-            wepp_dir = config["wepp_results_dir"],
-            dataset  = [ DATASET_MAP[t] for t in config["target_taxids"] ]
-        ),
-        expand(
-            WEPP_DIR + "/{taxid}_run.txt",
-            taxid=TARGET_TAXIDS
-        ),
-        expand(WEPP_OUT + "/{taxid}_run.txt", taxid=TAXIDS)
+            "{wepp_dir}/{dataset}/{dataset}_run.txt",
+            wepp_dir = WEPP_DIR,
+            dataset  = TAXIDS
+        )
 
 # 4) Optional ART simulation
+
+# Rule to split genomes for ART:
+rule split_genomes:
+    input:
+        fasta = config["mixed_genomes_fasta"]
+    output:
+        dynamic("individual_genomes/{genome}.fa")
+    shell:
+        """
+        mkdir -p individual_genomes
+        awk '/^>/{gsub(/^>/,""); fname="individual_genomes/"$1".fa"; print > fname; next} {print >> fname}' {input.fasta}
+        """
+
 if SIM_TOOL == "ART":
     rule simulate_reads_art:
-        input:  "split_genomes.done"
-        output: touch(config["simulate_reads_art_done"])
+        input:
+            genomes = rules.split_genomes.output
+        output:
+            expand("art/{genome}1.fq", genome=GENOMES),
+            expand("art/{genome}2.fq", genome=GENOMES)
         shell:
             """
             mkdir -p art
-            for fasta in individual_genomes/*.fa; do
+            for fasta in {input.genomes}; do
                 genome=$(basename "$fasta" .fa)
                 art_illumina --paired --rndSeed 0 --noALN --maskN 0 --seqSys MSv3 \
-                             --len 150 --rcount 800000 -m 200 -s 10 \
-                             --in "$fasta" --out art/"$genome"
+                            --len 150 --rcount 800000 -m 200 -s 10 \
+                            --in "$fasta" --out art/"$genome"
             done
-            touch {output}
             """
 
-    rule simulate_reads:
-        input:  config["simulate_reads_art_done"]
-        output: touch(config["simulate_reads_done"])
-        shell: "touch {output}"
-
-    rule merge_reads:
-        input:  config["simulate_reads_done"]
-        output:
-            R1   = config["fq1"],
-            R2   = config["fq2"],
-            done = touch(config["merge_reads_done"])
-        shell:
-            """
-            mkdir -p $(dirname {output.R1})
-            cat art/*1.fq > {output.R1}
-            cat art/*2.fq > {output.R2}
-            touch {output.done}
-            """
+    merge_input = {
+        "R1s": expand("art/{genome}1.fq", genome=GENOMES),
+        "R2s": expand("art/{genome}2.fq", genome=GENOMES)
+    }
 
 # 5) Optional MeSS simulation
-elif SIM_TOOL == "MESS":
+
+# Generate TSVs for MeSS:
+rule generate_mess_tsv:
+    input:
+        fasta = "individual_genomes/{genome}.fa"
+    output:
+        tsv = "individual_genomes/{genome}.tsv"
+    params:
+        script = "scripts/generate_mess_tsv.py",
+        coverage = config["coverage"]
+    shell:
+        """
+        python {params.script} {output.tsv} {input.fasta} {params.coverage} {wildcards.genome}
+        """
+
+if SIM_TOOL == "MESS":
     rule simulate_reads_mess:
-        input:  "mess_inputs/tsv_generation.done"
-        output: touch(config["simulate_reads_mess_done"])
+        input:
+            expand("individual_genomes/{genome}.tsv", genome=GENOMES)
+        output:
+            expand("simulated_reads/{genome}_R1.fq", genome=GENOMES),
+            expand("simulated_reads/{genome}_R2.fq", genome=GENOMES)
         shell:
             """
             mkdir -p simulated_reads
             for tsv in individual_genomes/*.tsv; do
                 mess simulate --input "$tsv" \
-                              --tech illumina \
-                              --output simulated_reads/ \
-                              --fasta individual_genomes/
+                            --tech illumina \
+                            --output simulated_reads/ \
+                            --fasta individual_genomes/
             done
-            touch {output}
             """
 
-    rule simulate_reads:
-        input:  config["simulate_reads_mess_done"]
-        output: touch(config["simulate_reads_done"])
-        shell: "touch {output}"
+    merge_input = {
+        "R1s": expand("simulated_reads/{genome}_R1.fq", genome=GENOMES),
+        "R2s": expand("simulated_reads/{genome}_R2.fq", genome=GENOMES)
+    }
 
+# Merge reads
+if SIM_TOOL in ("ART", "MESS"):
     rule merge_reads:
-        input:  config["simulate_reads_done"]
+        input:
+            **merge_input
         output:
-            R1   = config["fq1"],
-            R2   = config["fq2"],
-            done = touch(config["merge_reads_done"])
+            R1 = FQ1,
+            R2 = FQ2
         shell:
             """
             mkdir -p $(dirname {output.R1})
-            cat simulated_reads/*_R1.fq > {output.R1}
-            cat simulated_reads/*_R2.fq > {output.R2}
-            touch {output.done}
+            cat {input.R1s} > {output.R1}
+            cat {input.R2s} > {output.R2}
             """
 
-# 6) Kraken2 classification (conditionally depends on merge_reads)
-if SIM_TOOL in ("ART","MESS"):
-    kraken_input = dict(merge_done=config["merge_reads_done"],
-                        r1=config["fq1"], r2=config["fq2"])
-else:
-    kraken_input = dict(r1=config["fq1"], r2=config["fq2"])
-
+# 6) Kraken2 classification 
 rule kraken:
     input:
-        **kraken_input
+        r1 = FQ1,
+        r2 = FQ2
     output:
         report     = config["kraken_report"],
-        kraken_out = config["kraken_output"],
-        done       = touch(config["kraken_done"])
-    threads: config.get("kraken_threads",4)
+        kraken_out = config["kraken_output"]
+    threads: config.get("kraken_threads", 4)
     params:
         db = config["kraken_db"]
     shell:
@@ -139,26 +169,23 @@ rule kraken:
         kraken2 --db {params.db} --threads {threads} \
                 --paired {input.r1} {input.r2} \
                 --report {output.report} \
-                --output {output.kraken_out} \
-                --classified-out '/home/jseangmany@AD.UCSD.EDU/art/snakemake_art/kraken_reports/wepp_reads/classified_run2_R#'
-        touch {output.done}
+                --output {output.kraken_out}
         """
 
 # 7) Split Kraken output into per‐taxid FASTQs
 rule split_per_taxid:
     input:
         kraken_out = config["kraken_output"],
-        r1         = config["fq1"],
-        r2         = config["fq2"]
+        r1         = FQ1,
+        r2         = FQ2
     output:
         # one pair per taxid
-        expand("/home/jseangmany@AD.UCSD.EDU/wepp/WEPP/data/{taxid}/{taxid}_R1.fq", taxid=config["target_taxids"]),
-        expand("/home/jseangmany@AD.UCSD.EDU/wepp/WEPP/data/{taxid}/{taxid}_R2.fq", taxid=config["target_taxids"]),
-        done = touch("split.done")
+        expand("{data_dir}/{taxid}/{taxid}_R1.fq", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"]),
+        expand("{data_dir}/{taxid}/{taxid}_R2.fq", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"])
+        # done = touch("split.done") (for debugging)
     params:
-        script = "/home/jseangmany@AD.UCSD.EDU/art/snakemake_art/scripts/split_classified_reads.py",
-        outdir = "/home/jseangmany@AD.UCSD.EDU/wepp/WEPP/data",
-       # taxids = ",".join(map(str, config["target_taxids"]))
+        script = "scripts/split_classified_reads.py",
+        outdir = config["wepp_data_dir"]
     shell:
         """
         python {params.script} \
@@ -170,15 +197,29 @@ rule split_per_taxid:
 
 # 8) Invoke WEPP’s Snakefile for each taxid
 
+# Make sure everything is compressed 
+rule compress_fastqs_for_wepp:
+    input:
+        r1 = FQ1,
+        r2 = FQ2
+    output:
+        r1_gz = FQ1_GZ,
+        r2_gz = FQ2_GZ
+    run:
+        import os
+        import shutil
+        for in_f, out_f in zip([input.r1, input.r2], [output.r1_gz, output.r2_gz]):
+            if not os.path.exists(out_f):
+                if in_f.endswith(".gz"):
+                    shutil.copy(in_f, out_f)
+                else:
+                    shell(f"gzip -c {in_f} > {out_f}")
 
-# pipeline config
-WEPP_WD       = os.path.dirname(WEPP_SMK)   # WEPP’s working directory
-WEPP_OUT_TPL  = config["wepp_results_dir"]  # e.g. "/home/.../wepp/SARS2-WBE/results/{taxid}"
-
+# Run WEPP
 rule run_wepp:
     input:
-        r1      = config["wepp_data_dir"]   + "/{taxid}/{taxid}_R1.fq",
-        r2      = config["wepp_data_dir"]   + "/{taxid}/{taxid}_R2.fq"
+        r1 = FQ1_GZ,
+        r2 = FQ2_GZ
     output:
         run_txt = config["wepp_results_dir"] + "/{taxid}/{taxid}_run.txt"
     threads: config.get("wepp_threads", 4)
@@ -194,41 +235,3 @@ rule run_wepp:
                      wepp_data_dir={config[wepp_data_dir]} \
                      wepp_results_dir={config[wepp_results_dir]}
         """
-
-# rule run_wepp:
-#     input:
-#         r1 = config["wepp_data_dir"] + "/{taxid}/{taxid}_R1.fq",
-#         r2 = config["wepp_data_dir"] + "/{taxid}/{taxid}_R2.fq"
-#     output:
-#         run_txt = config["wepp_results_dir"] + "/{taxid}/{taxid}_run.txt"
-#     threads: config.get("wepp_threads", 4)
-
-
-
-# rule run_wepp:
-#     input:
-#         r1 = DATA_DIR + "/{taxid}/{taxid}_R1.fq.gz",
-#         r2 = DATA_DIR + "/{taxid}/{taxid}_R2.fq.gz"
-#     output:
-#         run_txt = WEPP_OUT_TPL + "/{taxid}_run.txt"
-#     params:
-#         wepp_smk = WEPP_SMK,
-#         wepp_cfg = WEPP_CFG,
-#         wepp_wd  = WEPP_WD,
-#         config_path = config["config_path"]  
-#     threads: config.get("wepp_threads", 4)
-#     shell:
-#         r"""
-#         mkdir -p $(dirname {output.run_txt})
-
-#         cd {params.wepp_wd}
-
-#         snakemake \
-#           --snakefile {params.wepp_smk} \
-#           --configfile {params.wepp_cfg} \
-#           --config config_path={params.config_path} \
-#           --cores {threads} \
-#           --use-conda \
-#           {output.run_txt} \
-#           --config fq1={input.r1} fq2={input.r2} taxid={wildcards.taxid}
-#         """
