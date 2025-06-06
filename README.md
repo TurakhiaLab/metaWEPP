@@ -30,6 +30,11 @@ This extension to WEPP currently only supports one installation method through `
 
 ### <a name="dockerhub"></a> Option-1: Install via Conda.
 
+
+**Step 0:**  Build a Kraken database
+https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
+https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
+
 **Step 1:** Clone the extension repository.
 ```bash
 git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
