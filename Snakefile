@@ -2,7 +2,7 @@
 
 # 1) Load main pipeline config
 configfile: "config.yaml"
-include: config["wepp_workflow"]
+#include: config["wepp_workflow"]
 
 # imports
 import os
@@ -68,7 +68,7 @@ rule split_genomes:
     input:
         fasta = config["mixed_genomes_fasta"]
     output:
-        dynamic("individual_genomes/{genome}.fa")
+        expand("individual_genomes/{genome}.fa", genome=GENOMES)
     shell:
         """
         mkdir -p individual_genomes
@@ -195,6 +195,25 @@ rule split_per_taxid:
           --out-dir {params.outdir} 
         """
 
+# 7.5) Prepare wepp input directory
+rule prepare_wepp_inputs:
+    input:
+        r1 = "{data_dir}/{taxid}/{taxid}_R1.fq",
+        r2 = "{data_dir}/{taxid}/{taxid}_R2.fq",
+        fasta = "/home/jseangmany@AD.UCSD.EDU/art/snakemake_art/genomes/NC_045512v2.fa",
+        pb = "/home/jseangmany@AD.UCSD.EDU/art/snakemake_art/genomes/pruned_public-2023-12-25.all.masked.pb.gz"
+    output:
+        done = "{data_dir}/{taxid}/wepp_input_ready.txt"
+    params:
+        data_dir = config["wepp_data_dir"]
+    shell:
+        """
+        mkdir -p {params.data_dir}/{wildcards.taxid}
+        cp {input.fasta} {params.data_dir}/{wildcards.taxid}/NC_045512v2.fa
+        cp {input.pb} {params.data_dir}/{wildcards.taxid}/pruned_public-2023-12-25.all.masked.pb.gz
+        touch {output.done}
+        """
+
 # 8) Invoke WEPP’s Snakefile for each taxid
 
 # Make sure everything is compressed 
@@ -219,19 +238,36 @@ rule compress_fastqs_for_wepp:
 rule run_wepp:
     input:
         r1 = FQ1_GZ,
-        r2 = FQ2_GZ
+        r2 = FQ2_GZ,
+        ready = config["wepp_data_dir"] + "/{taxid}/wepp_input_ready.txt"
     output:
         run_txt = config["wepp_results_dir"] + "/{taxid}/{taxid}_run.txt"
-    threads: config.get("wepp_threads", 4)
+    threads: config.get("wepp_threads", 32)
     shell:
         """
-        snakemake \
-          --snakefile {config[wepp_workflow]} \
-          --directory {config[wepp_root]} \
-          --cores {threads} \
-          results/{wildcards.taxid}/{wildcards.taxid}_run.txt \
-          --configfile {config[wepp_config]} \
-          --config taxid={wildcards.taxid} \
-                     wepp_data_dir={config[wepp_data_dir]} \
-                     wepp_results_dir={config[wepp_results_dir]}
+        python run_inner.py \
+            --snakefile {config[wepp_workflow]} \
+            --workdir {config[wepp_root]} \
+            --dir {config[DIR]} \
+            --prefix {config[FILE_PREFIX]} \
+            --primer_bed {config[PRIMER_BED]} \
+            --tree {config[TREE]} \
+            --ref {config[REF]} \
+            --clade_idx {config[CLADE_IDX]} \
+            --configfile {config[wepp_config]} \
+            --cores {threads}
         """
+    # params:
+    #     dir = lambda wildcards: f"{wildcards.taxid}",
+    #     prefix = lambda wildcards: f"{wildcards.taxid}_test_run"
+    # shell:
+    #     """
+    #     snakemake \
+    #     --snakefile {config[wepp_workflow]} \
+    #     --directory {config[wepp_root]} \
+    #     --config DIR=metagenomic_covid_test FILE_PREFIX=test_run_2 PRIMER_BED=nimagenV2.bed TREE=pruned_public-2023-12-25.all.masked.pb.gz REF=NC_045512v2.fa CLADE_IDX=1 \
+    #     --cores {threads} \
+    #     --use-conda 
+    #     """
+ #--config DIR={config['inner_dir']} FILE_PREFakeIX={config['inner_prefix']} PRIMER_BED=nimagenV2.bed" TREE=pruned_public-2023-12-25.all.masked.pb.gz REF=NC_045512v2.fa CLADE_IDX=1 \
+        
