@@ -65,6 +65,7 @@ Customized kmer with `--kmer-len` and `--minimizer-len` option if needed.
 
 More information in https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
 
+
 **Step 1:** Clone the extension repository.
 ```bash
 git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
