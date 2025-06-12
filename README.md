@@ -32,8 +32,38 @@ This extension to WEPP currently only supports one installation method through `
 
 
 **Step 0:**  Build a Kraken database
-https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
-https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
+1. Install a taxonomy. 
+```
+kraken2-build --download-taxonomy --db $DBNAME
+```
+(Replace "$DBNAME" above with your preferred database name/location. The database will use approximately 100 GB of disk space during creation. )
+
+2.
+(If needed) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
+```
+kraken2-build --download-library bacteria --db $DBNAME
+```
+
+Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
+```
+kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
+kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
+```
+
+Add a list of files to the database's genomic library
+```
+for file in /path/to/chr*.fa
+do
+    kraken2-build --add-to-library $file --db $DBNAME
+done
+```
+3. Build the database 
+```
+kraken2-build --build --db $DBNAME
+```
+Customized kmer with `--kmer-len` and `--minimizer-len` option if needed.
+
+More information in https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
 
 **Step 1:** Clone the extension repository.
 ```bash
