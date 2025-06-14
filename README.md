@@ -32,6 +32,7 @@ This extension to WEPP currently only supports one installation method through `
 
 
 **Step 0:**  Build a Kraken database
+
 **1.** Install a taxonomy. 
 ```
 kraken2-build --download-taxonomy --db $DBNAME
