@@ -89,8 +89,8 @@ conda activate meta-wepp-1
 ##  <a name="example"></a> Quick Start
 The following steps will download real wastewater datasets and analyze them using WEPP.
 
-### <a name="rsv_a_example"></a> Example - 1: SARS Dataset (Runs Quickly)
-**Step 1:** Build a Kraken database & Download the SARS test dataset
+### <a name="rsv_a_example"></a> Example - 1: RSV-A Dataset
+**Step 1:** Build a Kraken database & Download the RSV-A test dataset
 ```bash
 mkdir -p data/RSVA_real
 cd data/RSVA_real
@@ -102,7 +102,7 @@ mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz
 // Go to the home directory or any directory to build kraken Database
 mkdir kraken_DB
 kraken2-build --download-taxonomy --db kraken_DB
-kraken2-build --add-to-library /path/to/data/RSVA_real/GCF_002815475.1_ASM281547v1_genomic.fna --db kraken_DB
+kraken2-build --add-to-library META-WEPP/RSVA_real/GCF_002815475.1_ASM281547v1_genomic.fna --db kraken_DB
 kraken2-build --build --db kraken_DB
 ```
 This will save the datasets on a separate data/RSVA_real folder within the repository.
