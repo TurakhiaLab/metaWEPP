@@ -32,14 +32,13 @@ This extension to WEPP currently only supports one installation method through `
 
 
 **Step 0:**  Build a Kraken database
-1. Install a taxonomy. 
+**1.** Install a taxonomy. 
 ```
 kraken2-build --download-taxonomy --db $DBNAME
 ```
 (Replace "$DBNAME" above with your preferred database name/location. The database will use approximately 100 GB of disk space during creation. )
 
-2.
-(If needed) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
+**2.** (If needed) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
 ```
 kraken2-build --download-library bacteria --db $DBNAME
 ```
@@ -50,14 +49,14 @@ kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
 kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
 ```
 
-Add a list of files to the database's genomic library
+Add a list of genomes to the database's genomic library
 ```
 for file in /path/to/chr*.fa
 do
     kraken2-build --add-to-library $file --db $DBNAME
 done
 ```
-3. Build the database 
+**3.** Build the database 
 ```
 kraken2-build --build --db $DBNAME
 ```
@@ -78,7 +77,7 @@ git clone https://github.com/TurakhiaLab/WEPP.git
 **Step 3:** Install the conda environment package.
 ```bash
 conda env create -f environment.yaml
-conda activate wepp_ext
+conda activate meta-wepp-1
 ```
 ##  <a name="example"></a> Quick Start
 The following steps will download real wastewater datasets and analyze them using WEPP.
@@ -98,6 +97,7 @@ cd ../../
 This will save the datasets on a separate data/RSVA_real folder within the repository.
 
 **Step 2:**  Edit the `config.yaml` file
+
 Put in your kraken database information information:
 ```
 kraken_db: "/path/to/{DBNAME}" # DBNAME Is the name of your database you created earlier
