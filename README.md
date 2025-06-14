@@ -33,38 +33,45 @@ This extension to WEPP currently only supports one installation method through `
 
 **Step 0:**  Build a Kraken database
 
+**Step 0:**  Build a Kraken database
+
 **1.** Install a taxonomy. 
 ```
 kraken2-build --download-taxonomy --db $DBNAME
 ```
 (Replace "$DBNAME" above with your preferred database name/location. The database will use approximately 100 GB of disk space during creation. )
 
-**2.** (If needed) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
-```
-kraken2-build --download-library bacteria --db $DBNAME
-```
-
-Add your own custom genomes to the database's genomic library using the --add-to-library switch, e.g.:
+**2.** Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
 ```
 kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
 kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
 ```
 
-Add a list of genomes to the database's genomic library
+Add a list of files to the database's genomic library
 ```
 for file in /path/to/chr*.fa
 do
     kraken2-build --add-to-library $file --db $DBNAME
 done
 ```
+
+(Optional) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
+```
+kraken2-build --download-library bacteria --db $DBNAME
+```
+
 **3.** Build the database 
 ```
 kraken2-build --build --db $DBNAME
 ```
-You can customize kmer with `--kmer-len` and `--minimizer-len` option if needed.
+Customized kmer with `--kmer-len` and `--minimizer-len` option if needed.
+
+**4.** (Optional) Remove intermediate files after building a custom database which helps to free disk space.
+```
+kraken2-build --clean --db $DBNAME
+```
 
 More information in https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
-
 
 **Step 1:** Clone the extension repository.
 ```bash
@@ -84,16 +91,20 @@ conda activate meta-wepp-1
 The following steps will download real wastewater datasets and analyze them using WEPP.
 
 ### <a name="rsv_a_example"></a> Example - 1: SARS Dataset (Runs Quickly)
-**Step 1:** Download the SARS test dataset
+**Step 1:** Build a Kraken database & Download the SARS test dataset
 ```bash
-// [THIS IS TAKEN FROM THE WEPP REPO, REPLACE WITH COVID FASTA DOWNLOAD INSTRUCTIONS]
 mkdir -p data/RSVA_real
 cd data/RSVA_real
 wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz
 gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz 
 mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz
 mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz
-cd ../../
+
+// Go to the home directory or any directory to build kraken Database
+mkdir kraken_DB
+kraken2-build --download-taxonomy --db kraken_DB
+kraken2-build --add-to-library /path/to/data/RSVA_real/GCF_002815475.1_ASM281547v1_genomic.fna --db kraken_DB
+kraken2-build --build --db kraken_DB
 ```
 This will save the datasets on a separate data/RSVA_real folder within the repository.
 
@@ -119,7 +130,7 @@ TREE: "{*.all.masked.pb.gz}" # The name of your MAT file you just downloaded (sa
 The target taxid you want to analyze:
 ```
 target_taxids:
-  - 2697049 # The taxid (change to the taxid they would use)
+  - 208893 # The taxid (change to the taxid they would use)
 ```
 **Step 3:**  Run the pipeline
 ```bash
