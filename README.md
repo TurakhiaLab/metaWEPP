@@ -147,10 +147,7 @@ From the WEPP repository:
 ### <a name="example"></a> Usage
 The entire pipeline can be ran through the following command:
 ```
-snakemake \
-  --snakefile Snakefile \
-  --cores 32 \
-  --configfile config.yaml
+snakemake --cores 32
 ```
 This will run the full pipeline and run WEPP for each taxid in `target_taxids` in the `config.yaml` file (in the wepp extension directory).
 
