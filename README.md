@@ -1,4 +1,4 @@
-# Wastewater-Based Epidemiology using Phylogenetic Placements: Classification Pipeline
+# META-WEPP: Metagenomic Wastewater-based Epidemiology using Phylogenetic Placement
 
 ## Table of Contents
 - [Introduction](#intro)
@@ -44,7 +44,7 @@ kraken2-build --download-taxonomy --db $DBNAME
 kraken2-build --download-library bacteria --db $DBNAME
 ```
 
-Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
+Add your own custom genomes to the database's genomic library using the --add-to-library switch, e.g.:
 ```
 kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
 kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
@@ -61,7 +61,7 @@ done
 ```
 kraken2-build --build --db $DBNAME
 ```
-Customized kmer with `--kmer-len` and `--minimizer-len` option if needed.
+You can customize kmer with `--kmer-len` and `--minimizer-len` option if needed.
 
 More information in https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
 
