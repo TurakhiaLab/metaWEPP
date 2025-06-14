@@ -1,30 +1,16 @@
 # Snakefile
 
-# 1) Load main pipeline config
+# 1) Load METAWEPP config
 configfile: "config.yaml"
-#include: config["wepp_workflow"]
 
 # imports
 import os
-
-# Standardize to *.fastq.gz
-def to_fastq_gz(path):
-    if path.endswith(".fastq.gz"):
-        return path
-    elif path.endswith(".fq.gz"):
-        return path.replace(".fq.gz", ".fastq.gz")
-    elif path.endswith(".fq"):
-        return path.replace(".fq", ".fastq.gz")
-    elif path.endswith(".fastq"):
-        return path + ".gz"
-    else:
-        raise ValueError(f"Unsupported FASTQ extension: {path}")
 
 # 2) Constants from config
 WEPP_DIR         = config["wepp_results_dir"]
 SIM_TOOL         = config.get("simulation_tool", "none").upper() 
 TAXIDS = config["target_taxids"]
-GENOMES = config["target_genomes"] 
+DATA_DIR = config["wepp_data_dir"]
 
 # Error checking
 if SIM_TOOL not in ("ART", "MESS", "NONE"):
@@ -46,10 +32,6 @@ if SIM_TOOL in ("ART", "MESS"):
 else:
     FQ1 = config["fq1"]
     FQ2 = config["fq2"]
-
-# Define compressed filenames
-FQ1_GZ = to_fastq_gz(FQ1)
-FQ2_GZ = to_fastq_gz(FQ2)
 
 # 3) Top‐level: expect one WEPP/run.txt per taxid under WEPP_DIR
 
@@ -182,7 +164,6 @@ rule split_per_taxid:
         # one pair per taxid
         expand("{data_dir}/{taxid}/{taxid}_R1.fq", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"]),
         expand("{data_dir}/{taxid}/{taxid}_R2.fq", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"])
-        # done = touch("split.done") (for debugging)
     params:
         script = "scripts/split_classified_reads.py",
         outdir = config["wepp_data_dir"]
@@ -196,34 +177,34 @@ rule split_per_taxid:
         """
 
 # 7.5) Prepare wepp input directory
+# Copies necessary fasta file and MAT into WEPP's DIR (the data directory) as it is required for WEPP to run properly.
 rule prepare_wepp_inputs:
     input:
         r1 = "{data_dir}/{taxid}/{taxid}_R1.fq",
         r2 = "{data_dir}/{taxid}/{taxid}_R2.fq",
-        fasta = "/home/jseangmany@AD.UCSD.EDU/art/snakemake_art/genomes/NC_045512v2.fa",
-        pb = "/home/jseangmany@AD.UCSD.EDU/art/snakemake_art/genomes/pruned_public-2023-12-25.all.masked.pb.gz"
+        fasta = config["REF"],
+        pb = config["TREE"]
     output:
-        done = "{data_dir}/{taxid}/wepp_input_ready.txt"
+        fasta_out = "{data_dir}/{taxid}/" + os.path.basename(config["REF"]),
+        pb_out    = "{data_dir}/{taxid}/" + os.path.basename(config["TREE"])
     params:
         data_dir = config["wepp_data_dir"]
     shell:
         """
-        mkdir -p {params.data_dir}/{wildcards.taxid}
-        cp {input.fasta} {params.data_dir}/{wildcards.taxid}/NC_045512v2.fa
-        cp {input.pb} {params.data_dir}/{wildcards.taxid}/pruned_public-2023-12-25.all.masked.pb.gz
-        touch {output.done}
+        cp {input.fasta} {output.fasta_out}
+        cp {input.pb} {output.pb_out}
         """
 
 # 8) Invoke WEPP’s Snakefile for each taxid
 
-# Make sure everything is compressed 
+# Make sure everything is compressed (Compresses fq files, turns them into fastq.gz files, removes fq files because WEPP expects a specific length of fq files)
 rule compress_fastqs_for_wepp:
     input:
-        r1 = FQ1,
-        r2 = FQ2
+        r1 = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fq",
+        r2 = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fq"
     output:
-        r1_gz = FQ1_GZ,
-        r2_gz = FQ2_GZ
+        r1_gz = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fastq.gz",
+        r2_gz = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fastq.gz"
     run:
         import os
         import shutil
@@ -233,23 +214,29 @@ rule compress_fastqs_for_wepp:
                     shutil.copy(in_f, out_f)
                 else:
                     shell(f"gzip -c {in_f} > {out_f}")
+            # After confirming output exists, remove original .fq
+            if os.path.exists(out_f) and os.path.exists(in_f) and not in_f.endswith(".gz"):
+                os.remove(in_f)
 
 # Run WEPP
 rule run_wepp:
     input:
-        r1 = FQ1_GZ,
-        r2 = FQ2_GZ,
-        ready = config["wepp_data_dir"] + "/{taxid}/wepp_input_ready.txt"
+        r1    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fastq.gz",
+        r2    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fastq.gz",
+        ready = f"{DATA_DIR}" + "/{taxid}/wepp_input_ready.txt"
     output:
         run_txt = config["wepp_results_dir"] + "/{taxid}/{taxid}_run.txt"
     threads: config.get("wepp_threads", 32)
+    params:
+        dir    = lambda wildcards: f"{wildcards.taxid}",
+        prefix = lambda wildcards: f"{wildcards.taxid}"
     shell:
         """
-        python run_inner.py \
+        python ./scripts/run_inner.py \
             --snakefile {config[wepp_workflow]} \
             --workdir {config[wepp_root]} \
-            --dir {config[DIR]} \
-            --prefix {config[FILE_PREFIX]} \
+            --dir {params.dir} \
+            --prefix {params.prefix} \
             --primer_bed {config[PRIMER_BED]} \
             --tree {config[TREE]} \
             --ref {config[REF]} \
@@ -257,17 +244,3 @@ rule run_wepp:
             --configfile {config[wepp_config]} \
             --cores {threads}
         """
-    # params:
-    #     dir = lambda wildcards: f"{wildcards.taxid}",
-    #     prefix = lambda wildcards: f"{wildcards.taxid}_test_run"
-    # shell:
-    #     """
-    #     snakemake \
-    #     --snakefile {config[wepp_workflow]} \
-    #     --directory {config[wepp_root]} \
-    #     --config DIR=metagenomic_covid_test FILE_PREFIX=test_run_2 PRIMER_BED=nimagenV2.bed TREE=pruned_public-2023-12-25.all.masked.pb.gz REF=NC_045512v2.fa CLADE_IDX=1 \
-    #     --cores {threads} \
-    #     --use-conda 
-    #     """
- #--config DIR={config['inner_dir']} FILE_PREFakeIX={config['inner_prefix']} PRIMER_BED=nimagenV2.bed" TREE=pruned_public-2023-12-25.all.masked.pb.gz REF=NC_045512v2.fa CLADE_IDX=1 \
-        
