@@ -83,7 +83,7 @@ conda activate wepp_ext
 ##  <a name="example"></a> Quick Start
 The following steps will download real wastewater datasets and analyze them using WEPP.
 
-### <a name="rsv_a_example"></a> Example - 1: RSV-A Dataset (Runs Quickly)
+### <a name="rsv_a_example"></a> Example - 1: SARS Dataset (Runs Quickly)
 **Step 1:** Download the SARS test dataset
 ```bash
 // [THIS IS TAKEN FROM THE WEPP REPO, REPLACE WITH COVID FASTA DOWNLOAD INSTRUCTIONS]
