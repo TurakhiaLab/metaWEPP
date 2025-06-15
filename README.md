@@ -90,6 +90,7 @@ conda activate meta-wepp-1
 
 ### <a name="rsv_a_example"></a> Example - 1: Run the pipeline with MeSS simulated data
 **Step 1:** Build a Kraken database
+```
 // Go to the home directory or any directory to build kraken Database
 mkdir kraken_DB
 kraken2-build --download-taxonomy --db kraken_DB
@@ -109,19 +110,21 @@ kraken_output: "/path/to/{KRAKEN_OUTPUT_NAME}" # You can also name this to anyth
 ...
 simulation_tool: "MESS" # Set to "MeSS" to run the sim→merge→Kraken chain   
 ```
-Input reads, fasta, and MAT:
-```
+
 # Input FASTA and MAT
+```
 REF: "filtered_genomes.fa" # The name of your FASTA file that you just downloaded (same as above, change to what they would download)
 TREE: "{*.all.masked.pb.gz}" # The name of your MAT file you just downloaded (sane as above, change to what they would download)
 ```
+
 The target taxid you want to analyze:
 ```
 target_taxids:
   - 208893 # The taxid (change to the taxid they would use)
 ```
+
 **Step 3:**  Run the pipeline
-```bash
+```
 snakemake --cores 32
 ```
 
