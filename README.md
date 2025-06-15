@@ -86,23 +86,14 @@ conda activate meta-wepp-1
 
 ---
 
-##  <a name="example"></a> Quick Start
-The following steps will download real wastewater datasets and analyze them using WEPP.
+##  <a name="example"></a> Quick Start=
 
-### <a name="rsv_a_example"></a> Example - 1: RSV-A Dataset
-**Step 1:** Build a Kraken database & Download the RSV-A test dataset
-```bash
-mkdir -p data/RSVA_real
-cd data/RSVA_real
-wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz
-gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz 
-mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz
-mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz
-
-# Go to the home directory or any directory to build kraken Database
+### <a name="rsv_a_example"></a> Example - 1: Run the pipeline with MeSS simulated data
+**Step 1:** Build a Kraken database
+// Go to the home directory or any directory to build kraken Database
 mkdir kraken_DB
 kraken2-build --download-taxonomy --db kraken_DB
-kraken2-build --add-to-library META-WEPP/RSVA_real/GCF_002815475.1_ASM281547v1_genomic.fna --db kraken_DB
+kraken2-build --add-to-library /path/to/metagenomic-WBE/filtered_genomes.fa --db kraken_DB
 kraken2-build --build --db kraken_DB
 ```
 This will save the datasets on a separate data/RSVA_real folder within the repository.
@@ -111,25 +102,23 @@ This will save the datasets on a separate data/RSVA_real folder within the repos
 
 Put in your kraken database information information:
 ```
-kraken_db: "kraken_DB" # The name of your database you created earlier
-kraken_threads: 8 # You can change this to make Kraken use more threads
-kraken_report: "results/kraken_report_1" # You can name this anything
-kraken_output: "results/kraken_output_1" # You can also name this to anything you want
+kraken_db: "/path/to/kraken_DB" # DBNAME Is the name of your database you created earlier
+kraken_threads: 8 # You can change this to make it faster
+kraken_report: "/path/to/{KRAKEN_REPORT_NAME}" # You can name this anything
+kraken_output: "/path/to/{KRAKEN_OUTPUT_NAME}" # You can also name this to anything you want
+...
+simulation_tool: "MESS" # Set to "MeSS" to run the sim→merge→Kraken chain   
 ```
 Input reads, fasta, and MAT:
 ```
-# Input reads
-fq1: "data/ERR14763711_R1.fastq.gz" # The path to your R1 read 
-fq2: "data/ERR14763711_R2.fastq.gz" # The path to your R2 read 
-
 # Input FASTA and MAT
-REF: "GCF_002815475.1_ASM281547v1_genomic.fna" # The name of your FASTA file that you just downloaded 
-TREE: "rsvA.2025-04-25.pb.gz" # The name of your MAT file you just downloaded (sane as above, change to what they would download)
+REF: "filtered_genomes.fa" # The name of your FASTA file that you just downloaded (same as above, change to what they would download)
+TREE: "{*.all.masked.pb.gz}" # The name of your MAT file you just downloaded (sane as above, change to what they would download)
 ```
 The target taxid you want to analyze:
 ```
 target_taxids:
-  - 208893 # The taxid (This is RSV A)
+  - 208893 # The taxid (change to the taxid they would use)
 ```
 **Step 3:**  Run the pipeline
 ```bash
