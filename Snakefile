@@ -1,7 +1,7 @@
 # Snakefile
 
 # 1) Load METAWEPP config
-configfile: "config.yaml"
+configfile: "config/config.yaml"
 
 # imports
 import os
@@ -11,6 +11,8 @@ WEPP_DIR         = config["wepp_results_dir"]
 SIM_TOOL         = config.get("simulation_tool", "none").upper() 
 TAXIDS = config["target_taxids"]
 DATA_DIR = config["wepp_data_dir"]
+REF_BASENAME = os.path.basename(config["REF"])
+PB_BASENAME = os.path.basename(config["TREE"])
 
 # Error checking
 if SIM_TOOL not in ("ART", "MESS", "NONE"):
@@ -27,58 +29,55 @@ if SIM_TOOL == "NONE":
 
 # Automatically define where merged reads should go
 if SIM_TOOL in ("ART", "MESS"):
-    FQ1 = "simulated/merged_R1.fq"
-    FQ2 = "simulated/merged_R2.fq"
+    FQ1 = "simulated_reads/fastq/merged_R1.fq.gz"
+    FQ2 = "simulated_reads/fastq/merged_R2.fq.gz"
 else:
     FQ1 = config["fq1"]
     FQ2 = config["fq2"]
 
-# 3) Top‐level: expect one WEPP/run.txt per taxid under WEPP_DIR
+# Helper function for the merge reads rule:
+
+# def existing_merge_genomes():
+#     all_genomes, = glob_wildcards("simulated_reads/fastq/{genome}_R1.fq.gz")
+#     return [g for g in all_genomes if os.path.exists(f"simulated_reads/fastq/{g}_R2.fq.gz")]
+
+#MERGE_GENOMES = existing_merge_genomes()
+
+# 3) Top‐level: these are all wildcards required for the pipeline to run smoothly
+MESS_GENOMES, = glob_wildcards("individual_genomes_tsvs/{genome}.tsv")
+SPLIT_GENOME_GENOMES, = glob_wildcards("individual_genomes/{genome}.fa")
 
 rule all:
     input:
         expand(
             "{wepp_dir}/{dataset}/{dataset}_run.txt",
             wepp_dir = WEPP_DIR,
-            dataset  = TAXIDS
+            dataset  = TAXIDS,
+        ),
+        expand("individual_genomes_tsvs/{genome}.tsv", genome=MESS_GENOMES),
+        expand("simulated_reads/fastq/{genome}_R1.fq.gz", genome=MESS_GENOMES),
+        expand("simulated_reads/fastq/{genome}_R2.fq.gz", genome=MESS_GENOMES),
+        expand(
+            f"{DATA_DIR}/{{taxid}}/{REF_BASENAME}",
+            taxid=TAXIDS
+        ),
+        expand(
+            f"{DATA_DIR}/{{taxid}}/{PB_BASENAME}",
+            taxid=TAXIDS
         )
 
-# 4) Optional ART simulation
+# 4) Split genomes to individual fasta files to input to MeSS (their multi genome doesn't work for some reason)
 
-# Rule to split genomes for ART:
 rule split_genomes:
     input:
         fasta = config["mixed_genomes_fasta"]
     output:
-        expand("individual_genomes/{genome}.fa", genome=GENOMES)
+        directory("individual_genomes")
     shell:
         """
-        mkdir -p individual_genomes
-        awk '/^>/{gsub(/^>/,""); fname="individual_genomes/"$1".fa"; print > fname; next} {print >> fname}' {input.fasta}
+        mkdir -p {output}
+        awk '/^>/{{gsub(/^>/,""); fname="{output}/"$1".fa"; print > fname; next}} {{print >> fname}}' {input.fasta}
         """
-
-if SIM_TOOL == "ART":
-    rule simulate_reads_art:
-        input:
-            genomes = rules.split_genomes.output
-        output:
-            expand("art/{genome}1.fq", genome=GENOMES),
-            expand("art/{genome}2.fq", genome=GENOMES)
-        shell:
-            """
-            mkdir -p art
-            for fasta in {input.genomes}; do
-                genome=$(basename "$fasta" .fa)
-                art_illumina --paired --rndSeed 0 --noALN --maskN 0 --seqSys MSv3 \
-                            --len 150 --rcount 800000 -m 200 -s 10 \
-                            --in "$fasta" --out art/"$genome"
-            done
-            """
-
-    merge_input = {
-        "R1s": expand("art/{genome}1.fq", genome=GENOMES),
-        "R2s": expand("art/{genome}2.fq", genome=GENOMES)
-    }
 
 # 5) Optional MeSS simulation
 
@@ -87,52 +86,83 @@ rule generate_mess_tsv:
     input:
         fasta = "individual_genomes/{genome}.fa"
     output:
-        tsv = "individual_genomes/{genome}.tsv"
+        tsv = "individual_genomes_tsvs/{genome}.tsv"
     params:
         script = "scripts/generate_mess_tsv.py",
         coverage = config["coverage"]
     shell:
         """
-        python {params.script} {output.tsv} {input.fasta} {params.coverage} {wildcards.genome}
+        python {params.script} {output.tsv} {input.fasta} {params.coverage}
         """
 
 if SIM_TOOL == "MESS":
+            
     rule simulate_reads_mess:
         input:
-            expand("individual_genomes/{genome}.tsv", genome=GENOMES)
+            tsv = "individual_genomes_tsvs/{genome}.tsv"
         output:
-            expand("simulated_reads/{genome}_R1.fq", genome=GENOMES),
-            expand("simulated_reads/{genome}_R2.fq", genome=GENOMES)
+            r1 = "simulated_reads/fastq/{genome}_R1.fq.gz",
+            r2 = "simulated_reads/fastq/{genome}_R2.fq.gz",
+            done = "simulated_reads/fastq/{genome}.done"
+        params:
+            genome_base = lambda wildcards: wildcards.genome.split(".")[0]
+        resources:
+            mess_slots=1
         shell:
             """
-            mkdir -p simulated_reads
-            for tsv in individual_genomes/*.tsv; do
-                mess simulate --input "$tsv" \
-                            --tech illumina \
-                            --output simulated_reads/ \
-                            --fasta individual_genomes/
-            done
+            mess simulate \
+                --input {input.tsv} \
+                --tech illumina \
+                --output simulated_reads/ \
+                --fasta ./individual_genomes
+
+            mv simulated_reads/fastq/{params.genome_base}_R1.fq.gz {output.r1}
+            mv simulated_reads/fastq/{params.genome_base}_R2.fq.gz {output.r2}
+            touch {output}.done
             """
 
-    merge_input = {
-        "R1s": expand("simulated_reads/{genome}_R1.fq", genome=GENOMES),
-        "R2s": expand("simulated_reads/{genome}_R2.fq", genome=GENOMES)
-    }
-
-# Merge reads
-if SIM_TOOL in ("ART", "MESS"):
+# Unfortunately, we have to produce the .done file there because for some reason, the merge reads rule always runs first otherwise.
+# I've tried many different approaches to try fixing it, but none have worked. So for now, we will stick with this.
+# This rule always runs first, I'm not sure how to fix it.
     rule merge_reads:
         input:
-            **merge_input
+            done = [f"simulated_reads/fastq/{genome}.done" for genome in MESS_GENOMES]
         output:
             R1 = FQ1,
             R2 = FQ2
         shell:
             """
-            mkdir -p $(dirname {output.R1})
-            cat {input.R1s} > {output.R1}
-            cat {input.R2s} > {output.R2}
+            zcat simulated_reads/fastq/*_R1.fq.gz | gzip > {output.R1}
+            zcat simulated_reads/fastq/*_R2.fq.gz | gzip > {output.R2}
             """
+
+
+# Make sure everything is compressed (Compresses fq files, turns them into fastq.gz files, removes fq files because WEPP expects a specific length of fq files)
+if SIM_TOOL != "MESS":
+    def resolve_fastq(wildcards, read):
+        fq = f"{wildcards.taxid}_{read}.fq"
+        fq_gz = f"{wildcards.taxid}_{read}.fq.gz"
+        return fq_gz if os.path.exists(fq_gz) else fq
+
+    rule compress_fastqs_for_wepp:
+        input:
+            r1=lambda wc: resolve_fastq(wc, "R1"),
+            r2=lambda wc: resolve_fastq(wc, "R2")
+        output:
+            r1_gz=FQ1,
+            r2_gz=FQ2
+        run:
+            import os
+            import shutil
+
+            for in_f, out_f in zip([input.r1, input.r2], [output.r1_gz, output.r2_gz]):
+                if os.path.abspath(in_f) == os.path.abspath(out_f):
+                    continue  # Already correct format
+                elif in_f.endswith(".gz"):
+                    shutil.copy(in_f, out_f)
+                else:
+                    shell(f"gzip -c {in_f} > {out_f}")
+                    os.remove(in_f)
 
 # 6) Kraken2 classification 
 rule kraken:
@@ -162,8 +192,8 @@ rule split_per_taxid:
         r2         = FQ2
     output:
         # one pair per taxid
-        expand("{data_dir}/{taxid}/{taxid}_R1.fq", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"]),
-        expand("{data_dir}/{taxid}/{taxid}_R2.fq", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"])
+        expand("{data_dir}/{taxid}/{taxid}_R1.fq.gz", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"]),
+        expand("{data_dir}/{taxid}/{taxid}_R2.fq.gz", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"])
     params:
         script = "scripts/split_classified_reads.py",
         outdir = config["wepp_data_dir"]
@@ -177,16 +207,17 @@ rule split_per_taxid:
         """
 
 # 7.5) Prepare wepp input directory
-# Copies necessary fasta file and MAT into WEPP's DIR (the data directory) as it is required for WEPP to run properly.
+# Copies necessary fasta file and MAT into WEPP's DIR (the data directory) as it is required for WEPP to run properly
+
 rule prepare_wepp_inputs:
     input:
-        r1 = "{data_dir}/{taxid}/{taxid}_R1.fq",
-        r2 = "{data_dir}/{taxid}/{taxid}_R2.fq",
+        r1 = "{data_dir}/{taxid}/{taxid}_R1.fq.gz",
+        r2 = "{data_dir}/{taxid}/{taxid}_R2.fq.gz",
         fasta = config["REF"],
         pb = config["TREE"]
     output:
-        fasta_out = "{data_dir}/{taxid}/" + os.path.basename(config["REF"]),
-        pb_out    = "{data_dir}/{taxid}/" + os.path.basename(config["TREE"])
+        fasta_out = "{data_dir}/{taxid}/" + REF_BASENAME,
+        pb_out    = "{data_dir}/{taxid}/" + PB_BASENAME
     params:
         data_dir = config["wepp_data_dir"]
     shell:
@@ -197,33 +228,11 @@ rule prepare_wepp_inputs:
 
 # 8) Invoke WEPP’s Snakefile for each taxid
 
-# Make sure everything is compressed (Compresses fq files, turns them into fastq.gz files, removes fq files because WEPP expects a specific length of fq files)
-rule compress_fastqs_for_wepp:
-    input:
-        r1 = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fq",
-        r2 = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fq"
-    output:
-        r1_gz = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fastq.gz",
-        r2_gz = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fastq.gz"
-    run:
-        import os
-        import shutil
-        for in_f, out_f in zip([input.r1, input.r2], [output.r1_gz, output.r2_gz]):
-            if not os.path.exists(out_f):
-                if in_f.endswith(".gz"):
-                    shutil.copy(in_f, out_f)
-                else:
-                    shell(f"gzip -c {in_f} > {out_f}")
-            # After confirming output exists, remove original .fq
-            if os.path.exists(out_f) and os.path.exists(in_f) and not in_f.endswith(".gz"):
-                os.remove(in_f)
-
 # Run WEPP
 rule run_wepp:
     input:
-        r1    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fastq.gz",
-        r2    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fastq.gz",
-        ready = f"{DATA_DIR}" + "/{taxid}/wepp_input_ready.txt"
+        r1    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fq.gz",
+        r2    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fq.gz"
     output:
         run_txt = config["wepp_results_dir"] + "/{taxid}/{taxid}_run.txt"
     threads: config.get("wepp_threads", 32)
