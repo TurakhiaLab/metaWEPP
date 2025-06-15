@@ -111,7 +111,7 @@ kraken_output: "/path/to/{KRAKEN_OUTPUT_NAME}" # You can also name this to anyth
 simulation_tool: "MESS" # Set to "MeSS" to run the sim→merge→Kraken chain   
 ```
 
-# Input FASTA and MAT
+Input FASTA and MAT
 ```
 REF: "filtered_genomes.fa" # The name of your FASTA file that you just downloaded (same as above, change to what they would download)
 TREE: "{*.all.masked.pb.gz}" # The name of your MAT file you just downloaded (sane as above, change to what they would download)
