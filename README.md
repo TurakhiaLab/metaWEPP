@@ -13,7 +13,7 @@
 
 
 <div align="center">
-    <img src="images/metawepp-figure.png" width="600">
+    <img src="docs/images/metawepp-figure.png" width="600">
     <div><b>Figure 1: Overview of WEPP</b></div>
 </div>
 [Kraken2](https://github.com/DerrickWood/kraken2)
