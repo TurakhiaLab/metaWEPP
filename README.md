@@ -101,7 +101,9 @@ The `config.yaml` file has the following arguments:
 
 
 If you would like more information on building a Kraken database, see below:
+
 **Step 0:**  Build a Kraken database
+
 **1.** Install a taxonomy. 
 ```
 kraken2-build --download-taxonomy --db $DBNAME
