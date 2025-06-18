@@ -43,7 +43,7 @@ cd kraken2
 ./install_kraken2.sh $KRAKEN2_DIR
 cp $KRAKEN2_DIR/kraken2{,-build,-inspect} $HOME/bin
 ```
-Replace $KRAKEN2_DIR with the directory in which you would like to install Kraken2's scripts.
+Replace `$KRAKEN2_DIR` with the directory in which you would like to install Kraken2's scripts.
 
 **Step 4:** Install MeSS.
 ```
