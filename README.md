@@ -35,6 +35,8 @@ bash Miniforge3.sh -b -p "${HOME}/conda"
 
 source "${HOME}/conda/etc/profile.d/conda.sh"
 source "${HOME}/conda/etc/profile.d/mamba.sh"
+
+conda config --add channels conda-forge
 ```
 **Step 3:** Install Kraken.
 ```
@@ -47,7 +49,7 @@ Replace `$KRAKEN2_DIR` with the directory in which you would like to install Kra
 
 **Step 4:** Install MeSS.
 ```
-conda create -n mess mess
+conda create -n mess mess=0.10.0
 ```
 **Step 5:** Install WEPP.
 
