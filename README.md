@@ -91,13 +91,13 @@ This will run the full pipeline and run WEPP for each taxid in `target_taxids` i
 The `config.yaml` file has the following arguments:
 
 
-1. kraken_db - Name of the Kraken database.
-2. kraken_report - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
-3. kraken_output - Name of the Kraken output. (This which reads were mapped to the corresponding genome)
-4. simulation_tool - Input "MeSS" to simulate reads with MeSS, or input "None" to provide your own reads.
-5. REF - The reference mixed genome in fasta.
-6. TREE - Mutation-Annotated Tree
-7. target_taxids - The taxids to be analyzed.
+1. `kraken_db` - Name of the Kraken database.
+2. `kraken_report` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
+3. `kraken_output` - Name of the Kraken output. (This which reads were mapped to the corresponding genome)
+4. `simulation_tool` - Input "MeSS" to simulate reads with MeSS, or input "None" to provide your own reads.
+5. `REF` - The reference mixed genome in fasta.
+6. `TREE` - Mutation-Annotated Tree
+7. `target_taxids` - The taxids to be analyzed.
 
 
 If you would like more information on building a Kraken database, see below:
