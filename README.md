@@ -77,7 +77,7 @@ snakemake --cores 32
 
 **Step 4:**  Analyze Results
 
-All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2.
+All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
 ---
 ## Usage Guide:
@@ -87,6 +87,8 @@ The entire pipeline can be ran through the following command:
 snakemake --cores 32
 ```
 This will run the full pipeline and run WEPP for each taxid in `target_taxids` in the `config.yaml` file.
+
+This pipeline uses a MAT and a reference mixed genome in fasta. In the quick start, the `filtered_genomes.fa` is the reference fasta file, and it must be a mixed genome sample.
 
 The `config.yaml` file has the following arguments:
 
