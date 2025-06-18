@@ -55,7 +55,7 @@ Follow the WEPP installation guide starting from option 3 step 2 on the [WEPP re
 
 ---
 
-##  <a name="example"></a> Quick Start=
+##  <a name="example"></a> Quick Start
 
 ### <a name="MeSS"></a> Example - 1: Run the pipeline with MeSS simulated data
 **Step 1:** Download the MAT:
