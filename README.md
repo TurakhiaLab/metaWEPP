@@ -99,7 +99,8 @@ The `config.yaml` file has the following arguments:
 6. `TREE` - Mutation-Annotated Tree
 7. `target_taxids` - The taxids to be analyzed.
 
-
+---
+## Building Kraken Databases
 If you would like more information on building a Kraken database, see below:
 
 **Step 0:**  Build a Kraken database
