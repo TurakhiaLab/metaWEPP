@@ -11,22 +11,19 @@
 
 ## <a name="intro"></a> Introduction
 
-From [WEPP Main Repo](https://github.com/TurakhiaLab/WEPP):
-> WEPP (**W**astewater-Based **E**pidemiology using **P**hylogenetic **P**lacements) is a phylogeny-based pipeline that estimates haplotype proportions from wastewater sequencing reads using a mutation-annotated tree (MAT) (Figure 1A). By improving the resolution of pathogen variant detection, WEPP enables critical epidemiological applications previously feasible only through clinical sequencing. It also flags potential novel variants via unaccounted mutations, which can be examined at the read level using the interactive dashboard (Figure 1C).
->
-> WEPP’s algorithm begins with parsimonious placement of all reads onto the MAT, followed by identifying candidate haplotype nodes, or “Peaks” (Figure 1B). This set is expanded with neighboring haplotypes of selected Peaks to form a candidate pool, which is passed to a deconvolution algorithm to estimate haplotype abundances. This pool is iteratively refined by retaining haplotypes above a threshold and adding their neighbors until convergence.
-
 
 <div align="center">
     <img src="images/WEPP_Overview.png" width="600">
     <div><b>Figure 1: Overview of WEPP</b></div>
 </div>
+[Kraken2](https://github.com/DerrickWood/kraken2)
+[MeSS](https://github.com/metagenlab/MeSS)
+[WEPP](https://github.com/TurakhiaLab/WEPP)
 
-This repo serves as an extension to WEPP by utilizing [Kraken2](https://github.com/DerrickWood/kraken2) to classify genomes that could then be inputted into WEPP. The primary addition is a snakemake workflow that takes in mixed unclassified reads, inputs them into Kraken2, separates the classified reads into its respected pathogens, then inputting the desired reads into WEPP. Some additional features include read simulation through [art_illumina](https://manpages.debian.org/testing/art-nextgen-simulation-tools/art_illumina.1.en.html) and [MeSS](https://github.com/metagenlab/MeSS).
+META-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid classification and haplotype-level analysis of mixed-pathogen metagenomic samples. Developed for flexible, high-throughput use in public health surveillance, META-WEPP integrates [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification and routes identified pathogen reads into [WEPP](https://github.com/TurakhiaLab/WEPP) for phylogenetic placement and haplotype inference. The pipeline automates the end-to-end workflow—from raw mixed reads to lineage-level analysis—with optional support for simulated read generation using [MeSS](https://github.com/metagenlab/MeSS). 
 
 
 ## <a name="install"></a> Installation
-This extension to WEPP currently only supports one installation method through `conda install`.
 
 ### <a name="dockerhub"></a> Option-1: Install via Conda.
 
