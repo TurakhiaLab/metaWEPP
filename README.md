@@ -3,7 +3,7 @@
 ## Table of Contents
 - [Introduction](#intro)
 - [Installation](#install)
-  - [Option-1: Install via Conda](#dockerhub)
+  - [Option-1: Install via Conda](#conda)
 - [Quick Start](#example)
 
 <br>
@@ -14,72 +14,44 @@
 
 <div align="center">
     <img src="docs/images/metawepp-figure.png" width="600">
-    <div><b>Figure 1: Overview of WEPP</b></div>
+    <div><b>Figure 1: META-WEPP Pipeline Visual</b></div>
 </div>
-[Kraken2](https://github.com/DerrickWood/kraken2)
-[MeSS](https://github.com/metagenlab/MeSS)
-[WEPP](https://github.com/TurakhiaLab/WEPP)
 
 META-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid classification and haplotype-level analysis of mixed-pathogen metagenomic samples. Developed for flexible, high-throughput use in public health surveillance, META-WEPP integrates [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification and routes identified pathogen reads into [WEPP](https://github.com/TurakhiaLab/WEPP) for phylogenetic placement and haplotype inference. The pipeline automates the end-to-end workflow—from raw mixed reads to lineage-level analysis—with optional support for simulated read generation using [MeSS](https://github.com/metagenlab/MeSS). 
 
 
 ## <a name="install"></a> Installation
 
-### <a name="dockerhub"></a> Option-1: Install via Conda.
+### <a name="conda"></a> Option-1: Install via Shell Commands.
 
+**Step 1:** Clone the repository.
+```
+git clone --recurse-submodules https://github.com/TurakhiaLab/metagenomic-WBE.git
+cd metagenomic-WBE
+```
+**Step 2:** Install Conda (if your system does not have it already).
+```
+wget -O Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/Miniforge3-24.11.3-2-Linux-x86_64.sh"
+bash Miniforge3.sh -b -p "${HOME}/conda"
 
-**Step 0:**  Build a Kraken database
-**1.** Install a taxonomy. 
+source "${HOME}/conda/etc/profile.d/conda.sh"
+source "${HOME}/conda/etc/profile.d/mamba.sh"
 ```
-kraken2-build --download-taxonomy --db $DBNAME
+**Step 3:** Install Kraken.
 ```
-(Replace "$DBNAME" above with your preferred database name/location. The database will use approximately 100 GB of disk space during creation. )
+git clone https://github.com/DerrickWood/kraken2.git
+cd kraken2
+./install_kraken2.sh $KRAKEN2_DIR
+cp $KRAKEN2_DIR/kraken2{,-build,-inspect} $HOME/bin
+```
+Replace $KRAKEN2_DIR with the directory in which you would like to install Kraken2's scripts.
 
-**2.** Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
+**Step 4:** Install MeSS.
 ```
-kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
-kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
+conda create -n mess mess
 ```
-
-Add a list of files to the database's genomic library
-```
-for file in /path/to/chr*.fa
-do
-    kraken2-build --add-to-library $file --db $DBNAME
-done
-```
-
-(Optional) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
-```
-kraken2-build --download-library bacteria --db $DBNAME
-```
-
-**3.** Build the database 
-```
-kraken2-build --build --db $DBNAME
-```
-Customized kmer with `--kmer-len` and `--minimizer-len` option if needed.
-
-**4.** (Optional) Remove intermediate files after building a custom database which helps to free disk space.
-```
-kraken2-build --clean --db $DBNAME
-```
-More information in https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
-
-**Step 1:** Clone the extension repository.
-```bash
-git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
-```
-**Step 2:** Clone the WEPP repository in the extension repository.
-```bash
-cd metagenomic-WBE \
-git clone https://github.com/TurakhiaLab/WEPP.git
-```
-**Step 3:** Install the conda environment package.
-```bash
-conda env create -f environment.yaml
-conda activate meta-wepp-1
-```
+**Step 5:** Install WEPP.
+Follow the WEPP installation guide starting from option 3 step 2 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
 
 ---
 
@@ -155,3 +127,57 @@ snakemake --cores 32
 ```
 This will run the full pipeline and run WEPP for each taxid in `target_taxids` in the `config.yaml` file (in the wepp extension directory).
 
+## Usage Guide:
+
+**Step 0:**  Build a Kraken database
+**1.** Install a taxonomy. 
+```
+kraken2-build --download-taxonomy --db $DBNAME
+```
+(Replace "$DBNAME" above with your preferred database name/location. The database will use approximately 100 GB of disk space during creation. )
+
+**2.** Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
+```
+kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
+kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
+```
+
+Add a list of files to the database's genomic library
+```
+for file in /path/to/chr*.fa
+do
+    kraken2-build --add-to-library $file --db $DBNAME
+done
+```
+
+(Optional) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
+```
+kraken2-build --download-library bacteria --db $DBNAME
+```
+
+**3.** Build the database 
+```
+kraken2-build --build --db $DBNAME
+```
+Customized kmer with `--kmer-len` and `--minimizer-len` option if needed.
+
+**4.** (Optional) Remove intermediate files after building a custom database which helps to free disk space.
+```
+kraken2-build --clean --db $DBNAME
+```
+More information in https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
+
+**Step 1:** Clone the extension repository.
+```bash
+git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
+```
+**Step 2:** Clone the WEPP repository in the extension repository.
+```bash
+cd metagenomic-WBE \
+git clone https://github.com/TurakhiaLab/WEPP.git
+```
+**Step 3:** Install the conda environment package.
+```bash
+conda env create -f environment.yaml
+conda activate meta-wepp-1
+```
