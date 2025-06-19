@@ -25,7 +25,7 @@ META-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid 
 
 **Step 1:** Clone the repository.
 ```
-git clone --recurse-submodules https://github.com/TurakhiaLab/metagenomic-WBE.git
+git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
 cd metagenomic-WBE
 ```
 **Step 2:** Install Conda (if your system does not have it already).
@@ -60,6 +60,8 @@ Follow the WEPP installation guide starting from option 3 step 2 on the [WEPP re
 ##  <a name="example"></a> Quick Start
 
 ### <a name="MeSS"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
+
+This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator.
 **Step 1:** Download the SARS-CoV-2 MAT:
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
@@ -122,12 +124,14 @@ kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
 kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
 ```
 
-Add a list of files to the database's genomic library
+Add a list of files to the database's genomic library (all the .fa files in your current working directory)
 ```
-for file in /path/to/chr*.fa
-do
-    kraken2-build --add-to-library $file --db $DBNAME
-done
+kraken2-build --add-to-library --files *.fa --db $DBNAME
+```
+You can also add a multi fasta file in the genomic library.
+For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`
+```
+kraken2-build --add-to-library /path/to/multi_fasta.fa --db $DBNAME
 ```
 
 (Optional) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
