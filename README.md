@@ -76,7 +76,7 @@ cp WEPP/NC_045512v2.fa ./genomes
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
-echo k2 add-to-library --db test_kraken_DB --file genomes/*.fa 
+k2 add-to-library --db test_kraken_DB --file genomes/*.fa 
 kraken2-build --build --db test_kraken_DB
 ```
 Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
