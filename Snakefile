@@ -48,11 +48,11 @@ GENOME_NAME, = glob_wildcards("individual_genomes/{genome}.fa")
 
 rule all:
     input:
-        # expand(
-        #     "{wepp_dir}/{dataset}/{dataset}_run.txt",
-        #     wepp_dir = WEPP_DIR,
-        #     dataset  = TAXIDS,
-        # ),
+        expand(
+            "{wepp_dir}/{dataset}/{dataset}_run.txt",
+            wepp_dir = WEPP_DIR,
+            dataset  = TAXIDS,
+        ),
         FQ1,
         FQ2
 
@@ -211,13 +211,19 @@ rule prepare_wepp_inputs:
         pb = config["TREE"]
     output:
         fasta_out = "{data_dir}/{taxid}/" + REF_BASENAME,
-        pb_out    = "{data_dir}/{taxid}/" + PB_BASENAME
+        pb_out    = "{data_dir}/{taxid}/" + PB_BASENAME,
+        new_r1 = "{data_dir}/{taxid}/{taxid}_R1.fastq.gz",
+        new_r2 = "{data_dir}/{taxid}/{taxid}_R2.fastq.gz", 
     params:
         data_dir = config["wepp_data_dir"]
     shell:
         """
         cp {input.fasta} {output.fasta_out}
         cp {input.pb} {output.pb_out}
+        mv {input.r1} {output.new_r1}
+        mv {input.r2} {output.new_r2}
+        rm {input.r1}
+        rm {input.r2}
         """
 
 # 8) Invoke WEPP’s Snakefile for each taxid
@@ -225,8 +231,8 @@ rule prepare_wepp_inputs:
 # Run WEPP
 rule run_wepp:
     input:
-        r1    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fq.gz",
-        r2    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fq.gz"
+        r1    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fastq.gz",
+        r2    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fastq.gz"
     output:
         run_txt = config["wepp_results_dir"] + "/{taxid}/{taxid}_run.txt"
     threads: config.get("wepp_threads", 32)
