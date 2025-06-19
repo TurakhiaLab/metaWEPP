@@ -6,7 +6,7 @@
   - [Option-1: Install via Shell Commands](#shell)
 - [Quick Start](#example)
 - [Usage Guide](#usage)
-- [Building Kraken Databases](build-database)
+- [Building Kraken Databases](#build-database)
 
 <br>
 
