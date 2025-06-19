@@ -207,7 +207,7 @@ rule prepare_wepp_inputs:
     input:
         r1 = "{data_dir}/{taxid}/{taxid}_R1.fq.gz",
         r2 = "{data_dir}/{taxid}/{taxid}_R2.fq.gz",
-        fasta = config["REF"],
+        fasta = os.path.join("genomes", config["REF"]),
         pb = config["TREE"]
     output:
         fasta_out = "{data_dir}/{taxid}/" + REF_BASENAME,
@@ -222,8 +222,6 @@ rule prepare_wepp_inputs:
         cp {input.pb} {output.pb_out}
         mv {input.r1} {output.new_r1}
         mv {input.r2} {output.new_r2}
-        rm {input.r1}
-        rm {input.r2}
         """
 
 # 8) Invoke WEPP’s Snakefile for each taxid
