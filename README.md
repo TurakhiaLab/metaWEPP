@@ -65,6 +65,7 @@ Follow the WEPP installation guide starting from option 3 step 2 on the [WEPP re
 ### <a name="MeSS"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
 
 This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator.
+
 **Step 1:** Download the SARS-CoV-2 MAT:
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
