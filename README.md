@@ -66,22 +66,23 @@ Follow the WEPP installation guide starting from option 3 step 2 on the [WEPP re
 
 This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator.
 
-**Step 1:** Download the SARS-CoV-2 MAT:
+**Step 1:** Download the SARS-CoV-2 MAT and Reference FASTA File:
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
+cp WEPP/NC_045512v2.fa ./genomes
 ```
 
 **Step 2:** Build the Kraken database
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
-kraken2-build --add-to-library filtered_genomes.fa --db test_kraken_DB
+kraken2-build --add-to-library --files *.fa --db test_kraken_DB
 kraken2-build --build --db test_kraken_DB
 ```
-
+Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
 **Step 3:**  Run the pipeline
 ```
-snakemake --cores 32
+snakemake --resources mess_slots=1 --cores 32
 ```
 
 **Step 4:**  Analyze Results
@@ -93,7 +94,7 @@ All results can be found in the `WEPP/results/2697049` directory. This taxid is 
 
 The entire pipeline can be ran through the following command:
 ```
-snakemake --cores 32
+snakemake --resources mess_slots=1 --cores 32
 ```
 This will run the full pipeline and run WEPP for each taxid in `target_taxids` in the `config.yaml` file.
 
