@@ -76,7 +76,7 @@ cp WEPP/NC_045512v2.fa ./genomes
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
-kraken2-build --add-to-library --files genomes/*.fa --db test_kraken_DB
+echo k2 add-to-library --db test_kraken_DB --file genomes/*.fa 
 kraken2-build --build --db test_kraken_DB
 ```
 Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
@@ -131,7 +131,7 @@ kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
 
 Add a list of files to the database's genomic library (all the .fa files in your current working directory)
 ```
-kraken2-build --add-to-library --files *.fa --db $DBNAME
+k2 add-to-library --db test_kraken_DB --file *.fa
 ```
 You can also add a multi fasta file in the genomic library.
 For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`
