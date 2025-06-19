@@ -39,6 +39,7 @@ source "${HOME}/conda/etc/profile.d/conda.sh"
 source "${HOME}/conda/etc/profile.d/mamba.sh"
 
 conda config --add channels conda-forge
+conda config --add channels bioconda
 ```
 **Step 3:** Install Kraken.
 ```
