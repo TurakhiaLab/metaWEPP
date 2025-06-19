@@ -135,7 +135,7 @@ k2 add-to-library --db test_kraken_DB --file *.fa
 ```
 You can also add a multi fasta file in the genomic library.
 
-⚠️ **For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`**
+⚠️ For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`
 ```
 kraken2-build --add-to-library /path/to/multi_fasta.fa --db $DBNAME
 ```
