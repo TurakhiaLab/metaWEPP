@@ -146,11 +146,12 @@ kraken2-build --add-to-library /path/to/multi_fasta.fa --db $DBNAME
 kraken2-build --download-library bacteria --db $DBNAME
 ```
 Installing the reference libraries can help if you do not have custom genomes you would like to input into the Kraken database.
+
 **Step 3:** Build the database 
 ```
 kraken2-build --build --db $DBNAME
 ```
-Customized kmer with `--kmer-len` and `--minimizer-len` option if needed.
+Customize kmer with `--kmer-len` and `--minimizer-len` option if needed.
 
 **Step 4:** (Optional) Remove intermediate files after building a custom database which helps to free disk space.
 ```
