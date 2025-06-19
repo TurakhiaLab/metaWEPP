@@ -59,11 +59,12 @@ Follow the WEPP installation guide starting from option 3 step 2 on the [WEPP re
 
 ##  <a name="example"></a> Quick Start
 
-### <a name="MeSS"></a> Example - 1: Run the pipeline with MeSS simulated data
-**Step 1:** Download the MAT:
+### <a name="MeSS"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
+**Step 1:** Download the SARS-CoV-2 MAT:
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
 ```
+
 **Step 2:** Build the Kraken database
 ```
 mkdir test_kraken_DB
@@ -107,15 +108,15 @@ The `config.yaml` file has the following arguments:
 ## Building Kraken Databases
 If you would like more information on building a Kraken database, see below:
 
-**Step 0:**  Build a Kraken database
+### How to build a custom Kraken Database:
 
-**1.** Install a taxonomy. 
+**Step 1:** Install a taxonomy. 
 ```
 kraken2-build --download-taxonomy --db $DBNAME
 ```
 (Replace "$DBNAME" above with your preferred database name/location. The database will use approximately 100 GB of disk space during creation. )
 
-**2.** Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
+**Step 2:** Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
 ```
 kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
 kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
@@ -133,14 +134,14 @@ done
 ```
 kraken2-build --download-library bacteria --db $DBNAME
 ```
-
-**3.** Build the database 
+Installing the reference libraries can help if you do not have custom genomes you would like to input into the Kraken database.
+**Step 3:** Build the database 
 ```
 kraken2-build --build --db $DBNAME
 ```
 Customized kmer with `--kmer-len` and `--minimizer-len` option if needed.
 
-**4.** (Optional) Remove intermediate files after building a custom database which helps to free disk space.
+**Step 4:** (Optional) Remove intermediate files after building a custom database which helps to free disk space.
 ```
 kraken2-build --clean --db $DBNAME
 ```
