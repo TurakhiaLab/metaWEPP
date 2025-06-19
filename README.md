@@ -1,4 +1,4 @@
-# META-WEPP: Metagenomic Wastewater-based Epidemiology using Phylogenetic Placement
+# META-WEPP: Metagenomic Wastewater-Based Epidemiology using Phylogenetic Placements
 
 ## Table of Contents
 - [Introduction](#intro)
