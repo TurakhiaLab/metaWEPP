@@ -5,6 +5,8 @@
 - [Installation](#install)
   - [Option-1: Install via Shell Commands](#shell)
 - [Quick Start](#example)
+- [Usage Guide](#usage)
+- [Building Kraken Databases](build-database)
 
 <br>
 
@@ -85,7 +87,7 @@ snakemake --cores 32
 All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
 ---
-## Usage Guide:
+## <a name="usage"></a> Usage Guide:
 
 The entire pipeline can be ran through the following command:
 ```
@@ -107,7 +109,7 @@ The `config.yaml` file has the following arguments:
 7. `target_taxids` - The taxids to be analyzed.
 
 ---
-## Building Kraken Databases
+##  <a name="build-database"></a> Building Kraken Databases
 If you would like more information on building a Kraken database, see below:
 
 ### How to build a custom Kraken Database:
