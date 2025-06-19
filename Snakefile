@@ -28,7 +28,7 @@ if SIM_TOOL == "NONE":
         )
 
 # Automatically define where merged reads should go
-if SIM_TOOL in ("ART", "MESS"):
+if SIM_TOOL in ("MESS"):
     FQ1 = "simulated_reads/fastq/merged_R1.fq.gz"
     FQ2 = "simulated_reads/fastq/merged_R2.fq.gz"
 else:
@@ -44,66 +44,62 @@ else:
 #MERGE_GENOMES = existing_merge_genomes()
 
 # 3) Top‐level: these are all wildcards required for the pipeline to run smoothly
-MESS_GENOMES, = glob_wildcards("individual_genomes_tsvs/{genome}.tsv")
-SPLIT_GENOME_GENOMES, = glob_wildcards("individual_genomes/{genome}.fa")
+GENOME_NAME, = glob_wildcards("individual_genomes/{genome}.fa")
 
 rule all:
     input:
-        expand(
-            "{wepp_dir}/{dataset}/{dataset}_run.txt",
-            wepp_dir = WEPP_DIR,
-            dataset  = TAXIDS,
-        ),
-        expand("individual_genomes_tsvs/{genome}.tsv", genome=MESS_GENOMES),
-        expand("simulated_reads/fastq/{genome}_R1.fq.gz", genome=MESS_GENOMES),
-        expand("simulated_reads/fastq/{genome}_R2.fq.gz", genome=MESS_GENOMES),
-        expand(
-            f"{DATA_DIR}/{{taxid}}/{REF_BASENAME}",
-            taxid=TAXIDS
-        ),
-        expand(
-            f"{DATA_DIR}/{{taxid}}/{PB_BASENAME}",
-            taxid=TAXIDS
-        )
-
-# 4) Split genomes to individual fasta files to input to MeSS (their multi genome doesn't work for some reason)
-
-rule split_genomes:
-    input:
-        fasta = config["mixed_genomes_fasta"]
-    output:
-        directory("individual_genomes")
-    shell:
-        """
-        mkdir -p {output}
-        awk '/^>/{{gsub(/^>/,""); fname="{output}/"$1".fa"; print > fname; next}} {{print >> fname}}' {input.fasta}
-        """
-
-# 5) Optional MeSS simulation
-
-# Generate TSVs for MeSS:
-rule generate_mess_tsv:
-    input:
-        fasta = "individual_genomes/{genome}.fa"
-    output:
-        tsv = "individual_genomes_tsvs/{genome}.tsv"
-    params:
-        script = "scripts/generate_mess_tsv.py",
-        coverage = config["coverage"]
-    shell:
-        """
-        python {params.script} {output.tsv} {input.fasta} {params.coverage}
-        """
+        # expand(
+        #     "{wepp_dir}/{dataset}/{dataset}_run.txt",
+        #     wepp_dir = WEPP_DIR,
+        #     dataset  = TAXIDS,
+        # ),
+        FQ1,
+        FQ2
 
 if SIM_TOOL == "MESS":
+
+    # 4) Split genomes to individual fasta files to input to MeSS (their multi genome doesn't work for some reason)
+
+    checkpoint split_genomes:
+        input:
+            fasta = config["mixed_genomes_fasta"]
+        output:
+            directory("individual_genomes")
+        shell:
+            """
+            mkdir -p {output}
+            awk '/^>/{{split($1, id, ">"); fname="{output}/"id[2]".fa"; print > fname; next}} {{print >> fname}}' {input.fasta}
+            """
+            
+    def get_genomes_from_checkpoint(wc):
+        ckpt = checkpoints.split_genomes.get(**wc)
+        genomes, = glob_wildcards(os.path.join(ckpt.output[0], "{genome}.fa"))
+        return genomes
+
+    # 5) Optional MeSS simulation
+
+    # Generate TSVs for MeSS:
+    rule generate_mess_tsv:
+        input:
+            fasta = "individual_genomes/{genome}.fa"
+        output:
+            tsv = "individual_genomes_tsvs/{genome}.tsv"
+        params:
+            script = "scripts/generate_mess_tsv.py",
+            coverage = config["coverage"]
+        shell:
+            """
+            python {params.script} {output.tsv} {input.fasta} {params.coverage}
+            """
+
+
             
     rule simulate_reads_mess:
         input:
             tsv = "individual_genomes_tsvs/{genome}.tsv"
         output:
-            r1 = "simulated_reads/fastq/{genome}_R1.fq.gz",
-            r2 = "simulated_reads/fastq/{genome}_R2.fq.gz",
-            done = "simulated_reads/fastq/{genome}.done"
+            r1 = "simulated_reads/fastq/{genome}_R1.fq.gz", 
+            r2 = "simulated_reads/fastq/{genome}_R2.fq.gz", 
         params:
             genome_base = lambda wildcards: wildcards.genome.split(".")[0]
         resources:
@@ -118,18 +114,16 @@ if SIM_TOOL == "MESS":
 
             mv simulated_reads/fastq/{params.genome_base}_R1.fq.gz {output.r1}
             mv simulated_reads/fastq/{params.genome_base}_R2.fq.gz {output.r2}
-            touch {output}.done
             """
 
-# Unfortunately, we have to produce the .done file there because for some reason, the merge reads rule always runs first otherwise.
-# I've tried many different approaches to try fixing it, but none have worked. So for now, we will stick with this.
-# This rule always runs first, I'm not sure how to fix it.
     rule merge_reads:
         input:
-            done = [f"simulated_reads/fastq/{genome}.done" for genome in MESS_GENOMES]
+            sim_reads_1 = lambda wc: expand("simulated_reads/fastq/{genome}_R1.fq.gz", genome=get_genomes_from_checkpoint(wc)),
+            sim_reads_2 = lambda wc: expand("simulated_reads/fastq/{genome}_R2.fq.gz", genome=get_genomes_from_checkpoint(wc))
         output:
             R1 = FQ1,
             R2 = FQ2
+
         shell:
             """
             zcat simulated_reads/fastq/*_R1.fq.gz | gzip > {output.R1}
