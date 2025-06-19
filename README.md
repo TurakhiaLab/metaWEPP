@@ -79,11 +79,11 @@ kraken2-build --download-taxonomy --db test_kraken_DB
 k2 add-to-library --db test_kraken_DB --file genomes/*.fa 
 kraken2-build --build --db test_kraken_DB
 ```
-Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
+⚠️ Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
 
 **Step 3:**  Run the pipeline
 ```
-snakemake --config kraken_db="test_kraken_DB" target_taxids=2697049 --resources mess_slots=1 --cores 32
+snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 --resources mess_slots=1 --cores 32
 ```
 
 **Step 4:**  Analyze Results
