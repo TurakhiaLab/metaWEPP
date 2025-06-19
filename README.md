@@ -93,13 +93,13 @@ All results can be found in the `WEPP/results/2697049` directory. This taxid is 
 ---
 ## <a name="usage"></a> Usage Guide:
 
-The entire pipeline can be ran through the following command:
-```
-snakemake --resources mess_slots=1 --cores 32
-```
-This will run the full pipeline and run WEPP for each taxid in `target_taxids` in the `config.yaml` file.
+META-WEPP requires `kraken_db` and `target_taxids` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires --cores from the command line, which is the number of threads used by the workflow.
 
-This pipeline uses a MAT and a reference mixed genome in fasta. In the quick start, the `filtered_genomes.fa` is the reference fasta file, and it must be a mixed genome sample.
+Example 1:
+```
+snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 --resources mess_slots=1 --cores 32
+```
+This will run the full pipeline and run WEPP for the taxid `2697049`.
 
 The `config.yaml` file has the following arguments:
 
@@ -108,9 +108,14 @@ The `config.yaml` file has the following arguments:
 2. `kraken_report` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
 3. `kraken_output` - Name of the Kraken output. (This which reads were mapped to the corresponding genome)
 4. `simulation_tool` - Input "MeSS" to simulate reads with MeSS, or input "None" to provide your own reads.
-5. `REF` - The reference mixed genome in fasta.
+5. `REF` - The reference genome in fasta.
 6. `TREE` - Mutation-Annotated Tree
 7. `target_taxids` - The taxids to be analyzed.
+8. `mixed_genomes_fasta` - Reference mixed fasta file if simulating with MeSS
+
+⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
+
+⚠️ If you are simulating with MeSS, along with the reference genomes and MAT, you must also provide a reference mixed genome in fasta. In the quick start, the `filtered_genomes.fa` is the reference fasta file, and it must be a mixed genome sample.
 
 ---
 ##  <a name="build-database"></a> Building Kraken Databases
