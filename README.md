@@ -42,13 +42,15 @@ conda config --add channels conda-forge
 conda config --add channels bioconda
 ```
 **Step 3:** Install Kraken.
+Replace `$KRAKEN2_DIR` with the directory in which you would like to install Kraken2's scripts. The following commands install kraken and also update the `$PATH` variable for easily running the tool.
 ```
 git clone https://github.com/DerrickWood/kraken2.git
 cd kraken2
 ./install_kraken2.sh $KRAKEN2_DIR
-cp $KRAKEN2_DIR/kraken2{,-build,-inspect} $HOME/bin
+echo -e '\nexport PATH="$KRAKEN2_DIR:$PATH"' >> ~/.bashrc 
+source ~/.bashrc
+cd ..
 ```
-Replace `$KRAKEN2_DIR` with the directory in which you would like to install Kraken2's scripts.
 
 **Step 4:** Install MeSS.
 ```
@@ -56,7 +58,7 @@ conda create -n mess mess=0.10.0
 ```
 **Step 5:** Install WEPP.
 
-Follow the WEPP installation guide starting from option 3 step 2 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
+Follow the WEPP installation guide starting from option 3 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
 
 ---
 
