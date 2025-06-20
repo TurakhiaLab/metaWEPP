@@ -85,7 +85,8 @@ kraken2-build --build --db test_kraken_DB
 
 **Step 3:**  Run the pipeline
 ```
-snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 --resources mess_slots=1 --cores 32
+snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz --resources mess_sl
+ots=1 --cores 32
 ```
 
 **Step 4:**  Analyze Results
@@ -99,9 +100,10 @@ META-WEPP requires `kraken_db` and `target_taxids` as config arguments through t
 
 Example 1:
 ```
-snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 --resources mess_slots=1 --cores 32
+snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz --resources mess_sl
+ots=1 --cores 32
 ```
-This will run the full pipeline and run WEPP for the taxid `2697049`.
+This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT, `public-2021-12-05.all.masked.pb.gz`.
 
 The `config.yaml` file has the following arguments:
 
