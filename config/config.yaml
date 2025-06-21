@@ -1,48 +1,28 @@
-# Input reads
-fq1: "/home/jseangmany@AD.UCSD.EDU/metagenomic-WBE/data/RSVA_real/ERR14763711_R1.fastq.gz" # The path to your R1 read 
-fq2: "/home/jseangmany@AD.UCSD.EDU/metagenomic-WBE/data/RSVA_real/ERR14763711_R2.fastq.gz" # The path to your R2 read 
+TREE: MAT.pb.gz
+REF: REF.fa
 
-# — Kraken2 settings
-# Change this to the kraken reports directory, and your database.
-kraken_db: "/data/qix007/custom_kraken2DB_k31"
-kraken_report:     "kraken_report_demo_4.txt"
-kraken_output:     "kraken_output_demo_4.txt"
-kraken_threads: 8
-# — which taxids to pull out (from mixed genome sample) & input to WEPP
+fq1: fq1_R1.fastq.gz
+fq2: fq2_R2.fastq.gz
+
+# Change this to the kraken reports directory
+kraken_report: "kraken_report.txt"
+kraken_output: "kraken_output.txt"
+
+# Taxids to extract (from mixed genome sample) & input to WEPP
 target_taxids:
   - 2697049
 
-# — WEPP integration
-
-wepp_workflow: "WEPP/workflow/Snakefile"
-wepp_root: "WEPP"
-wepp_results_dir: "WEPP/results"
-wepp_config: "WEPP/config/config.yaml"
-wepp_data_dir: "WEPP/data"
-
-# — optional simulation toggles:
-#    * Set to "MeSS" to simulate
-#    * Set to "none" (or remove entirely) to skip simulation. But, you must provide your own real reads.
-simulation_tool: "MESS"
-
-# — only needed if simulation is on
-# Input metagenomic FASTA to simulate
-mixed_genomes_fasta: "genomes/filtered_genomes.fa" # If simulating mixed genomes
-
-# MeSS Simulation
-coverage: 10
-
-# WEPP Config
-
-# Mutation Annotated Tree
-TREE: pruned_public-2023-12-25.all.masked.pb.gz
-# Reference FASTA File
-REF: NC_045512v2.fa
 # Bed file should be present in 'primers'
-PRIMER_BED: "nimagenV2.bed"
+PRIMER_BED: "none.bed"
+
 # Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs
 CLADE_IDX: "1"
 
+# Simulation Settings:
+#    * Set to "MeSS" to simulate
+#    * Set to "none" to skip simulation. But, you must provide your own real reads in fq1 and fq2.
+simulation_tool: "MESS"
+metagenomic_ref: "genomes/filtered_genomes.fa"
+coverage: 10
 
-# NOTE: DIR and FILE_PREFIX is not missing; its set to the taxid (or genome) that we search for and want to put into WEPP through target_taxids.
-# For example, we set 2697049 as target_taxids, then DIR = 2697049 and FILE_PREFIX = 2697049.
+
