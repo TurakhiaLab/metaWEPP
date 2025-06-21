@@ -116,15 +116,19 @@ This will run the full pipeline and run WEPP for the taxid `2697049`, and uses t
 The `config.yaml` file has the following arguments:
 
 
-1. `kraken_db` - Name of the Kraken database.
-2. `kraken_report` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
-3. `kraken_output` - Name of the Kraken output. (This tells you which reads were mapped to the corresponding genome)
-4. `simulation_tool` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
-5. `coverage` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
+1. `KRAKEN_DB` - Name of the Kraken database.
+2. `KRAKEN_REPORT` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
+3. `KRAKEN_OUTPUT` - Name of the Kraken output. (This tells you which reads were mapped to the corresponding genome)
+4. `SIMULATION_TOOL` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
+5. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
 6. `REF` - The reference genome in fasta.
 7. `TREE` - The Mutation-Annotated Tree.
-8. `target_taxids` - The taxids to be analyzed.
-9. `mixed_genomes_fasta` - Reference mixed fasta file if simulating with MeSS.
+8. `TARGET_TAXIDS` - The taxids to be analyzed.
+9. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
+10. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
+11. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
+12. `FQ1` - R1 reads in `readname_R1.fastq.gz` format.
+13. `FQ2` - R2 reads in `readname_R2.fastq.gz` format.
 
 ⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
 
