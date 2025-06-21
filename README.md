@@ -175,4 +175,4 @@ Customize kmer with `--kmer-len` and `--minimizer-len` option if needed. This ma
 ```
 kraken2-build --clean --db $DBNAME
 ```
-View more information at the official [Kraken2 documentation](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases)
+View more information at the official [Kraken2 documentation](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases).
