@@ -136,7 +136,7 @@ If you would like more information on building a Kraken database, see below:
 
 ### How to build a custom Kraken Database:
 
-**Step 1:** Install a taxonomy. 
+**Step 1:** Install the taxonomy. This is necessary for building Kraken databases.
 ```
 kraken2-build --download-taxonomy --db $DBNAME
 ```
@@ -152,14 +152,14 @@ Add a list of files to the database's genomic library (all the .fa files in your
 ```
 k2 add-to-library --db test_kraken_DB --file *.fa
 ```
-You can also add a multi fasta file in the genomic library.
+You can also add a multi fasta file (metagenomic fasta file) in the genomic library.
 
 ⚠️ For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`
 ```
 kraken2-build --add-to-library /path/to/multi_fasta.fa --db $DBNAME
 ```
 
-(Optional) Install one or more reference libraries: https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database
+(Optional) Install one or more [reference libraries](https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database).
 ```
 kraken2-build --download-library bacteria --db $DBNAME
 ```
@@ -169,10 +169,10 @@ Installing the reference libraries can help if you do not have custom genomes yo
 ```
 kraken2-build --build --db $DBNAME
 ```
-Customize kmer with `--kmer-len` and `--minimizer-len` option if needed.
+Customize kmer with `--kmer-len` and `--minimizer-len` option if needed. This may improve classification rate if tuned properly.
 
 **Step 4:** (Optional) Remove intermediate files after building a custom database which helps to free disk space.
 ```
 kraken2-build --clean --db $DBNAME
 ```
-More information in https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases
+View more information at the official [Kraken2 documentation](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases)
