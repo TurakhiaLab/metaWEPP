@@ -120,10 +120,11 @@ The `config.yaml` file has the following arguments:
 2. `kraken_report` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
 3. `kraken_output` - Name of the Kraken output. (This tells you which reads were mapped to the corresponding genome)
 4. `simulation_tool` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
-5. `REF` - The reference genome in fasta.
-6. `TREE` - Mutation-Annotated Tree
-7. `target_taxids` - The taxids to be analyzed.
-8. `mixed_genomes_fasta` - Reference mixed fasta file if simulating with MeSS
+5. `coverage` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
+6. `REF` - The reference genome in fasta.
+7. `TREE` - The Mutation-Annotated Tree.
+8. `target_taxids` - The taxids to be analyzed.
+9. `mixed_genomes_fasta` - Reference mixed fasta file if simulating with MeSS.
 
 ⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
 
