@@ -137,13 +137,18 @@ All results can be found in the `WEPP/results/2697049` directory. This taxid is 
 ---
 ## <a name="usage"></a> Usage Guide:
 
-META-WEPP requires `kraken_db` and `target_taxids` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires --cores from the command line, which is the number of threads used by the workflow.
+### Run Command
 
-Example 1:
+META-WEPP requires `KRAKEN_DB`, `TARGET_TAXIDS`, and `SIMULATE_TOOL` as config arguments through the command line, while the remaining ones can be taken from the config file. It requires `--cores` from the command line, which is the number of threads used by the workflow, and also requires `--resources mess_slots=1` to prevent MeSS running in parallel which causes some issues.
+
+Using all parameters from the config file:
 ```
-snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz --resources mess_slots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 --resources mess_slots=1 --cores 32
 ```
-This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT, `public-2021-12-05.all.masked.pb.gz`.
+Overriding
+This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT and REF genome file.
+
+### Arguments
 
 The `config.yaml` file has the following arguments:
 
