@@ -79,8 +79,8 @@ This example will simulate reads from our `filtered_genomes.fa` mixed metagenomi
 **Step 1:** Download the SARS-CoV-2 MAT and Reference FASTA File:
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
-cp WEPP/NC_045512v2.fa ./genomes
 ```
+Note that we have already provided the reference fasta file located in the `genomes` directory.
 
 **Step 2:** Build the Kraken database
 ```
@@ -93,8 +93,35 @@ kraken2-build --build --db test_kraken_DB
 
 **Step 3:**  Run the pipeline
 ```
-snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz --resources mess_sl
-ots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MeSS METAGENOMIC_REF=genomes/filtered_genomes.fa KRAKEN_DB=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
+```
+
+**Step 4:**  Analyze Results
+
+All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
+
+### <a name="MeSS"></a> Example - 2 SARS-CoV-2 Dataset: Run the pipeline with real world (non simulated) data
+
+This example will take our own metagenomic wastewater reads and use them as input for our analysis.
+
+**Step 1:** Download the SARS-CoV-2 MAT, Reference FASTA File, and wastewater metagenomic reads:
+```
+wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
+```
+Note that we have already provided the reference fasta file located in the `genomes` directory, and also our wastewater metagenomic reads located in the `example_metagenomic_reads` directory.
+
+**Step 2:** Build the Kraken database
+```
+mkdir test_kraken_DB
+kraken2-build --download-taxonomy --db test_kraken_DB
+k2 add-to-library --db test_kraken_DB --file genomes/*.fa 
+kraken2-build --build --db test_kraken_DB
+```
+⚠️ Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
+
+**Step 3:**  Run the pipeline
+```
+snakemake --config SIMULATE_TOOL=none FQ1=example_metagenomic_reads/mixed_reads_R1.fastq.gz FQ2=example_metagenomic_reads/mixed_reads_R2.fastq.gz KRAKEN_DB=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
 **Step 4:**  Analyze Results
