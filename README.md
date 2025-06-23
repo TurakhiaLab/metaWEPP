@@ -139,13 +139,16 @@ All results can be found in the `WEPP/results/2697049` directory. This taxid is 
 
 ### Run Command
 
-META-WEPP requires `KRAKEN_DB`, `TARGET_TAXIDS`, and `SIMULATE_TOOL` as config arguments through the command line, while the remaining ones can be taken from the config file. It requires `--cores` from the command line, which is the number of threads used by the workflow, and also requires `--resources mess_slots=1` to prevent MeSS running in parallel which causes some issues.
+META-WEPP requires `KRAKEN_DB`, `TARGET_TAXIDS`, and `SIMULATE_TOOL` as config arguments through the command line, while the remaining ones can be taken from the config file. If you are setting `SIMULATE_TOOL=none`, then META-WEPP also requires `FQ1` and `FQ2` through the command line. It requires `--cores` from the command line, which is the number of threads used by the workflow, and also requires `--resources mess_slots=1` to prevent MeSS running in parallel which causes some issues.
 
 Using all parameters from the config file:
 ```
 snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 --resources mess_slots=1 --cores 32
 ```
-Overriding
+Overriding `CLADE_IDX` and `PRIMER_BED`:
+```
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
+```
 This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT and REF genome file.
 
 ### Arguments
