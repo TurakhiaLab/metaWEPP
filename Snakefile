@@ -9,7 +9,7 @@ import os
 # 2) Constants from config
 WEPP_RESULTS_DIR         = "WEPP/results"
 SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
-TAXIDS = config["target_taxids"]
+TAXIDS = config["TARGET_TAXIDS"]
 WEPP_DATA_DIR = "WEPP/data"
 REF_BASENAME = os.path.basename(config["REF"])
 PB_BASENAME = os.path.basename(config["TREE"])
@@ -186,8 +186,8 @@ rule split_per_taxid:
         r2         = FQ2
     output:
         # one pair per taxid
-        expand("{data_dir}/{taxid}/{taxid}_R1.fq.gz", data_dir=WEPP_DATA_DIR, taxid=config["target_taxids"]),
-        expand("{data_dir}/{taxid}/{taxid}_R2.fq.gz", data_dir=WEPP_DATA_DIR, taxid=config["target_taxids"])
+        expand("{data_dir}/{taxid}/{taxid}_R1.fq.gz", data_dir=WEPP_DATA_DIR, taxid=config["TARGET_TAXIDS"]),
+        expand("{data_dir}/{taxid}/{taxid}_R2.fq.gz", data_dir=WEPP_DATA_DIR, taxid=config["TARGET_TAXIDS"])
     params:
         script = "scripts/split_classified_reads.py",
         outdir = WEPP_DATA_DIR
