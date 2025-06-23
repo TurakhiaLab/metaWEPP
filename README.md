@@ -42,12 +42,12 @@ source "${HOME}/conda/etc/profile.d/mamba.sh"
 ```
 
 **Step 3:** Install Kraken.
-Replace `$KRAKEN2_DIR` with the directory in which you would like to install Kraken2's scripts. The following commands install kraken and also update the `$PATH` variable for easily running the tool.
+The following commands install kraken and also update the `$PATH` variable for easily running the tool.
 ```
 git clone https://github.com/DerrickWood/kraken2.git
 cd kraken2
-./install_kraken2.sh $KRAKEN2_DIR
-echo -e '\nexport PATH="$KRAKEN2_DIR:$PATH"' >> ~/.bashrc 
+./install_kraken2.sh .
+echo -e '\nexport PATH="$(pwd):$PATH"' >> ~/.bashrc
 source ~/.bashrc
 cd ..
 ```
@@ -99,7 +99,7 @@ kraken2-build --build --db test_kraken_DB
 
 **Step 3:**  Run the pipeline
 ```
-snakemake --config target_taxids=2697049 SIMULATE_TOOL=MeSS METAGENOMIC_REF=genomes/filtered_genomes.fa KRAKEN_DB=test_kraken_DB TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config target_taxids=2697049 SIMULATE_TOOL=MeSS METAGENOMIC_REF=genomes/filtered_genomes.fa KRAKEN_DB=test_kraken_DB TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=none.bed CLADE_IDX=1 REF=NC_045512v2.fa --resources mess_slots=1 --cores 32
 ```
 
 **Step 4:**  Analyze Results

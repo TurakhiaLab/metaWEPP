@@ -5,8 +5,8 @@ FQ1: fq1_R1.fastq.gz
 FQ2: fq2_R2.fastq.gz
 
 # Change this to the kraken reports directory
-kraken_report: "kraken_report.txt"
-kraken_output: "kraken_output.txt"
+KRAKEN_REPORT: "kraken_report.txt"
+KRAKEN_OUTPUT: "kraken_output.txt"
 
 # Taxids to extract (from mixed genome sample) & input to WEPP
 TARGET_TAXIDS:
