@@ -7,10 +7,10 @@ configfile: "config/config.yaml"
 import os
 
 # 2) Constants from config
-WEPP_DIR         = config["wepp_results_dir"]
-SIM_TOOL         = config.get("simulation_tool", "none").upper() 
+WEPP_RESULTS_DIR         = "WEPP/results"
+SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
 TAXIDS = config["target_taxids"]
-DATA_DIR = config["wepp_data_dir"]
+WEPP_DATA_DIR = "WEPP/data"
 REF_BASENAME = os.path.basename(config["REF"])
 PB_BASENAME = os.path.basename(config["TREE"])
 
@@ -32,8 +32,8 @@ if SIM_TOOL in ("MESS"):
     FQ1 = "simulated_reads/fastq/merged_R1.fq.gz"
     FQ2 = "simulated_reads/fastq/merged_R2.fq.gz"
 else:
-    FQ1 = config["fq1"]
-    FQ2 = config["fq2"]
+    FQ1 = config["FQ1"]
+    FQ2 = config["FQ2"]
 
 # Helper function for the merge reads rule:
 
@@ -50,7 +50,7 @@ rule all:
     input:
         expand(
             "{wepp_dir}/{dataset}/{dataset}_run.txt",
-            wepp_dir = WEPP_DIR,
+            wepp_dir = WEPP_RESULTS_DIR,
             dataset  = TAXIDS,
         ),
         FQ1,
@@ -62,7 +62,7 @@ if SIM_TOOL == "MESS":
 
     checkpoint split_genomes:
         input:
-            fasta = config["mixed_genomes_fasta"]
+            fasta = config["METAGENOMIC_REF"]
         output:
             directory("individual_genomes")
         shell:
@@ -86,7 +86,7 @@ if SIM_TOOL == "MESS":
             tsv = "individual_genomes_tsvs/{genome}.tsv"
         params:
             script = "scripts/generate_mess_tsv.py",
-            coverage = config["coverage"]
+            coverage = config["COVERAGE"]
         shell:
             """
             python {params.script} {output.tsv} {input.fasta} {params.coverage}
@@ -164,11 +164,11 @@ rule kraken:
         r1 = FQ1,
         r2 = FQ2
     output:
-        report     = config["kraken_report"],
-        kraken_out = config["kraken_output"]
+        report     = config["KRAKEN_REPORT"],
+        kraken_out = config["KRAKEN_OUTPUT"]
     threads: config.get("kraken_threads", 4)
     params:
-        db = config["kraken_db"]
+        db = config["KRAKEN_DB"]
     shell:
         """
         mkdir -p $(dirname {output.report})
@@ -181,16 +181,16 @@ rule kraken:
 # 7) Split Kraken output into per‐taxid FASTQs
 rule split_per_taxid:
     input:
-        kraken_out = config["kraken_output"],
+        kraken_out = config["KRAKEN_OUTPUT"],
         r1         = FQ1,
         r2         = FQ2
     output:
         # one pair per taxid
-        expand("{data_dir}/{taxid}/{taxid}_R1.fq.gz", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"]),
-        expand("{data_dir}/{taxid}/{taxid}_R2.fq.gz", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"])
+        expand("{data_dir}/{taxid}/{taxid}_R1.fq.gz", data_dir=WEPP_DATA_DIR, taxid=config["target_taxids"]),
+        expand("{data_dir}/{taxid}/{taxid}_R2.fq.gz", data_dir=WEPP_DATA_DIR, taxid=config["target_taxids"])
     params:
         script = "scripts/split_classified_reads.py",
-        outdir = config["wepp_data_dir"]
+        outdir = WEPP_DATA_DIR
     shell:
         """
         python {params.script} \
@@ -215,7 +215,7 @@ rule prepare_wepp_inputs:
         new_r1 = "{data_dir}/{taxid}/{taxid}_R1.fastq.gz",
         new_r2 = "{data_dir}/{taxid}/{taxid}_R2.fastq.gz", 
     params:
-        data_dir = config["wepp_data_dir"]
+        data_dir = WEPP_DATA_DIR
     shell:
         """
         cp {input.fasta} {output.fasta_out}
@@ -229,10 +229,10 @@ rule prepare_wepp_inputs:
 # Run WEPP
 rule run_wepp:
     input:
-        r1    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fastq.gz",
-        r2    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fastq.gz"
+        r1    = f"{WEPP_DATA_DIR}" + "/{taxid}/{taxid}_R1.fastq.gz",
+        r2    = f"{WEPP_DATA_DIR}" + "/{taxid}/{taxid}_R2.fastq.gz"
     output:
-        run_txt = config["wepp_results_dir"] + "/{taxid}/{taxid}_run.txt"
+        run_txt = WEPP_RESULTS_DIR + "/{taxid}/{taxid}_run.txt"
     threads: config.get("wepp_threads", 32)
     params:
         dir    = lambda wildcards: f"{wildcards.taxid}",
@@ -240,14 +240,14 @@ rule run_wepp:
     shell:
         """
         python ./scripts/run_inner.py \
-            --snakefile {config[wepp_workflow]} \
-            --workdir {config[wepp_root]} \
+            --snakefile "WEPP/workflow/Snakefile" \
+            --workdir "WEPP" \
             --dir {params.dir} \
             --prefix {params.prefix} \
             --primer_bed {config[PRIMER_BED]} \
             --tree {config[TREE]} \
             --ref {config[REF]} \
             --clade_idx {config[CLADE_IDX]} \
-            --configfile {config[wepp_config]} \
+            --configfile "WEPP/config/config.yaml" \
             --cores {threads}
         """
