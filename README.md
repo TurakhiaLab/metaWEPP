@@ -5,7 +5,7 @@
 - [Installation](#install)
   - [Option-1: Install via Shell Commands](#shell)
 - [Quick Start](#example)
-  - [Example-1: Simulated Data](#MeSS)
+  - [Example-1: Simulated Data](#mess)
   - [Example-2: Real World Data](#real-world) 
 - [Usage Guide](#usage)
 - [Building Kraken Databases](#build-database)
@@ -74,7 +74,7 @@ Follow the WEPP installation guide starting from option 3 on the [WEPP repo](htt
 
 ##  <a name="example"></a> Quick Start
 
-### <a name="MeSS"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
+### <a name="mess"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
 
 This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator.
 
