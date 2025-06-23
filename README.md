@@ -93,7 +93,7 @@ kraken2-build --build --db test_kraken_DB
 
 **Step 3:**  Run the pipeline
 ```
-snakemake --config SIMULATE_TOOL=MeSS METAGENOMIC_REF=genomes/filtered_genomes.fa KRAKEN_DB=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config target_taxids=2697049 SIMULATE_TOOL=MeSS METAGENOMIC_REF=genomes/filtered_genomes.fa KRAKEN_DB=test_kraken_DB TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
 **Step 4:**  Analyze Results
@@ -121,7 +121,7 @@ kraken2-build --build --db test_kraken_DB
 
 **Step 3:**  Run the pipeline
 ```
-snakemake --config SIMULATE_TOOL=none FQ1=example_metagenomic_reads/mixed_reads_R1.fastq.gz FQ2=example_metagenomic_reads/mixed_reads_R2.fastq.gz KRAKEN_DB=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config target_taxids=2697049 SIMULATE_TOOL=none FQ1=example_metagenomic_reads/mixed_reads_R1.fastq.gz FQ2=example_metagenomic_reads/mixed_reads_R2.fastq.gz KRAKEN_DB=test_kraken_DB TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
 **Step 4:**  Analyze Results
