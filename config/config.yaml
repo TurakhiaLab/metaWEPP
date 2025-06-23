@@ -1,8 +1,8 @@
 TREE: MAT.pb.gz
 REF: REF.fa
 
-fq1: fq1_R1.fastq.gz
-fq2: fq2_R2.fastq.gz
+FQ1: fq1_R1.fastq.gz
+FQ2: fq2_R2.fastq.gz
 
 # Change this to the kraken reports directory
 kraken_report: "kraken_report.txt"
@@ -21,8 +21,8 @@ CLADE_IDX: "1"
 # Simulation Settings:
 #    * Set to "MeSS" to simulate
 #    * Set to "none" to skip simulation. But, you must provide your own real reads in fq1 and fq2.
-simulation_tool: "MESS"
-metagenomic_ref: "genomes/filtered_genomes.fa"
-coverage: 10
+SIMULATION_TOOL: "MESS"
+METAGENOMIC_REF: "genomes/filtered_genomes.fa"
+COVERAGE: 10
 
 
