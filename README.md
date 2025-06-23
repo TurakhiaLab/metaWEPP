@@ -100,15 +100,19 @@ snakemake --config target_taxids=2697049 SIMULATE_TOOL=MeSS METAGENOMIC_REF=geno
 
 All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
-### <a name="MeSS"></a> Example - 2 SARS-CoV-2 Dataset: Run the pipeline with real world (non simulated) data
+### <a name="real-world"></a> Example - 2 SARS-CoV-2 Dataset: Run the pipeline with real world (non simulated) data
 
 This example will take our own metagenomic wastewater reads and use them as input for our analysis.
+
+⚠️ Note that if you've already done Example 1, you may skip steps 1 and 2 for this example.
 
 **Step 1:** Download the SARS-CoV-2 MAT, Reference FASTA File, and wastewater metagenomic reads:
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
 ```
 Note that we have already provided the reference fasta file located in the `genomes` directory, and also our wastewater metagenomic reads located in the `example_metagenomic_reads` directory.
+
+
 
 **Step 2:** Build the Kraken database
 ```
