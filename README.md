@@ -74,9 +74,9 @@ Follow the WEPP installation guide starting from option 3 on the [WEPP repo](htt
 
 ##  <a name="example"></a> Quick Start
 
-### <a name="mess"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
+### <a name="mess"></a> Example - 1: Simulated Data
 
-This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator.
+This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator, running on our SARS-CoV-2 dataset.
 
 **Step 1:** Download the SARS-CoV-2 MAT and Reference FASTA File:
 ```
@@ -102,9 +102,9 @@ snakemake --config target_taxids=2697049 SIMULATE_TOOL=MeSS METAGENOMIC_REF=geno
 
 All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
-### <a name="real-world"></a> Example - 2 SARS-CoV-2 Dataset: Run the pipeline with real world (non simulated) data
+### <a name="real-world"></a> Example - 2: Real World Data
 
-This example will take our own metagenomic wastewater reads and use them as input for our analysis.
+This example will take our own metagenomic wastewater reads and use them as input for our analysis, running on our SARS-CoV-2 dataset.
 
 ⚠️ Note that if you've already done Example 1, you may skip steps 1 and 2 for this example.
 
