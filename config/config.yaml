@@ -1,8 +1,4 @@
-TREE: MAT.pb.gz
-REF: REF.fa
-
-fq1: fq1_R1.fastq.gz
-fq2: fq2_R2.fastq.gz
+fq_dir: RSVA_test
 
 wepp_workflow: "/home/qix007@AD.UCSD.EDU/WEPP/workflow/Snakefile"
 wepp_root: "/home/qix007@AD.UCSD.EDU/WEPP"
@@ -31,7 +27,7 @@ CLADE_IDX: "1"
 # Simulation Settings:
 #    * Set to "MeSS" to simulate
 #    * Set to "none" to skip simulation. But, you must provide your own real reads in fq1 and fq2.
-simulation_tool: "MESS"
+simulation_tool: "NONE"
 metagenomic_ref: "genomes/filtered_genomes.fa"
 coverage: 10
 

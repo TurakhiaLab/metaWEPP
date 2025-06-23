@@ -7,35 +7,53 @@ configfile: "config/config.yaml"
 import os
 import csv, re, itertools
 
+from pathlib import Path
+import sys, glob
+
+from collections import defaultdict
+import itertools
+
 # 2) Constants from config
 WEPP_DIR         = config["wepp_results_dir"]
 SIM_TOOL         = config.get("simulation_tool", "none").upper() 
 TAXIDS = config["target_taxids"]
 DATA_DIR = config["wepp_data_dir"]
-REF_BASENAME = os.path.basename(config["REF"])
-PB_BASENAME = os.path.basename(config["TREE"])
+#REF_BASENAME = os.path.basename(config["REF"])
+#PB_BASENAME = os.path.basename(config["TREE"])
 TAXID_MAP = os.path.join(config["kraken_db"], "seqid2taxid.map")
 
-# Error checking
-if SIM_TOOL not in ("ART", "MESS", "NONE"):
-    raise ValueError(f"Unknown SIM_TOOL: {SIM_TOOL}. Must be 'ART', 'MESS', or 'NONE'.")
-
-if SIM_TOOL == "NONE":
-    if "fq1" not in config or "fq2" not in config:
-        raise ValueError(
-            "SIM_TOOL is NONE, but config is missing 'fq1' or 'fq2'.\n"
-            "Please provide real FASTQ files in your config.yaml like:\n"
-            "  fq1: data/sample_R1.fastq\n"
-            "  fq2: data/sample_R2.fastq"
-        )
-
-# Automatically define where merged reads should go
-if SIM_TOOL in ("MESS"):
+# Get FQ1 and FQ2
+if SIM_TOOL == "MESS":
     FQ1 = "simulated_reads/fastq/merged_R1.fq.gz"
     FQ2 = "simulated_reads/fastq/merged_R2.fq.gz"
+
 else:
-    FQ1 = config["fq1"]
-    FQ2 = config["fq2"]
+    if "fq_dir" not in config:
+        raise ValueError(
+            "SIM_TOOL is NONE, but config is missing 'fq_dir'.\n"
+            "Please add, e.g.,\n"
+            "  fq_dir: RSVA_test   # relative to the data/ folder\n"
+            "to your config.yaml."
+        )
+
+    fq_dir = Path("data") / config["fq_dir"]
+    if not fq_dir.exists():
+        raise FileNotFoundError(f"Input folder {fq_dir} does not exist")
+
+    r1_files = sorted(fq_dir.glob("*_R1.fastq*"))
+    r2_files = sorted(fq_dir.glob("*_R2.fastq*"))
+
+    if len(r1_files) != 1 or len(r2_files) != 1:
+        raise RuntimeError(
+            f"{fq_dir} must contain exactly one *_R1.fastq* and one *_R2.fastq* file "
+            f"(found {len(r1_files)} R1, {len(r2_files)} R2)."
+        )
+
+    FQ1, FQ2 = map(str, (r1_files[0], r2_files[0]))
+
+print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
+
+
 
 # Helper function for the merge reads rule:
 
@@ -49,32 +67,35 @@ else:
 # Auto-discover reference genomes placed in:
 #   data/pathogens_for_detailed_analysis/pathogen*/<anything>.fa*
 # ────────────────────────────────────────────────────────────────
-from pathlib import Path
-import re
-
 PATHOGEN_ROOT = Path("data/pathogens_for_detailed_analysis")
 
-# Collect all *.fa / *.fasta files one level below each pathogenX dir
-FASTAS = sorted(PATHOGEN_ROOT.glob("*/**/*.fa*"))
+# find any *.fa / *.fasta below the first directory level
+FASTAS = sorted(PATHOGEN_ROOT.glob("*/*.fa*"))
 
 if not FASTAS:
-    raise ValueError(
-        f"No reference FASTA files were found under data/pathogens_for_detailed_analysis"
-    )
+    raise ValueError("No reference FASTA files found under data/pathogens_for_detailed_analysis")
 
-# Full paths
-REF_FASTA_FILES = [str(p) for p in FASTAS]
+# ---- build:  accession list  +  accession → fasta  +  accession → pb/mat ----
+REF_ACCESSIONS = sorted({fa.parent.name for fa in FASTAS})      # ['AF013254.1', …]
 
-# Accessions (file stem); e.g. "AF013254.1" from ".../AF013254.1.fa"
-REF_ACCESSIONS = sorted({p.parent.name for p in FASTAS})
+ACC2FASTA = {}          # accession → single FASTA path
+for fa in FASTAS:
+    acc = fa.parent.name
+    ACC2FASTA.setdefault(acc, str(fa.resolve()))   # first FASTA wins
 
-# Optional: a mapping  accession → absolute path
-ACC2FASTA = {p.stem: str(p.resolve()) for p in FASTAS}
+ACC2PB = {}
+for acc in REF_ACCESSIONS:
+    pdir = PATHOGEN_ROOT / acc
+    cand = next(itertools.chain(
+        pdir.glob("*.pb.gz"),
+        pdir.glob("*.mat"),
+        pdir.glob("*.pb"),
+    ), None)
+    if cand is None:
+        raise ValueError(f"No *.pb.gz or *.mat found in {pdir}")
+    ACC2PB[acc] = str(cand.resolve())
 
-# Make them visible in the log when Snakefile loads (optional)
-print("Found reference genomes:", ", ".join(REF_ACCESSIONS))
-# ────────────────────────────────────────────────────────────────
-
+print("Found reference folders:", ", ".join(REF_ACCESSIONS))
 
 # ────────────────────────────────────────────────────────────────
 # Helper function for splitting reads
@@ -218,31 +239,28 @@ if SIM_TOOL == "MESS":
 
 
 # Make sure everything is compressed (Compresses fq files, turns them into fastq.gz files, removes fq files because WEPP expects a specific length of fq files)
-if SIM_TOOL != "MESS":
-    def resolve_fastq(wildcards, read):
-        fq = f"{wildcards.taxid}_{read}.fq"
-        fq_gz = f"{wildcards.taxid}_{read}.fq.gz"
-        return fq_gz if os.path.exists(fq_gz) else fq
-
+if SIM_TOOL != "MESS" and (not FQ1.endswith(".gz") or not FQ2.endswith(".gz")):
     rule compress_fastqs_for_wepp:
         input:
-            r1=lambda wc: resolve_fastq(wc, "R1"),
-            r2=lambda wc: resolve_fastq(wc, "R2")
+            r1=FQ1,
+            r2=FQ2
         output:
-            r1_gz=FQ1,
-            r2_gz=FQ2
+            r1_gz = lambda wc: FQ1 if FQ1.endswith(".gz") else FQ1 + ".gz",
+            r2_gz = lambda wc: FQ2 if FQ2.endswith(".gz") else FQ2 + ".gz"
+        shell:
+            """
+            mkdir -p $(dirname {output.r1_gz})
+            if [ ! -f {output.r1_gz} ]; then gzip -c {input.r1} > {output.r1_gz}; fi
+            if [ ! -f {output.r2_gz} ]; then gzip -c {input.r2} > {output.r2_gz}; fi
+            """
+else:
+    # nothing to do – just point FQ1/FQ2 at the already-compressed files
+    rule compress_fastqs_for_wepp:
+        output:
+            r1_gz = FQ1,
+            r2_gz = FQ2
         run:
-            import os
-            import shutil
-
-            for in_f, out_f in zip([input.r1, input.r2], [output.r1_gz, output.r2_gz]):
-                if os.path.abspath(in_f) == os.path.abspath(out_f):
-                    continue  # Already correct format
-                elif in_f.endswith(".gz"):
-                    shutil.copy(in_f, out_f)
-                else:
-                    shell(f"gzip -c {in_f} > {out_f}")
-                    os.remove(in_f)
+            pass
 
 # 6) Kraken2 classification 
 rule kraken:
@@ -293,10 +311,6 @@ rule split_per_accession:
 # *.pb.gz / *.mat into the same OUT_ROOT/<acc>/ directory that already contains 
 # the split reads.
 rule prepare_wepp_inputs:
-    """
-    Copy R1/R2, reference FASTA, and PB/MAT tree for each accession
-    from OUT_ROOT/{acc}/  →  DATA_DIR/{acc}/
-    """
     input:
         r1    = lambda wc: f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R1.fq.gz",
         r2    = lambda wc: f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R2.fq.gz",
@@ -306,16 +320,20 @@ rule prepare_wepp_inputs:
         new_r1    = DATA_DIR + "/{acc}/{acc}_R1.fastq.gz",
         new_r2    = DATA_DIR + "/{acc}/{acc}_R2.fastq.gz",
         fasta_out = DATA_DIR + "/{acc}/{acc}.fa",
-        pb_out    = DATA_DIR + "/{acc}/{acc}.pb.gz"
+        pb_out    = DATA_DIR + "/{acc}/{acc}.pb.gz",
+
     params:
         data_dir = lambda wc: f"{DATA_DIR}/{wc.acc}"
+
     shell:
-        """
+        r"""
         mkdir -p {params.data_dir}
-        # copy reference files
+
+        # copy reference files (rename on the fly)
         cp {input.fasta} {output.fasta_out}
         cp {input.pb}    {output.pb_out}
-        # copy split reads
+
+        # copy (and rename) split reads
         cp {input.r1}    {output.new_r1}
         cp {input.r2}    {output.new_r2}
         """
@@ -325,20 +343,14 @@ rule prepare_wepp_inputs:
 # 8) Invoke WEPP’s Snakefile for each taxid
 # Run WEPP
 rule run_wepp:
-    """
-    Launch the inner WEPP workflow once for every accession (`{acc}`).
-    """
     input:
-        r1    = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc.split('.')[0]}_R1.fastq.gz",
-        r2    = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc.split('.')[0]}_R2.fastq.gz",
-        fasta = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.fa",
-        tree  = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.pb.gz",
-
+        r1    = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}_R1.fastq.gz",
+        r2    = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}_R2.fastq.gz",
+        fasta_full = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.fa",
+        tree_full  = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.pb.gz",
     output:
         run_txt = config["wepp_results_dir"] + "/{acc}/{acc}_run.txt",
-
     threads: config.get("wepp_threads", 32)
-
     params:
         snakefile  = config["wepp_workflow"],
         workdir    = config["wepp_root"],
@@ -346,28 +358,27 @@ rule run_wepp:
         clade_idx  = config["CLADE_IDX"],
         cfgfile    = config["wepp_config"],
         resultsdir = config["wepp_results_dir"],
-
+        prefix     = lambda wc: wc.acc.split('.')[0],
+        # pass only the basenames to the inner workflow
+        ref_name   = lambda wc: f"{wc.acc}.fa",
+        tree_name  = lambda wc: f"{wc.acc}.pb.gz",
+    conda:
+        "~/metagenomic-WBE/env/wepp.yaml"
     shell:
         r"""
-        # ensure results folder exists
         mkdir -p {params.resultsdir}/{wildcards.acc}
 
-        # strip version suffix once here
-        PREFIX=$(echo "{wildcards.acc}" | cut -d '.' -f 1)
-
-        # run the inner Snakemake workflow
         python ./scripts/run_inner.py \
             --snakefile  {params.snakefile} \
             --workdir    {params.workdir}  \
             --dir        {wildcards.acc}   \
-            --prefix     ${{PREFIX}}       \
+            --prefix     {params.prefix}   \
             --primer_bed {params.primer_bed} \
-            --tree       {input.tree}      \
-            --ref        {input.fasta}     \
+            --tree       {params.tree_name} \
+            --ref        {params.ref_name} \
             --clade_idx  {params.clade_idx} \
             --configfile {params.cfgfile}  \
             --cores      {threads}
 
-        # mark completion for the outer DAG
         touch {output.run_txt}
         """
