@@ -5,6 +5,7 @@ configfile: "config/config.yaml"
 
 # imports
 import os
+import csv, re, itertools
 
 # 2) Constants from config
 WEPP_DIR         = config["wepp_results_dir"]
@@ -13,6 +14,7 @@ TAXIDS = config["target_taxids"]
 DATA_DIR = config["wepp_data_dir"]
 REF_BASENAME = os.path.basename(config["REF"])
 PB_BASENAME = os.path.basename(config["TREE"])
+TAXID_MAP = os.path.join(config["kraken_db"], "seqid2taxid.map")
 
 # Error checking
 if SIM_TOOL not in ("ART", "MESS", "NONE"):
@@ -43,16 +45,100 @@ else:
 
 #MERGE_GENOMES = existing_merge_genomes()
 
+# ────────────────────────────────────────────────────────────────
+# Auto-discover reference genomes placed in:
+#   data/pathogens_for_detailed_analysis/pathogen*/<anything>.fa*
+# ────────────────────────────────────────────────────────────────
+from pathlib import Path
+import re
+
+PATHOGEN_ROOT = Path("data/pathogens_for_detailed_analysis")
+
+# Collect all *.fa / *.fasta files one level below each pathogenX dir
+FASTAS = sorted(PATHOGEN_ROOT.glob("*/**/*.fa*"))
+
+if not FASTAS:
+    raise ValueError(
+        f"No reference FASTA files were found under data/pathogens_for_detailed_analysis"
+    )
+
+# Full paths
+REF_FASTA_FILES = [str(p) for p in FASTAS]
+
+# Accessions (file stem); e.g. "AF013254.1" from ".../AF013254.1.fa"
+REF_ACCESSIONS = sorted({p.parent.name for p in FASTAS})
+
+# Optional: a mapping  accession → absolute path
+ACC2FASTA = {p.stem: str(p.resolve()) for p in FASTAS}
+
+# Make them visible in the log when Snakefile loads (optional)
+print("Found reference genomes:", ", ".join(REF_ACCESSIONS))
+# ────────────────────────────────────────────────────────────────
+
+
+# ────────────────────────────────────────────────────────────────
+# Helper function for splitting reads
+# ────────────────────────────────────────────────────────────────
+def detect_out_root(fq1):
+    if "simulated_reads/fastq" in fq1:
+        return "results/fastq"
+    sample = os.path.basename(os.path.dirname(fq1)) # e.g. data/sample_1/…
+    return f"results/{sample}"
+
+OUT_ROOT = detect_out_root(FQ1)
+
+def accessions_from_map(map_file, target_taxids):
+    keep = set(str(t) for t in target_taxids)
+    accs = []
+    with open(map_file) as f:
+        for acc, tax in (l.split() for l in f if l.strip()):
+            if tax in keep:
+                accs.append(acc)
+    return accs
+
+# ACCESSIONS = accessions_from_map(config["taxid_map"], config["target_taxids"]) 
+
+def split_fastq_outputs():
+    out_files = []
+    for acc in REF_ACCESSIONS:
+        pfx = acc.split(".")[0]
+        out_files.extend([
+            f"{OUT_ROOT}/{acc}/{pfx}_R1.fq.gz",
+            f"{OUT_ROOT}/{acc}/{pfx}_R2.fq.gz",
+        ])
+    return out_files
+
+SPLIT_FASTQS = split_fastq_outputs()
+# ────────────────────────────────────────────────────────────────
+
+
+# ────────────────────────────────────────────────────────────────
+# Helper function to find .pb.gz to each reference pathogen
+ACC2PB = {}
+for acc, fasta_path in ACC2FASTA.items():
+    pdir = Path(fasta_path).parent
+    # allow either *.pb.gz or *.mat – first match wins
+    pb_candidates = list(itertools.chain(
+        pdir.glob("*.pb.gz"),
+        pdir.glob("*.mat"),
+        pdir.glob("*.pb")          # just in case
+    ))
+    if not pb_candidates:
+        raise ValueError(f"No PB/MAT file found next to {fasta_path}")
+    ACC2PB[acc] = str(pb_candidates[0])
+
+def wepp_done_files():
+    return [
+        f"{config['wepp_results_dir']}/{acc}/{acc}_run.txt"
+        for acc in REF_ACCESSIONS
+    ]
+
 # 3) Top‐level: these are all wildcards required for the pipeline to run smoothly
 GENOME_NAME, = glob_wildcards("individual_genomes/{genome}.fa")
 
 rule all:
     input:
-        expand(
-            "{wepp_dir}/{dataset}/{dataset}_run.txt",
-            wepp_dir = WEPP_DIR,
-            dataset  = TAXIDS,
-        ),
+        wepp_done_files(),
         FQ1,
         FQ2
 
@@ -179,75 +265,109 @@ rule kraken:
         """
 
 # 7) Split Kraken output into per‐taxid FASTQs
-rule split_per_taxid:
+rule split_per_accession:
     input:
         kraken_out = config["kraken_output"],
         r1         = FQ1,
-        r2         = FQ2
+        r2         = FQ2,
+        mapping    = TAXID_MAP
     output:
-        # one pair per taxid
-        expand("{data_dir}/{taxid}/{taxid}_R1.fq.gz", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"]),
-        expand("{data_dir}/{taxid}/{taxid}_R2.fq.gz", data_dir=config["wepp_data_dir"], taxid=config["target_taxids"])
+        fastqs = SPLIT_FASTQS
     params:
-        script = "scripts/split_classified_reads.py",
-        outdir = config["wepp_data_dir"]
+        script = "scripts/split_classified_reads_2.py",
+        outdir = OUT_ROOT
     shell:
         """
         python {params.script} \
-          --kraken-out {input.kraken_out} \
-          --r1 {input.r1} \
-          --r2 {input.r2} \
-          --out-dir {params.outdir} 
+            --kraken-out {input.kraken_out} \
+            --mapping {input.mapping} \
+            --r1 {input.r1} \
+            --r2 {input.r2} \
+            --out-dir {params.outdir}
+            
         """
+
 
 # 7.5) Prepare wepp input directory
-# Copies necessary fasta file and MAT into WEPP's DIR (the data directory) as it is required for WEPP to run properly
-
+# For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
+# *.pb.gz / *.mat into the same OUT_ROOT/<acc>/ directory that already contains 
+# the split reads.
 rule prepare_wepp_inputs:
+    """
+    Copy R1/R2, reference FASTA, and PB/MAT tree for each accession
+    from OUT_ROOT/{acc}/  →  DATA_DIR/{acc}/
+    """
     input:
-        r1 = "{data_dir}/{taxid}/{taxid}_R1.fq.gz",
-        r2 = "{data_dir}/{taxid}/{taxid}_R2.fq.gz",
-        fasta = os.path.join("genomes", config["REF"]),
-        pb = config["TREE"]
+        r1    = lambda wc: f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R1.fq.gz",
+        r2    = lambda wc: f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R2.fq.gz",
+        fasta = lambda wc: ACC2FASTA[wc.acc],
+        pb    = lambda wc: ACC2PB[wc.acc]
     output:
-        fasta_out = "{data_dir}/{taxid}/" + REF_BASENAME,
-        pb_out    = "{data_dir}/{taxid}/" + PB_BASENAME,
-        new_r1 = "{data_dir}/{taxid}/{taxid}_R1.fastq.gz",
-        new_r2 = "{data_dir}/{taxid}/{taxid}_R2.fastq.gz", 
+        new_r1    = DATA_DIR + "/{acc}/{acc}_R1.fastq.gz",
+        new_r2    = DATA_DIR + "/{acc}/{acc}_R2.fastq.gz",
+        fasta_out = DATA_DIR + "/{acc}/{acc}.fa",
+        pb_out    = DATA_DIR + "/{acc}/{acc}.pb.gz"
     params:
-        data_dir = config["wepp_data_dir"]
+        data_dir = lambda wc: f"{DATA_DIR}/{wc.acc}"
     shell:
         """
+        mkdir -p {params.data_dir}
+        # copy reference files
         cp {input.fasta} {output.fasta_out}
-        cp {input.pb} {output.pb_out}
-        mv {input.r1} {output.new_r1}
-        mv {input.r2} {output.new_r2}
+        cp {input.pb}    {output.pb_out}
+        # copy split reads
+        cp {input.r1}    {output.new_r1}
+        cp {input.r2}    {output.new_r2}
         """
+
+
 
 # 8) Invoke WEPP’s Snakefile for each taxid
-
 # Run WEPP
 rule run_wepp:
+    """
+    Launch the inner WEPP workflow once for every accession (`{acc}`).
+    """
     input:
-        r1    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R1.fastq.gz",
-        r2    = f"{DATA_DIR}" + "/{taxid}/{taxid}_R2.fastq.gz"
+        r1    = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc.split('.')[0]}_R1.fastq.gz",
+        r2    = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc.split('.')[0]}_R2.fastq.gz",
+        fasta = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.fa",
+        tree  = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.pb.gz",
+
     output:
-        run_txt = config["wepp_results_dir"] + "/{taxid}/{taxid}_run.txt"
+        run_txt = config["wepp_results_dir"] + "/{acc}/{acc}_run.txt",
+
     threads: config.get("wepp_threads", 32)
+
     params:
-        dir    = lambda wildcards: f"{wildcards.taxid}",
-        prefix = lambda wildcards: f"{wildcards.taxid}"
+        snakefile  = config["wepp_workflow"],
+        workdir    = config["wepp_root"],
+        primer_bed = config["PRIMER_BED"],
+        clade_idx  = config["CLADE_IDX"],
+        cfgfile    = config["wepp_config"],
+        resultsdir = config["wepp_results_dir"],
+
     shell:
-        """
+        r"""
+        # ensure results folder exists
+        mkdir -p {params.resultsdir}/{wildcards.acc}
+
+        # strip version suffix once here
+        PREFIX=$(echo "{wildcards.acc}" | cut -d '.' -f 1)
+
+        # run the inner Snakemake workflow
         python ./scripts/run_inner.py \
-            --snakefile {config[wepp_workflow]} \
-            --workdir {config[wepp_root]} \
-            --dir {params.dir} \
-            --prefix {params.prefix} \
-            --primer_bed {config[PRIMER_BED]} \
-            --tree {config[TREE]} \
-            --ref {config[REF]} \
-            --clade_idx {config[CLADE_IDX]} \
-            --configfile {config[wepp_config]} \
-            --cores {threads}
+            --snakefile  {params.snakefile} \
+            --workdir    {params.workdir}  \
+            --dir        {wildcards.acc}   \
+            --prefix     ${{PREFIX}}       \
+            --primer_bed {params.primer_bed} \
+            --tree       {input.tree}      \
+            --ref        {input.fasta}     \
+            --clade_idx  {params.clade_idx} \
+            --configfile {params.cfgfile}  \
+            --cores      {threads}
+
+        # mark completion for the outer DAG
+        touch {output.run_txt}
         """
