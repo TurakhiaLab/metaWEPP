@@ -5,6 +5,8 @@
 - [Installation](#install)
   - [Option-1: Install via Shell Commands](#shell)
 - [Quick Start](#example)
+  - [Example-1: Simulated Data](#MeSS)
+  - [Example-2: Real World Data](#real-world) 
 - [Usage Guide](#usage)
 - [Building Kraken Databases](#build-database)
 
