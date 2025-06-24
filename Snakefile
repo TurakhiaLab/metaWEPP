@@ -1,8 +1,5 @@
 # Snakefile
 
-# 1) Load METAWEPP config
-configfile: "config/config.yaml"
-
 # imports
 import os
 import csv, re, itertools
@@ -12,6 +9,9 @@ import sys, glob
 
 from collections import defaultdict
 import itertools
+
+# 1) Load METAWEPP config
+configfile: "config/config.yaml"
 
 # 2) Constants from config
 WEPP_DIR         = config["wepp_results_dir"]
@@ -52,8 +52,6 @@ else:
     FQ1, FQ2 = map(str, (r1_files[0], r2_files[0]))
 
 print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
-
-
 
 # Helper function for the merge reads rule:
 
@@ -169,7 +167,7 @@ if SIM_TOOL == "MESS":
 
     checkpoint split_genomes:
         input:
-            fasta = config["mixed_genomes_fasta"]
+            fasta = config["METAGENOMIC_REF"]
         output:
             directory("individual_genomes")
         shell:
@@ -193,14 +191,12 @@ if SIM_TOOL == "MESS":
             tsv = "individual_genomes_tsvs/{genome}.tsv"
         params:
             script = "scripts/generate_mess_tsv.py",
-            coverage = config["coverage"]
+            coverage = config["COVERAGE"]
         shell:
             """
             python {params.script} {output.tsv} {input.fasta} {params.coverage}
             """
 
-
-            
     rule simulate_reads_mess:
         input:
             tsv = "individual_genomes_tsvs/{genome}.tsv"
@@ -213,11 +209,14 @@ if SIM_TOOL == "MESS":
             mess_slots=1
         shell:
             """
+            source $(conda info --base)/etc/profile.d/conda.sh
+            conda activate mess
+
             mess simulate \
                 --input {input.tsv} \
                 --tech illumina \
                 --output simulated_reads/ \
-                --fasta ./individual_genomes
+                --fasta individual_genomes
 
             mv simulated_reads/fastq/{params.genome_base}_R1.fq.gz {output.r1}
             mv simulated_reads/fastq/{params.genome_base}_R2.fq.gz {output.r2}
@@ -268,11 +267,11 @@ rule kraken:
         r1 = FQ1,
         r2 = FQ2
     output:
-        report     = config["kraken_report"],
-        kraken_out = config["kraken_output"]
+        report     = config["KRAKEN_REPORT"],
+        kraken_out = config["KRAKEN_OUTPUT"]
     threads: config.get("kraken_threads", 4)
     params:
-        db = config["kraken_db"]
+        db = config["KRAKEN_DB"]
     shell:
         """
         mkdir -p $(dirname {output.report})
@@ -285,7 +284,7 @@ rule kraken:
 # 7) Split Kraken output into per‐taxid FASTQs
 rule split_per_accession:
     input:
-        kraken_out = config["kraken_output"],
+        kraken_out = config["KRAKEN_OUTPUT"],
         r1         = FQ1,
         r2         = FQ2,
         mapping    = TAXID_MAP
@@ -324,7 +323,6 @@ rule prepare_wepp_inputs:
 
     params:
         data_dir = lambda wc: f"{DATA_DIR}/{wc.acc}"
-
     shell:
         r"""
         mkdir -p {params.data_dir}

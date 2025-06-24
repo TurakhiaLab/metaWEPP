@@ -5,6 +5,8 @@
 - [Installation](#install)
   - [Option-1: Install via Shell Commands](#shell)
 - [Quick Start](#example)
+  - [Example-1: Simulated Data](#mess)
+  - [Example-2: Real World Data](#real-world) 
 - [Usage Guide](#usage)
 - [Building Kraken Databases](#build-database)
 
@@ -39,20 +41,13 @@ source "${HOME}/conda/etc/profile.d/conda.sh"
 source "${HOME}/conda/etc/profile.d/mamba.sh"
 ```
 
-⚠️ Make sure that these two channels, `conda-forge` and `bioconda` is installed.
-
-```
-conda config --add channels conda-forge
-conda config --add channels bioconda
-```
-
 **Step 3:** Install Kraken.
-Replace `$KRAKEN2_DIR` with the directory in which you would like to install Kraken2's scripts. The following commands install kraken and also update the `$PATH` variable for easily running the tool.
+The following commands install kraken and also update the `$PATH` variable for easily running the tool.
 ```
 git clone https://github.com/DerrickWood/kraken2.git
 cd kraken2
-./install_kraken2.sh $KRAKEN2_DIR
-echo -e '\nexport PATH="$KRAKEN2_DIR:$PATH"' >> ~/.bashrc 
+./install_kraken2.sh .
+echo -e '\nexport PATH="$(pwd):$PATH"' >> ~/.bashrc
 source ~/.bashrc
 cd ..
 ```
@@ -60,8 +55,19 @@ cd ..
 **Step 4:** Install MeSS.
 
 ```
-conda create -n mess mess=0.10.0
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+conda create -n mess mess
 conda activate mess
+conda install -c conda-forge singularity
+conda deactivate
+
+echo 'export SINGULARITY_TMPDIR="$PWD/.singularity/tmp"' >> ~/.bashrc
+echo 'export SINGULARITY_CACHEDIR="$PWD/.singularity/cache"' >> ~/.bashrc
+echo 'mkdir -p "$SINGULARITY_TMPDIR" "$SINGULARITY_CACHEDIR"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 **Step 5:** Install WEPP.
@@ -72,15 +78,15 @@ Follow the WEPP installation guide starting from option 3 on the [WEPP repo](htt
 
 ##  <a name="example"></a> Quick Start
 
-### <a name="MeSS"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
+### <a name="mess"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
 
-This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator.
+This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator, running on our SARS-CoV-2 dataset.
 
 **Step 1:** Download the SARS-CoV-2 MAT and Reference FASTA File:
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
-cp WEPP/NC_045512v2.fa ./genomes
 ```
+Note that we have already provided the SARS-CoV-2 reference fasta file located in the `genomes` directory.
 
 **Step 2:** Build the Kraken database
 ```
@@ -93,29 +99,76 @@ kraken2-build --build --db test_kraken_DB
 
 **Step 3:**  Run the pipeline
 ```
-snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz --resources mess_sl
-ots=1 --cores 32
+snakemake --config target_taxids=2697049 SIMULATE_TOOL=MeSS METAGENOMIC_REF=genomes/filtered_genomes.fa KRAKEN_DB=test_kraken_DB TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=none.bed CLADE_IDX=1 REF=NC_045512v2.fa --resources mess_slots=1 --cores 32
 ```
 
 **Step 4:**  Analyze Results
 
 All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
----
+### <a name="real-world"></a> Example - 2: Real World Data
+
+This example will take our own metagenomic wastewater reads and use them as input for our analysis, running on our SARS-CoV-2 dataset.
+
+⚠️ Note that if you've already done Example 1, you may skip steps 1 and 2 for this example.
+
+**Step 1:** Download the SARS-CoV-2 MAT, Reference FASTA File, and wastewater metagenomic reads:
+```
+wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
+```
+Note that we have already provided the reference fasta file located in the `genomes` directory, and also our wastewater metagenomic reads located in the `example_metagenomic_reads` directory.
+
+**Step 2:** Build the Kraken database
+```
+mkdir test_kraken_DB
+kraken2-build --download-taxonomy --db test_kraken_DB
+k2 add-to-library --db test_kraken_DB --file genomes/*.fa 
+kraken2-build --build --db test_kraken_DB
+```
+⚠️ Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
+
+**Step 3:**  Run the pipeline
+```
+snakemake --config target_taxids=2697049 SIMULATE_TOOL=none FQ1=example_metagenomic_reads/mixed_reads_R1.fastq.gz FQ2=example_metagenomic_reads/mixed_reads_R2.fastq.gz KRAKEN_DB=test_kraken_DB TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
+```
+
+**Step 4:**  Analyze Results
+
+All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
+
+
 ## <a name="usage"></a> Usage Guide:
 
-META-WEPP requires `kraken_db` and `target_taxids` as config arguments through the command line, while the remaining ones can be taken from the config file. It also requires --cores from the command line, which is the number of threads used by the workflow.
+META-WEPP requires `KRAKEN_DB`, `TARGET_TAXIDS`, and `SIMULATE_TOOL` as config arguments through the command line, while the remaining ones can be taken from the config file. If you are setting `SIMULATE_TOOL=none`, then META-WEPP also requires `FQ1` and `FQ2` through the command line. It requires `--cores` from the command line, which is the number of threads used by the workflow, and also requires `--resources mess_slots=1` to prevent MeSS running in parallel which causes some issues.
 
-Example 1:
+Using all parameters from the config file:
 ```
-snakemake --config kraken_db=test_kraken_DB target_taxids=2697049 TREE=public-2021-12-05.all.masked.pb.gz --resources mess_sl
-ots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 --resources mess_slots=1 --cores 32
 ```
-This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT, `public-2021-12-05.all.masked.pb.gz`.
+Overriding `CLADE_IDX` and `PRIMER_BED`:
+```
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
+```
+
+This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT and REF genome file.
+
+### Arguments
 
 The `config.yaml` file has the following arguments:
 
-
+1. `KRAKEN_DB` - Name of the Kraken database.
+2. `KRAKEN_REPORT` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
+3. `KRAKEN_OUTPUT` - Name of the Kraken output. (This tells you which reads were mapped to the corresponding genome)
+4. `SIMULATION_TOOL` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
+5. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
+6. `REF` - The reference genome in fasta.
+7. `TREE` - The Mutation-Annotated Tree.
+8. `TARGET_TAXIDS` - The taxids to be analyzed.
+9. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
+10. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
+11. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
+12. `FQ1` - R1 reads in `readname_R1.fastq.gz` format.
+13. `FQ2` - R2 reads in `readname_R2.fastq.gz` format.
 1. `KRAKEN_DB` - Name of the Kraken database.
 2. `KRAKEN_REPORT` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
 3. `KRAKEN_OUTPUT` - Name of the Kraken output. (This tells you which reads were mapped to the corresponding genome)
@@ -141,6 +194,7 @@ If you would like more information on building a Kraken database, see below:
 ### How to build a custom Kraken Database:
 
 **Step 1:** Install the taxonomy. This is necessary for building Kraken databases.
+**Step 1:** Install the taxonomy. This is necessary for building Kraken databases.
 ```
 kraken2-build --download-taxonomy --db $DBNAME
 ```
@@ -156,6 +210,7 @@ Add a list of files to the database's genomic library (all the .fa files in your
 ```
 k2 add-to-library --db test_kraken_DB --file *.fa
 ```
+You can also add a multi fasta file (metagenomic fasta file) in the genomic library.
 You can also add a multi fasta file (metagenomic fasta file) in the genomic library.
 
 ⚠️ For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`
