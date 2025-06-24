@@ -75,13 +75,13 @@ FASTAS = sorted(PATHOGEN_ROOT.glob("*/*.fa*"))
 if not FASTAS:
     raise ValueError("No reference FASTA files found under data/pathogens_for_detailed_analysis")
 
-# ---- build:  accession list  +  accession → fasta  +  accession → pb/mat ----
+# build:  accession list,  accession → fasta,  accession → pb ----
 REF_ACCESSIONS = sorted({fa.parent.name for fa in FASTAS})      # ['AF013254.1', …]
 
 ACC2FASTA = {}          # accession → single FASTA path
 for fa in FASTAS:
     acc = fa.parent.name
-    ACC2FASTA.setdefault(acc, str(fa.resolve()))   # first FASTA wins
+    ACC2FASTA.setdefault(acc, str(fa.resolve()))   
 
 ACC2PB = {}
 for acc in REF_ACCESSIONS:
