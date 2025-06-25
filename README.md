@@ -139,6 +139,46 @@ All results can be found in the `WEPP/results/2697049` directory. This taxid is 
 
 ## <a name="usage"></a> Usage Guide:
 
+### Data Organization
+
+Visualization of META-WEPP's workflow directories
+```text
+📁 META-WEPP
+└───📁genomes                                   # [User Created] Contains metagenomic reference files
+     ├───filtered_genomes.fa                    
+
+└───📁data                                   # [User Created] Contains data to analyze 
+     ├───📁pathogens_for_detailed_analysis   # [User Created] Pathogens selected for analysis
+          ├───📁SARS_COV_2_real                   
+               ├───sars_cov_2_reference.fa   
+               ├───sars_cov_2_mat.pb.gz
+          ├───📁RSV_A_real                   
+               ├───rsv_a_2_reference.fa   
+               ├───rsv_a_mat.pb.gz
+
+     ├───📁METAGENOMIC_READS                  # [User Created] Sample input reads (if providing reads)
+          ├───metagenomic_reads_R1.fastq.gz   # Paired-ended reads
+          ├───metagenomic_reads_R2.fastq.gz
+
+└───📁results                                # [META-WEPP Generated] Contains final META-WEPP results
+     ├───📁fastq                             # [META-WEPP Generated] Contains simulated reads (if simulated)
+          ├───📁SARS_COV_2
+               ├───sars_cov_2_reads_R1.fastq.gz   
+               ├───sars_cov_2_reads_R2.fastq.gz
+          ├───📁RSV_A
+               ├───rsv_a_reads_R1.fastq.gz         
+               ├───rsv_a_reads_R2.fastq.gz
+      ├───📁METAGENOMIC_READS                        # [META-WEPP Generated] Contains real reads (if provided reads)
+           ├───📁SARS_COV_2
+                ├───sars_cov_2_reads_R1.fastq.gz    
+                ├───sars_cov_2_reads_R2.fastq.gz
+           ├───📁RSV_A
+                ├───rsv_a_reads_R1.fastq.gz         
+                ├───rsv_a_reads_R2.fastq.gz
+```
+
+### Run Command
+
 META-WEPP requires `KRAKEN_DB`, `TARGET_TAXIDS`, and `SIMULATE_TOOL` as config arguments through the command line, while the remaining ones can be taken from the config file. If you are setting `SIMULATE_TOOL=none`, then META-WEPP also requires `FQ1` and `FQ2` through the command line. It requires `--cores` from the command line, which is the number of threads used by the workflow, and also requires `--resources mess_slots=1` to prevent MeSS running in parallel which causes some issues.
 
 Using all parameters from the config file:
@@ -157,35 +197,23 @@ This will run the full pipeline and run WEPP for the taxid `2697049`, and uses t
 The `config.yaml` file has the following arguments:
 
 1. `KRAKEN_DB` - Name of the Kraken database.
-2. `KRAKEN_REPORT` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
-3. `KRAKEN_OUTPUT` - Name of the Kraken output. (This tells you which reads were mapped to the corresponding genome)
-4. `SIMULATION_TOOL` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
-5. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
-6. `REF` - The reference genome in fasta.
-7. `TREE` - The Mutation-Annotated Tree.
-8. `TARGET_TAXIDS` - The taxids to be analyzed.
-9. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
-10. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
-11. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
-12. `FQ1` - R1 reads in `readname_R1.fastq.gz` format.
-13. `FQ2` - R2 reads in `readname_R2.fastq.gz` format.
-1. `KRAKEN_DB` - Name of the Kraken database.
-2. `KRAKEN_REPORT` - Name of the Kraken report. (This tells you a report of what has been classified by Kraken)
-3. `KRAKEN_OUTPUT` - Name of the Kraken output. (This tells you which reads were mapped to the corresponding genome)
-4. `SIMULATION_TOOL` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
-5. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
-6. `REF` - The reference genome in fasta.
-7. `TREE` - The Mutation-Annotated Tree.
-8. `TARGET_TAXIDS` - The taxids to be analyzed.
-9. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
-10. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
-11. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
-12. `FQ1` - R1 reads in `readname_R1.fastq.gz` format.
-13. `FQ2` - R2 reads in `readname_R2.fastq.gz` format.
+2. `SIMULATION_TOOL` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
+3. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
+4. `REF` - The reference genome in fasta.
+5. `TREE` - The Mutation-Annotated Tree.
+6. `TARGET_TAXIDS` - The taxids to be analyzed.
+7. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
+8. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
+9. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
+10. `FQ1` - R1 reads in `readname_R1.fastq.gz` format.
+11. `FQ2` - R2 reads in `readname_R2.fastq.gz` format.
+12. `SEQUENCING_TYPE` - `"d"` for paired end reads, `"s"` for single ended reads.
 
 ⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
 
 ⚠️ If you are simulating with MeSS, along with the reference genomes and MAT, you must also provide a reference mixed genome in fasta. In the quick start, the `filtered_genomes.fa` is the reference fasta file, and it must be a mixed genome sample.
+
+
 
 ---
 ##  <a name="build-database"></a> Building Kraken Databases
