@@ -166,6 +166,16 @@ def wepp_done_files():
         for acc in REF_ACCESSIONS
     ]
 
+# ────────────────────────────────────────────────────────────────
+# Helper function for run wepp
+def has_reads(fq):
+    """
+    Return shell code that exits 0 (true) when the FASTQ has ≥ 1 read.
+    Works for .gz and plain fastq. 4 lines = 1 read.
+    """
+    return f'( (gzip -cd {fq} 2>/dev/null || cat {fq}) | head -4 | wc -l ) -ge 4'
+
+
 # 3) Top‐level: these are all wildcards required for the pipeline to run smoothly
 GENOME_NAME, = glob_wildcards("individual_genomes/{genome}.fa")
 
@@ -344,7 +354,7 @@ if IS_SINGLE_END:
             fasta = lambda wc: ACC2FASTA[wc.acc],
             pb    = lambda wc: ACC2PB[wc.acc]
         output:
-            new_r1    = DATA_DIR + "/{acc}/{acc}_R1.fastq.gz",
+            new_r1    = DATA_DIR + "/{acc}/{acc}.fastq.gz",
             fasta_out = DATA_DIR + "/{acc}/{acc}.fa",
             pb_out    = DATA_DIR + "/{acc}/{acc}.pb.gz"
         params:
@@ -401,15 +411,16 @@ else:
             """
 
 
-
-
 # 8) Invoke WEPP’s Snakefile for each taxid
 # Run WEPP
 rule run_wepp:
     input:
-        r1    = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}_R1.fastq.gz",
-        r2    = (lambda wc: [] if IS_SINGLE_END else 
-                    f"{DATA_DIR}/{wc.acc}/{wc.acc}_R2.fastq.gz"),
+        r1  = lambda wc: (
+                f"{DATA_DIR}/{wc.acc}/{wc.acc}.fastq.gz"       
+                if IS_SINGLE_END else
+                f"{DATA_DIR}/{wc.acc}/{wc.acc}_R1.fastq.gz"), 
+        r2  = (lambda wc: [] if IS_SINGLE_END else 
+                f"{DATA_DIR}/{wc.acc}/{wc.acc}_R2.fastq.gz"),
         fasta_full = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.fa",
         tree_full  = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.pb.gz",
     output:
@@ -417,7 +428,7 @@ rule run_wepp:
     threads: config.get("wepp_threads", 32)
     params:
         snakefile   = config["wepp_workflow"],
-        workdir     = config['wepp_root'],   # e.g. WEPP/AF013254.1
+        workdir     = config['wepp_root'],
         primer_bed  = config["PRIMER_BED"],
         clade_idx   = config["CLADE_IDX"],
         cfgfile     = config["wepp_config"],
@@ -430,18 +441,32 @@ rule run_wepp:
         "/home/qix007@AD.UCSD.EDU/metagenomic-WBE/env/wepp.yaml"
     shell:
         r"""
+        # ─── skip WEPP when both FASTQs are empty ──────────────────────
+        has_reads() {{
+            local f=$1
+            [ "$( (gzip -cd "$f" 2>/dev/null || cat "$f") | head -4 | wc -l )" -ge 4 ]
+        }}
+
+        if ! has_reads "{input.r1}" && ( [ -z "{input.r2}" ] || ! has_reads "{input.r2}" ); then
+            echo "No reads for {wildcards.acc}; removing data folder and skipping WEPP." >&2
+            rm -rf "{DATA_DIR}/{wildcards.acc}"
+            mkdir -p {params.resultsdir}/{wildcards.acc}
+            touch {output.run_txt}
+            exit 0
+        fi
+        # ─── continue with normal WEPP run ─────────────────────────────
         mkdir -p {params.resultsdir}/{wildcards.acc}
 
         python ./scripts/run_inner.py \
             --snakefile  {params.snakefile} \
-            --workdir    {params.workdir}  \
-            --dir        {wildcards.acc}   \
-            --prefix     {params.prefix}   \
+            --workdir    {params.workdir} \
+            --dir        {wildcards.acc} \
+            --prefix     {params.prefix} \
             --primer_bed {params.primer_bed} \
             --tree       {params.tree_name} \
             --ref        {params.ref_name} \
             --clade_idx  {params.clade_idx} \
-            --configfile {params.cfgfile}  \
+            --configfile {params.cfgfile} \
             --cores      {threads} \
             {params.se_flag}
 
