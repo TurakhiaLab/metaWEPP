@@ -9,11 +9,9 @@ wepp_data_dir: "WEPP/data"
 kraken_threads: 8
 kraken_db: test_kraken_DB
 
-
 # Change this to the kraken reports directory
 KRAKEN_REPORT: "kraken_report.txt"
 KRAKEN_OUTPUT: "kraken_output.txt"
-
 
 # Bed file should be present in 'WEPP/primers'
 PRIMER_BED: "none.bed"
@@ -23,7 +21,7 @@ CLADE_IDX: "1"
 
 # Simulation Settings:
 #    * Set to "MESS" to simulate
-#    * Set to "none" to skip simulation. But, you must provide your own real reads in fq1 and fq2.
+#    * Set to "none" to skip simulation. But, you must provide your own real reads in fq_dir
 
 simulation_tool: "NONE"
 metagenomic_ref: "genomes/filtered_genomes.fa"
