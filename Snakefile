@@ -42,10 +42,10 @@ else:
         raise FileNotFoundError(f"Input folder {fq_dir} does not exist")
 
     # always look for R1
-    r1_files = sorted(fq_dir.glob("*_R1.fastq*"))
+    r1_files = sorted(fq_dir.glob("*.fastq*"))
     if len(r1_files) != 1:
         raise RuntimeError(
-            f"{fq_dir} must contain exactly one *_R1.fastq* file "
+            f"{fq_dir} must contain exactly one *.fastq* file "
             f"(found {len(r1_files)})."
         )
 
