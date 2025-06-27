@@ -20,7 +20,7 @@ DATA_DIR = config["wepp_data_dir"]
 #REF_BASENAME = os.path.basename(config["REF"])
 #PB_BASENAME = os.path.basename(config["TREE"])
 TAXID_MAP = os.path.join(config["KRAKEN_DB"], "seqid2taxid.map")
-IS_SINGLE_END = config.get("IS_SINGLE_END", "p").lower() == "s"
+IS_SINGLE_END = config.get("SEQUENCING_TYPE", "p").lower() == "s"
 
 
 # Get FQ1 and FQ2
@@ -301,8 +301,8 @@ rule kraken:
         r1 = FQ1,
         r2 = (lambda wc: [] if IS_SINGLE_END else FQ2),
     output:
-        report     = config["KRAKEN_REPORT"],
-        kraken_out = config["KRAKEN_OUTPUT"],
+        report     = "kraken_report.txt",
+        kraken_out = "kraken_output.txt",
     threads: config.get("kraken_threads", 4)
     params:
         db        = config["KRAKEN_DB"],
