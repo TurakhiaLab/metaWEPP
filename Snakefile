@@ -20,7 +20,7 @@ DATA_DIR = config["wepp_data_dir"]
 #REF_BASENAME = os.path.basename(config["REF"])
 #PB_BASENAME = os.path.basename(config["TREE"])
 TAXID_MAP = os.path.join(config["KRAKEN_DB"], "seqid2taxid.map")
-IS_SINGLE_END = config.get("SEQUENCING_TYPE", "p").lower() == "s"
+IS_SINGLE_END = config.get("SEQUENCING_TYPE", "p").lower() in {"s", "n"}
 
 
 # Get FQ1 and FQ2
@@ -29,21 +29,21 @@ if SIM_TOOL == "MESS":
     FQ2 = "simulated_reads/fastq/merged_R2.fq.gz"
 
 else:
-    if "fq_dir" not in config:
+    if "DIR" not in config:
         raise ValueError(
-            "SIM_TOOL is NONE, but config is missing 'fq_dir'.\n"
+            "SIM_TOOL is NONE, but config is missing 'DIR'.\n"
             "Please add, e.g.,\n"
-            "  fq_dir: RSVA_test   # relative to the data/ folder\n"
+            "  DIR: RSVA_test   # relative to the data/ folder\n"
             "to your config.yaml."
         )
 
-    fq_dir = Path("data") / config["FQ_DIR"]
+    fq_dir = Path("data") / config["DIR"]
     if not fq_dir.exists():
-        raise FileNotFoundError(f"Input folder {fq_dir} does not exist")
+        raise FileNotFoundError(f"Input folder {DIR} does not exist")
 
     # always look for R1
     r1_files = sorted(fq_dir.glob("*.fastq*"))
-    if len(r1_files) != 1:
+    if len(r1_files) < 0:
         raise RuntimeError(
             f"{fq_dir} must contain exactly one *.fastq* file "
             f"(found {len(r1_files)})."
@@ -320,7 +320,7 @@ rule kraken:
 # 7) Split Kraken output into per-taxid FASTQs 
 rule split_per_accession:
     input:
-        kraken_out = config["KRAKEN_OUTPUT"],
+        kraken_out = "kraken_output.txt",
         mapping    = TAXID_MAP,
         r1         = FQ1,
         r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
@@ -428,7 +428,7 @@ rule run_wepp:
     threads: config.get("wepp_threads", 32)
     params:
         snakefile   = config["wepp_workflow"],
-        workdir     = config['wepp_root'],
+        workdir     = config["wepp_root"],
         primer_bed  = config["PRIMER_BED"],
         clade_idx   = config["CLADE_IDX"],
         cfgfile     = config["wepp_config"],
@@ -436,7 +436,7 @@ rule run_wepp:
         prefix      = lambda wc: wc.acc.split('.')[0],
         ref_name    = lambda wc: f"{wc.acc}.fa",
         tree_name   = lambda wc: f"{wc.acc}.pb.gz",
-        se_flag     = "--is_single_end" if IS_SINGLE_END else "", 
+        seq_type    = config.get("SEQUENCING_TYPE", "p").lower(),
     conda:
         "/home/qix007@AD.UCSD.EDU/metagenomic-WBE/env/wepp.yaml"
     shell:
@@ -457,18 +457,18 @@ rule run_wepp:
         # ─── continue with normal WEPP run ─────────────────────────────
         mkdir -p {params.resultsdir}/{wildcards.acc}
 
-        python ./scripts/run_inner.py \
-            --snakefile  {params.snakefile} \
-            --workdir    {params.workdir} \
-            --dir        {wildcards.acc} \
-            --prefix     {params.prefix} \
-            --primer_bed {params.primer_bed} \
-            --tree       {params.tree_name} \
-            --ref        {params.ref_name} \
-            --clade_idx  {params.clade_idx} \
-            --configfile {params.cfgfile} \
-            --cores      {threads} \
-            {params.se_flag}
+    python ./scripts/run_inner.py \
+        --snakefile  {params.snakefile} \
+        --workdir    {params.workdir} \
+        --dir        {wildcards.acc} \
+        --prefix     {params.prefix} \
+        --primer_bed {params.primer_bed} \
+        --tree       {params.tree_name} \
+        --ref        {params.ref_name} \
+        --clade_idx  {params.clade_idx} \
+        --configfile {params.cfgfile} \
+        --cores      {threads} \
+        --sequencing_type {params.seq_type}
 
-        touch {output.run_txt}
+    touch {output.run_txt}
         """

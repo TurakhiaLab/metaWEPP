@@ -1,4 +1,4 @@
-FQ_DIR: RSVA_test
+DIR: RSVA_test
 SEQUENCING_TYPE: p
 
 wepp_workflow: WEPP/workflow/Snakefile"
@@ -7,7 +7,6 @@ wepp_results_dir: "WEPP/results"
 wepp_config: "WEPP/config/config.yaml"
 wepp_data_dir: "WEPP/data"
 kraken_threads: 8
-mixed_genomes_fasta: "data/simulated_genomes/filtered_genomes.fa"
 KRAKEN_DB: test_kraken_DB
 
 # Bed file should be present in 'WEPP/primers'

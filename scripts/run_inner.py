@@ -14,8 +14,8 @@ parser.add_argument("--snakefile",   required=True)
 parser.add_argument("--workdir",     required=True)
 parser.add_argument("--configfile",  required=False)
 parser.add_argument("--cores",       default="4")
-parser.add_argument("--is_single_end", action="store_true",
-                    help="If set, tell the inner workflow we are single-end")
+parser.add_argument("--sequencing_type", required=True,
+                    help="Value to forward as SEQUENCING_TYPE in the inner config")
 
 args = parser.parse_args()
 
@@ -32,11 +32,8 @@ cmd = [
     f"TREE={args.tree}",
     f"REF={args.ref}",
     f"CLADE_IDX={args.clade_idx}",
+    f"SEQUENCING_TYPE={args.sequencing_type}",
 ]
-
-# add sequencing-type flag if single-end
-if args.is_single_end:
-    cmd.append("SEQUENCING_TYPE=s") 
 
 if args.configfile:
     cmd += ["--configfile", args.configfile]
