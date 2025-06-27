@@ -316,6 +316,17 @@ rule kraken:
                 --report {output.report} \
                 --output {output.kraken_out}
         """
+# Data visualization
+rule data_visualization:
+    input:
+        report = "kraken_report.txt"
+    output:
+        png = temp("plots/last_generated_plot.txt")  # temp file just to record path
+    shell:
+        r"""
+        mkdir -p plots
+        python scripts/kraken_data_visualization.py {input.report} plots/ > {output.png}
+        """
 
 # 7) Split Kraken output into per-taxid FASTQs 
 rule split_per_accession:
@@ -324,6 +335,7 @@ rule split_per_accession:
         mapping    = TAXID_MAP,
         r1         = FQ1,
         r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
+        plot       = "classification_proportions.png"
     output:
         dir = directory(OUT_ROOT)
     params:
