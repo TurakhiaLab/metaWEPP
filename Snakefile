@@ -15,12 +15,12 @@ configfile: "config/config.yaml"
 
 # 2) Constants from config
 WEPP_DIR         = config["wepp_results_dir"]
-SIM_TOOL         = config.get("simulation_tool", "none").upper() 
+SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
 DATA_DIR = config["wepp_data_dir"]
 #REF_BASENAME = os.path.basename(config["REF"])
 #PB_BASENAME = os.path.basename(config["TREE"])
 TAXID_MAP = os.path.join(config["KRAKEN_DB"], "seqid2taxid.map")
-IS_SINGLE_END = config.get("is_single_end", "p").lower() == "s"
+IS_SINGLE_END = config.get("IS_SINGLE_END", "p").lower() == "s"
 
 
 # Get FQ1 and FQ2
@@ -37,7 +37,7 @@ else:
             "to your config.yaml."
         )
 
-    fq_dir = Path("data") / config["fq_dir"]
+    fq_dir = Path("data") / config["FQ_DIR"]
     if not fq_dir.exists():
         raise FileNotFoundError(f"Input folder {fq_dir} does not exist")
 
