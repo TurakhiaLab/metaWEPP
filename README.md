@@ -108,11 +108,10 @@ kraken2-build --build --db test_kraken_DB
 rm -rf test_kraken_DB/taxonomy #  To save disk memory
 rm -rf test_kraken_DB/library  #  To save disk memory
 ```
-⚠️ Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
 
 **Step 4:**  Run the pipeline
 ```
-snakemake --config SIMULATION_TOOL=MESS  KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config SIMULATION_TOOL=MESS METAGENOMIC_REF=genomes/NC_038235.fa KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
 **Step 5:**  Analyze Results
@@ -235,7 +234,6 @@ The `config.yaml` file has the following arguments:
 3. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
 4. `REF` - The reference genome in fasta.
 5. `TREE` - The Mutation-Annotated Tree.
-6. `TARGET_TAXIDS` - The taxids to be analyzed.
 7. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
 8. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
 9. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
