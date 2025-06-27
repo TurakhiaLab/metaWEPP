@@ -78,63 +78,97 @@ Follow the WEPP installation guide starting from option 3 on the [WEPP repo](htt
 
 ##  <a name="example"></a> Quick Start
 
-### <a name="mess"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
+### <a name="mess"></a> Example - 1 RSV Dataset: Run the pipeline with MeSS simulated data
 
-This example will simulate reads from our `filtered_genomes.fa` mixed metagenomic fasta file using MeSS's `illumina` simulator, running on our SARS-CoV-2 dataset.
-
-**Step 1:** Download the SARS-CoV-2 MAT and Reference FASTA File:
+**Step 1:** Download the RSVA MAT, Reference FASTA File
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
-```
-Note that we have already provided the SARS-CoV-2 reference fasta file located in the `genomes` directory.
 
-**Step 2:** Build the Kraken database
+mkdir -p data/pathogens_for_detailed_analysis
+cd data/pathogens_for_detailed_analysis
+wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz
+gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz
+mv GCF_002815475.1_ASM281547v1_genomic.fna NC_038235.fa
+cd ../..
+```
+
+**Step 2:** Prepare simulated genomes
+```
+mkdir genomes
+cd genomes
+mv ../data/pathogens_for_detailed_analysis/NC_038235.fa .
+```
+
+**Step 3:** Build the Kraken database
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
-k2 add-to-library --db test_kraken_DB --file genomes/*.fa 
+k2 add-to-library --db test_kraken_DB --file /data/pathogens_for_detailed_analysis/NC_038235.fa 
 kraken2-build --build --db test_kraken_DB
+rm -rf test_kraken_DB/taxonomy #  To save disk memory
+rm -rf test_kraken_DB/library  #  To save disk memory
 ```
 ⚠️ Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
 
-**Step 3:**  Run the pipeline
+**Step 4:**  Run the pipeline
 ```
-snakemake --config target_taxids=2697049 SIMULATE_TOOL=MeSS METAGENOMIC_REF=genomes/filtered_genomes.fa KRAKEN_DB=test_kraken_DB TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=none.bed CLADE_IDX=1 REF=NC_045512v2.fa --resources mess_slots=1 --cores 32
+snakemake --config SIMULATION_TOOL=MESS  KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
-**Step 4:**  Analyze Results
+**Step 5:**  Analyze Results
 
 All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
 ### <a name="real-world"></a> Example - 2: Real World Data
 
-This example will take our own metagenomic wastewater reads and use them as input for our analysis, running on our SARS-CoV-2 dataset.
+This example will take our own metagenomic wastewater reads and use them as input for our analysis, running on our RSVA dataset.
 
 ⚠️ Note that if you've already done Example 1, you may skip steps 1 and 2 for this example.
 
-**Step 1:** Download the SARS-CoV-2 MAT, Reference FASTA File, and wastewater metagenomic reads:
+**Step 1:** Download the RSVA MAT, Reference FASTA File
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
-```
-Note that we have already provided the reference fasta file located in the `genomes` directory, and also our wastewater metagenomic reads located in the `example_metagenomic_reads` directory.
 
-**Step 2:** Build the Kraken database
+mkdir -p data/pathogens_for_detailed_analysis
+cd data/pathogens_for_detailed_analysis
+wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz
+gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz
+mv GCF_002815475.1_ASM281547v1_genomic.fna NC_038235.fa
+cd ../..
+```
+
+**Step 2:** Download astewater metagenomic reads:
+```
+mkdir -p data/RSVA_real
+cd data/RSVA_real
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR147/011/ERR14763711/ERR14763711_*.fastq.gz https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/002/815/475/GCF_002815475.1_ASM281547v1/GCF_002815475.1_ASM281547v1_genomic.fna.gz
+gunzip GCF_002815475.1_ASM281547v1_genomic.fna.gz
+mv GCF_002815475.1_ASM281547v1_genomic.fna NC_038235.fa
+mv ERR14763711_1.fastq.gz ERR14763711_R1.fastq.gz
+mv ERR14763711_2.fastq.gz ERR14763711_R2.fastq.gz
+cd ../..
+```
+
+**Step 3:** Build the Kraken database
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
-k2 add-to-library --db test_kraken_DB --file genomes/*.fa 
+k2 add-to-library --db test_kraken_DB --file data/RSVA_real/NC_038235.fa 
 kraken2-build --build --db test_kraken_DB
+rm -rf test_kraken_DB/taxonomy #  To save disk memory
+rm -rf test_kraken_DB/library  #  To save disk memory
 ```
-⚠️ Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work.
+⚠️ Note that you must add the reference genome (in this example, `NC_038235.fa`) into the custom database for the pipeline to work.
 
-**Step 3:**  Run the pipeline
+
+**Step 4:**  Run the pipeline
 ```
-snakemake --config target_taxids=2697049 SIMULATE_TOOL=none FQ1=example_metagenomic_reads/mixed_reads_R1.fastq.gz FQ2=example_metagenomic_reads/mixed_reads_R2.fastq.gz KRAKEN_DB=test_kraken_DB TREE=public-2021-12-05.all.masked.pb.gz PRIMER_BED=nimagenV2.bed CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config FQ_DIR=RSVA_real SIMULATION_TOOL=none  KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
-**Step 4:**  Analyze Results
+**Step 5:**  Analyze Results
 
-All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
+All results can be found in the `WEPP/results/NC_038235.1` directory. 
 
 
 ## <a name="usage"></a> Usage Guide:
