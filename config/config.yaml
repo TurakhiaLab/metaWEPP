@@ -2,9 +2,6 @@
 # (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
 SEQUENCING_TYPE: d
 
-# Number of threads to run kraken 
-kraken_threads: 8
-
 # Bed file should be present in 'WEPP/primers'
 
 PRIMER_BED: "none.bed"
@@ -12,7 +9,6 @@ PRIMER_BED: "none.bed"
 # Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
 CLADE_IDX: "1"
 
-<<<<<<< HEAD
 # Simulation Settings:
 #    * Set to "MESS" to simulate
 #    * Set to "none" or blank to skip simulation. But, you must provide your own real reads in fq1 and fq2.
