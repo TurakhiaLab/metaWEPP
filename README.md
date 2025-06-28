@@ -229,19 +229,15 @@ This will run the full pipeline and run WEPP for the taxid `2697049`, and uses t
 
 ### Arguments
 
-The `config.yaml` file has the following arguments:
+META-WEPP has the following arguments:
 
 1. `KRAKEN_DB` - Name of the Kraken database.
-2. `SIMULATION_TOOL` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
+2. `SIMULATION_TOOL` - Input `"MESS"` to simulate reads with MeSS, or leave it blank, `""`, to provide your own reads.
 3. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
-4. `REF` - The reference genome in fasta.
-5. `TREE` - The Mutation-Annotated Tree.
-7. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
-8. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
-9. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
-10. `FQ1` - R1 reads in `readname_R1.fastq.gz` format.
-11. `FQ2` - R2 reads in `readname_R2.fastq.gz` format.
-12. `SEQUENCING_TYPE` - `"d"` for paired end reads, `"s"` for single ended reads.
+4. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
+5. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
+6. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
+7. `SEQUENCING_TYPE` - `"d"` for paired end reads, `"s"` for single ended reads.
 
 ⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
 
@@ -255,7 +251,6 @@ If you would like more information on building a Kraken database, see below:
 
 ### How to build a custom Kraken Database:
 
-**Step 1:** Install the taxonomy. This is necessary for building Kraken databases.
 **Step 1:** Install the taxonomy. This is necessary for building Kraken databases.
 ```
 kraken2-build --download-taxonomy --db $DBNAME
@@ -272,7 +267,6 @@ Add a list of files to the database's genomic library (all the .fa files in your
 ```
 k2 add-to-library --db test_kraken_DB --file *.fa
 ```
-You can also add a multi fasta file (metagenomic fasta file) in the genomic library.
 You can also add a multi fasta file (metagenomic fasta file) in the genomic library.
 
 ⚠️ For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`
