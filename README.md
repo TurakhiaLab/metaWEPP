@@ -243,7 +243,7 @@ META-WEPP has the following arguments:
 5. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
 6. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
 7. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
-8. `SEQUENCING_TYPE` - `"d"` for paired end reads, `"s"` for single ended reads.
+8. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
 
 ⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
 
