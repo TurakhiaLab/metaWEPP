@@ -178,26 +178,26 @@ Visualization of META-WEPP's workflow directories
 ```
 📁 META-WEPP             
 └───📁data                                       # [User Created] Contains data to analyze 
-     ├───📁pathogens_for_wepp                    # [User Created] Pathogens selected for analysis
+     ├───📁pathogens_for_wepp                    # [User Created] Pathogens for Variant Analysis
           ├───📁SARS_COV_2_real                   
                ├───sars_cov_2_reference.fa   
                ├───sars_cov_2_mat.pb.gz
 
           ├───📁RSV_A_real                   
-               ├───rsv_a_2_reference.fa   
+               ├───rsv_a_reference.fa   
                ├───rsv_a_mat.pb.gz
 
-     ├───📁metagenomic_sample_1                  # [User Created] Sample input reads (if providing reads)
+     ├───📁real_metagenomic_sample               # [User Created] Sample input reads (if providing reads)
           ├───metagenomic_reads_R1.fastq.gz      # Paired-ended reads
           ├───metagenomic_reads_R2.fastq.gz
 
-     ├───📁metagenomic_sample_simulation                  
+     ├───📁simulated_metagenomic_sample                  
           ├───metagenomic_reference.fa           # [User Created] Sample input fasta file (if simulating reads)
           ├───metagenomic_reads_R1.fastq.gz      # [META-WEPP Generated] These are created after MeSS simulation
           ├───metagenomic_reads_R2.fastq.gz
 
 └───📁results                                    # [META-WEPP Generated] Contains final META-WEPP results
-      ├───📁metagenomic_sample_1                 # [META-WEPP Generated] Contains split reads
+      ├───📁real_metagenomic_sample                 
            ├───📁SARS_COV_2
                 ├───sars_cov_2_reads_R1.fastq.gz    
                 ├───sars_cov_2_reads_R2.fastq.gz
@@ -206,7 +206,7 @@ Visualization of META-WEPP's workflow directories
                 ├───rsv_a_reads_R1.fastq.gz         
                 ├───rsv_a_reads_R2.fastq.gz
 
-      ├───📁metagenomic_sample_simulation                        
+      ├───📁simulated_metagenomic_sample                        
            ├───📁SARS_COV_2
                 ├───sars_cov_2_reads_R1.fastq.gz    
                 ├───sars_cov_2_reads_R2.fastq.gz
@@ -223,11 +223,11 @@ META-WEPP requires `KRAKEN_DB`, `DIR`, and `SIMULATE_TOOL` as config arguments t
 
 Using all parameters from the config file:
 ```
-snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 --resources mess_slots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=metagenomic_sample_simulation --resources mess_slots=1 --cores 32
 ```
 Overriding `CLADE_IDX` and `PRIMER_BED`:
 ```
-snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=metagenomic_sample_simulation CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
 ```
 
 This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT and REF genome file.
