@@ -177,8 +177,8 @@ All results can be found in the `WEPP/results/NC_038235.1` directory.
 Visualization of META-WEPP's workflow directories
 ```
 📁 META-WEPP             
-└───📁data                                      # [User Created] Contains data to analyze 
-     ├───📁pathogens_for_wepp                   # [User Created] Pathogens selected for analysis
+└───📁data                                       # [User Created] Contains data to analyze 
+     ├───📁pathogens_for_wepp                    # [User Created] Pathogens selected for analysis
           ├───📁SARS_COV_2_real                   
                ├───sars_cov_2_reference.fa   
                ├───sars_cov_2_mat.pb.gz
