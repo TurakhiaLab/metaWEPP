@@ -14,14 +14,30 @@ import itertools
 configfile: "config/config.yaml"
 
 # 2) Constants from config
-WEPP_DIR         = config["wepp_results_dir"]
+DIR = config.get("DIR")
+if "DIR" not in config:
+    raise ValueError(
+        "No DIR folder specified.\n"
+        "Call snakemake with, e.g.,  --config DIR=Sample_"
+    )
+
+WEPP_ROOT        = "WEPP"
+WEPP_WORKFLOW    = "WEPP/workflow/Snakefile"
+WEPP_RESULTS_DIR = "WEPP/results"
+WEPP_DATA_DIR    = "WEPP/data"
+WEPP_CONFIG      = "WEPP/config/config.yaml"
+WEPP_DATA_PREFIX = f"{WEPP_DATA_DIR}/{DIR}"
+
 SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
-DATA_DIR = config["wepp_data_dir"]
-#REF_BASENAME = os.path.basename(config["REF"])
-#PB_BASENAME = os.path.basename(config["TREE"])
+
+KRAKEN_DB = config.get("KRAKEN_DB")
+if KRAKEN_DB is None:
+    raise ValueError(
+        "Please provide the path to the Kraken2 database via\n"
+        "  --config KRAKEN_DB=<folder>"
+    )
 TAXID_MAP = os.path.join(config["KRAKEN_DB"], "seqid2taxid.map")
 IS_SINGLE_END = config.get("SEQUENCING_TYPE", "p").lower() in {"s", "n"}
-
 
 # Get FQ1 and FQ2
 if SIM_TOOL == "MESS":
@@ -29,14 +45,6 @@ if SIM_TOOL == "MESS":
     FQ2 = "simulated_reads/fastq/merged_R2.fq.gz"
 
 else:
-    if "DIR" not in config:
-        raise ValueError(
-            "SIM_TOOL is NONE, but config is missing 'DIR'.\n"
-            "Please add, e.g.,\n"
-            "  DIR: RSVA_test   # relative to the data/ folder\n"
-            "to your config.yaml."
-        )
-
     fq_dir = Path("data") / config["DIR"]
     if not fq_dir.exists():
         raise FileNotFoundError(f"Input folder {DIR} does not exist")
@@ -65,15 +73,6 @@ else:
     FQ1 = str(r1_files[0])
 
 print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
-
-
-# Helper function for the merge reads rule:
-
-# def existing_merge_genomes():
-#     all_genomes, = glob_wildcards("simulated_reads/fastq/{genome}_R1.fq.gz")
-#     return [g for g in all_genomes if os.path.exists(f"simulated_reads/fastq/{g}_R2.fq.gz")]
-
-#MERGE_GENOMES = existing_merge_genomes()
 
 # ────────────────────────────────────────────────────────────────
 # Auto-discover reference genomes placed in:
@@ -114,7 +113,7 @@ print(f"IS_SINGLE_END = {IS_SINGLE_END}", file=sys.stderr)
 # Helper function for splitting reads
 def detect_out_root(fq1):
     if "simulated_reads/fastq" in fq1:
-        return "results/fastq"
+        return f"results/{DIR}"
     sample = os.path.basename(os.path.dirname(fq1)) # e.g. data/sample_1/…
     return f"results/{sample}"
 
@@ -158,11 +157,15 @@ def optional_file(path):
     """
     return path if os.path.exists(path) else []
 
+SAMPLE_TAG   = config["DIR"]        
+def tag(acc):  # AF013254.1  -->  AF013254.1_RSVA_test
+    return f"{acc}_{SAMPLE_TAG}"
+
 # ────────────────────────────────────────────────────────────────
 # Helper function for wepp done
 def wepp_done_files():
     return [
-        f"{config['wepp_results_dir']}/{acc}/{acc}_run.txt"
+        f"{WEPP_RESULTS_DIR}/{acc}/{acc}_run.txt"
         for acc in REF_ACCESSIONS
     ]
 
@@ -185,11 +188,25 @@ rule all:
 
 if SIM_TOOL == "MESS":
 
-    # 4) Split genomes to individual fasta files to input to MeSS (their multi genome doesn't work for some reason)
+    # Find the genomes file use for simulation
+    genome_dir = Path("data") / config["DIR"]
+    fasta_candidates = sorted(genome_dir.glob("*.fa"))
 
+    if not fasta_candidates:
+        sys.exit(
+            f"No *.fa files found in {genome_dir}\n"
+            "Place at least one multi-FASTA there or fix the DIR setting."
+        )
+
+    # use the first one that was found
+    GENOMES_FASTA = str(fasta_candidates[0])
+
+    print(f"Using genome FASTA for MeSS: {GENOMES_FASTA}", file=sys.stderr)
+
+    # 4) Split genomes to individual fasta files to input to MeSS (their multi genome doesn't work for some reason)
     checkpoint split_genomes:
         input:
-            fasta = config["METAGENOMIC_REF"]
+            fasta = lambda wc: GENOMES_FASTA
         output:
             directory("individual_genomes")
         shell:
@@ -303,9 +320,9 @@ rule kraken:
     output:
         report     = "kraken_report.txt",
         kraken_out = "kraken_output.txt",
-    threads: config.get("kraken_threads", 4)
+    threads: config.get("kraken_threads", 8)
     params:
-        db        = config["KRAKEN_DB"],
+        db        = KRAKEN_DB,
         mode_flag = "--single" if IS_SINGLE_END else "--paired",
         mate2     = (lambda wc: "" if IS_SINGLE_END else FQ2),
     shell:
@@ -346,6 +363,11 @@ rule split_per_accession:
 # For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
 # *.pb.gz / *.mat into the same OUT_ROOT/<acc>/ directory that already contains 
 # the split reads.
+# helper defined
+TAG = config["DIR"]     # e.g. "RSVA_test"
+def tag(acc):           #  AF013254.1  →  AF013254.1_RSVA_test   (DIR = RSVA_test)
+    return f"{acc}_{TAG}"
+
 if IS_SINGLE_END:
     # ───────── single-end ────────────────────────────────────────────────────
     rule prepare_wepp_inputs:
@@ -356,11 +378,11 @@ if IS_SINGLE_END:
             fasta = lambda wc: ACC2FASTA[wc.acc],
             pb    = lambda wc: ACC2PB[wc.acc]
         output:
-            new_r1    = DATA_DIR + "/{acc}/{acc}.fastq.gz",
-            fasta_out = DATA_DIR + "/{acc}/{acc}.fa",
-            pb_out    = DATA_DIR + "/{acc}/{acc}.pb.gz"
+            new_r1    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.fastq.gz",
+            fasta_out = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.fa",
+            pb_out    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.pb.gz"
         params:
-            data_dir = lambda wc: f"{DATA_DIR}/{wc.acc}"
+            data_dir  = lambda wc: f"{WEPP_DATA_DIR}/{tag(wc.acc)}"
         shell:
             r"""
             mkdir -p {params.data_dir}
@@ -374,25 +396,24 @@ if IS_SINGLE_END:
             fi
             """
 
-
 else:
     # ───────── paired-end ───────────────────────────────────────────────────
     rule prepare_wepp_inputs:
         input:
-            fastq_dir = directory(OUT_ROOT),     # ensures split_per_accession ran
-            r1  = lambda wc: optional_file(
+            fastq_dir = OUT_ROOT,          # just a string
+            r1 = lambda wc: optional_file(
                     f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R1.fq.gz"),
-            r2  = lambda wc: optional_file(
+            r2 = lambda wc: optional_file(
                     f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R2.fq.gz"),
             fasta = lambda wc: ACC2FASTA[wc.acc],
             pb    = lambda wc: ACC2PB[wc.acc]
         output:
-            new_r1    = DATA_DIR + "/{acc}/{acc}_R1.fastq.gz",
-            new_r2    = DATA_DIR + "/{acc}/{acc}_R2.fastq.gz",
-            fasta_out = DATA_DIR + "/{acc}/{acc}.fa",
-            pb_out    = DATA_DIR + "/{acc}/{acc}.pb.gz"
+            new_r1    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}_R1.fastq.gz",
+            new_r2    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}_R2.fastq.gz",
+            fasta_out = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.fa",
+            pb_out    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.pb.gz"
         params:
-            data_dir = lambda wc: f"{DATA_DIR}/{wc.acc}"
+            data_dir  = lambda wc: f"{WEPP_DATA_DIR}/{tag(wc.acc)}"
         shell:
             r"""
             mkdir -p {params.data_dir}
@@ -417,33 +438,37 @@ else:
 # Run WEPP
 rule run_wepp:
     input:
-        r1  = lambda wc: (
-                f"{DATA_DIR}/{wc.acc}/{wc.acc}.fastq.gz"       
-                if IS_SINGLE_END else
-                f"{DATA_DIR}/{wc.acc}/{wc.acc}_R1.fastq.gz"), 
-        r2  = (lambda wc: [] if IS_SINGLE_END else 
-                f"{DATA_DIR}/{wc.acc}/{wc.acc}_R2.fastq.gz"),
-        fasta_full = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.fa",
-        tree_full  = lambda wc: f"{DATA_DIR}/{wc.acc}/{wc.acc}.pb.gz",
+        # FASTQs are stored in   WEPP/data/<acc>_<TAG>/
+        r1 = lambda wc:
+            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}.fastq.gz"
+            if IS_SINGLE_END else
+            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}_R1.fastq.gz",
+        r2 = lambda wc: [] if IS_SINGLE_END else
+            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}_R2.fastq.gz",
+        fasta_full = lambda wc:
+            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}.fa",
+        tree_full  = lambda wc:
+            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}.pb.gz",
     output:
-        run_txt = config["wepp_results_dir"] + "/{acc}/{acc}_run.txt",
+        run_txt = f"{WEPP_RESULTS_DIR}/{{acc}}/{{acc}}_run.txt",
     threads: config.get("wepp_threads", 32)
     params:
-        snakefile   = config["wepp_workflow"],
-        workdir     = config["wepp_root"],
+        snakefile   = str(WEPP_WORKFLOW),
+        workdir     = str(WEPP_ROOT),
         primer_bed  = config["PRIMER_BED"],
         clade_idx   = config["CLADE_IDX"],
-        cfgfile     = config["wepp_config"],
-        resultsdir  = config["wepp_results_dir"],
+        cfgfile     = str(WEPP_CONFIG),
+        resultsdir  = str(WEPP_RESULTS_DIR),
         prefix      = lambda wc: wc.acc.split('.')[0],
         ref_name    = lambda wc: f"{wc.acc}.fa",
         tree_name   = lambda wc: f"{wc.acc}.pb.gz",
         seq_type    = config.get("SEQUENCING_TYPE", "p").lower(),
+        tag_dir     = lambda wc: tag(wc.acc),          # <acc>_<TAG>
     conda:
-        "/home/qix007@AD.UCSD.EDU/metagenomic-WBE/env/wepp.yaml"
+        "env/wepp.yaml"
     shell:
         r"""
-        # ─── skip WEPP when both FASTQs are empty ──────────────────────
+        # ── skip WEPP when both FASTQs are empty ──────────────────────
         has_reads() {{
             local f=$1
             [ "$( (gzip -cd "$f" 2>/dev/null || cat "$f") | head -4 | wc -l )" -ge 4 ]
@@ -451,18 +476,19 @@ rule run_wepp:
 
         if ! has_reads "{input.r1}" && ( [ -z "{input.r2}" ] || ! has_reads "{input.r2}" ); then
             echo "No reads for {wildcards.acc}; removing data folder and skipping WEPP." >&2
-            rm -rf "{DATA_DIR}/{wildcards.acc}"
+            rm -rf "{WEPP_DATA_DIR}/{params.tag_dir}"
             mkdir -p {params.resultsdir}/{wildcards.acc}
             touch {output.run_txt}
             exit 0
         fi
-        # ─── continue with normal WEPP run ─────────────────────────────
+
+        # ── run inner WEPP workflow ───────────────────────────────────
         mkdir -p {params.resultsdir}/{wildcards.acc}
 
         python ./scripts/run_inner.py \
             --snakefile  {params.snakefile} \
             --workdir    {params.workdir} \
-            --dir        {wildcards.acc} \
+            --dir        {params.tag_dir} \
             --prefix     {params.prefix} \
             --primer_bed {params.primer_bed} \
             --tree       {params.tree_name} \

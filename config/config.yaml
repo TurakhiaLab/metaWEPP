@@ -1,13 +1,9 @@
-DIR: RSVA_test
-SEQUENCING_TYPE: p
+# Sequencing read type match to WEPP
+# (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
+SEQUENCING_TYPE: d
 
-wepp_workflow: WEPP/workflow/Snakefile"
-wepp_root: "WEPP"
-wepp_results_dir: "WEPP/results"
-wepp_config: "WEPP/config/config.yaml"
-wepp_data_dir: "WEPP/data"
+# Number of threads to run kraken 
 kraken_threads: 8
-KRAKEN_DB: test_kraken_DB
 
 # Bed file should be present in 'WEPP/primers'
 PRIMER_BED: "none.bed"
@@ -17,8 +13,8 @@ CLADE_IDX: "1"
 
 # Simulation Settings:
 #    * Set to "MESS" to simulate
-#    * Set to "none" to skip simulation. But, you must provide your own real reads in fq1 and fq2.
+#    * Set to "none" or blank to skip simulation. But, you must provide your own real reads in fq1 and fq2.
+SIMULATION_TOOL: "MESS" 
 
-SIMULATION_TOOL: "NONE" 
+# MESS's genomic coverage 
 COVERAGE: 10
-METAGENOMIC_REF: "genomes/filtered_genomes.fa"
