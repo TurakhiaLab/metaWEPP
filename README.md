@@ -189,20 +189,20 @@ Visualization of META-WEPP's workflow directories
      ├───📁metagenomic_sample_1                  # [User Created] Sample input reads (if providing reads)
           ├───metagenomic_reads_R1.fastq.gz      # Paired-ended reads
           ├───metagenomic_reads_R2.fastq.gz
-     ├───📁metagenomic_sample_2                  
+     ├───📁metagenomic_sample_simulation                  
           ├───metagenomic_reference.fa           # [User Created] Sample input fasta file (if simulating reads)
           ├───metagenomic_reads_R1.fastq.gz      # [META-WEPP Generated] These are created after MeSS simulation
           ├───metagenomic_reads_R2.fastq.gz
 
 └───📁results                                    # [META-WEPP Generated] Contains final META-WEPP results
-      ├───📁meta_genomic_sample_1                # [META-WEPP Generated] Contains split reads
+      ├───📁metagenomic_sample_1                 # [META-WEPP Generated] Contains split reads
            ├───📁SARS_COV_2
                 ├───sars_cov_2_reads_R1.fastq.gz    
                 ├───sars_cov_2_reads_R2.fastq.gz
            ├───📁RSV_A
                 ├───rsv_a_reads_R1.fastq.gz         
                 ├───rsv_a_reads_R2.fastq.gz
-      ├───📁meta_genomic_sample_2                        
+      ├───📁metagenomic_sample_simulation                        
            ├───📁SARS_COV_2
                 ├───sars_cov_2_reads_R1.fastq.gz    
                 ├───sars_cov_2_reads_R2.fastq.gz
