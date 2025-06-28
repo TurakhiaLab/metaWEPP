@@ -80,7 +80,7 @@ Follow the WEPP installation guide starting from option 3 on the [WEPP repo](htt
 
 ### <a name="mess"></a> Example - 1 RSV Dataset: Run the pipeline with MeSS simulated data
 
-**Step 1:** Download the RSVA MAT, Reference FASTA File
+**Step 1:** Download the RSVA MAT and Reference FASTA File.
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
 
@@ -92,14 +92,14 @@ mv GCF_002815475.1_ASM281547v1_genomic.fna NC_038235.fa
 cd ../..
 ```
 
-**Step 2:** Prepare simulated genomes
+**Step 2:** Prepare simulated genomes.
 ```
 mkdir genomes
 cd genomes
 mv ../data/pathogens_for_detailed_analysis/NC_038235.fa .
 ```
 
-**Step 3:** Build the Kraken database
+**Step 3:** Build the Kraken database.
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
@@ -109,14 +109,14 @@ rm -rf test_kraken_DB/taxonomy #  To save disk memory
 rm -rf test_kraken_DB/library  #  To save disk memory
 ```
 
-**Step 4:**  Run the pipeline
+**Step 4:**  Run the pipeline.
 ```
-snakemake --config SIMULATION_TOOL=MESS METAGENOMIC_REF=genomes/NC_038235.fa KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config DIR=RSV_A SIMULATION_TOOL=MESS METAGENOMIC_REF=genomes/NC_038235.fa KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
-**Step 5:**  Analyze Results
+**Step 5:**  Analyze Results.
 
-All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
+All results can be found in the `WEPP/results/NC_038235` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
 ### <a name="real-world"></a> Example - 2: Real World Data
 
@@ -124,7 +124,7 @@ This example will take our own metagenomic wastewater reads and use them as inpu
 
 ⚠️ Note that if you've already done Example 1, you may skip steps 1 and 2 for this example.
 
-**Step 1:** Download the RSVA MAT, Reference FASTA File
+**Step 1:** Download the RSVA MAT and Reference FASTA File
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
 
@@ -136,7 +136,7 @@ mv GCF_002815475.1_ASM281547v1_genomic.fna NC_038235.fa
 cd ../..
 ```
 
-**Step 2:** Download astewater metagenomic reads:
+**Step 2:** Download wastewater metagenomic reads:
 ```
 mkdir -p data/RSVA_real
 cd data/RSVA_real
@@ -162,7 +162,7 @@ rm -rf test_kraken_DB/library  #  To save disk memory
 
 **Step 4:**  Run the pipeline
 ```
-snakemake --config FQ_DIR=RSVA_real SIMULATION_TOOL=none  KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config DIR=RSVA_real KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
 **Step 5:**  Analyze Results
@@ -175,71 +175,75 @@ All results can be found in the `WEPP/results/NC_038235.1` directory.
 ### Data Organization
 
 Visualization of META-WEPP's workflow directories
-```text
-📁 META-WEPP
-└───📁genomes                                   # [User Created] Contains metagenomic reference files
-     ├───filtered_genomes.fa                    
-
-└───📁data                                   # [User Created] Contains data to analyze 
-     ├───📁pathogens_for_detailed_analysis   # [User Created] Pathogens selected for analysis
+```
+📁 META-WEPP             
+└───📁data                                       # [User Created] Contains data to analyze 
+     ├───📁pathogens_for_wepp                    # [User Created] Pathogens for Variant Analysis
           ├───📁SARS_COV_2_real                   
                ├───sars_cov_2_reference.fa   
                ├───sars_cov_2_mat.pb.gz
+
           ├───📁RSV_A_real                   
-               ├───rsv_a_2_reference.fa   
+               ├───rsv_a_reference.fa   
                ├───rsv_a_mat.pb.gz
 
-     ├───📁metagenomic_sample_1                  # [User Created] Sample input reads (if providing reads)
-          ├───metagenomic_reads_R1.fastq.gz   # Paired-ended reads
+     ├───📁real_metagenomic_sample               # [User Created] Sample input reads (if providing real reads)
+          ├───metagenomic_reads_R1.fastq.gz      # Paired-ended reads
           ├───metagenomic_reads_R2.fastq.gz
 
-└───📁results                                # [META-WEPP Generated] Contains final META-WEPP results
-     ├───📁fastq                             # [META-WEPP Generated] Contains simulated reads (if simulated)
-          ├───📁SARS_COV_2
-               ├───sars_cov_2_reads_R1.fastq.gz   
-               ├───sars_cov_2_reads_R2.fastq.gz
-          ├───📁RSV_A
-               ├───rsv_a_reads_R1.fastq.gz         
-               ├───rsv_a_reads_R2.fastq.gz
-      ├───📁meta_genomic_sample_1                        # [META-WEPP Generated] Contains real split reads (if provided reads)
+     ├───📁simulated_metagenomic_sample          # [User Created] Sample input fasta file (if simulating reads)               
+          ├───metagenomic_reference.fa           
+          ├───metagenomic_reads_R1.fastq.gz      # [META-WEPP Generated] These are created after MeSS simulation (for both reads)
+          ├───metagenomic_reads_R2.fastq.gz
+
+└───📁results                                    # [META-WEPP Generated] Contains final META-WEPP results
+      ├───📁real_metagenomic_sample                 
            ├───📁SARS_COV_2
                 ├───sars_cov_2_reads_R1.fastq.gz    
                 ├───sars_cov_2_reads_R2.fastq.gz
+
            ├───📁RSV_A
                 ├───rsv_a_reads_R1.fastq.gz         
                 ├───rsv_a_reads_R2.fastq.gz
+
+      ├───📁simulated_metagenomic_sample                        
+           ├───📁SARS_COV_2
+                ├───sars_cov_2_reads_R1.fastq.gz    
+                ├───sars_cov_2_reads_R2.fastq.gz
+
+           ├───📁RSV_A
+                ├───rsv_a_reads_R1.fastq.gz         
+                ├───rsv_a_reads_R2.fastq.gz
+     
 ```
 
 ### Run Command
 
-META-WEPP requires `KRAKEN_DB`, `TARGET_TAXIDS`, and `SIMULATE_TOOL` as config arguments through the command line, while the remaining ones can be taken from the config file. If you are setting `SIMULATE_TOOL=none`, then META-WEPP also requires `FQ1` and `FQ2` through the command line. It requires `--cores` from the command line, which is the number of threads used by the workflow, and also requires `--resources mess_slots=1` to prevent MeSS running in parallel which causes some issues.
+META-WEPP requires `KRAKEN_DB`, `DIR`, and `SIMULATE_TOOL` as config arguments through the command line, while the remaining ones can be taken from the config file. It requires `--cores` from the command line, which is the number of threads used by the workflow, and also requires `--resources mess_slots=1` to prevent MeSS running in parallel which causes some issues.
 
 Using all parameters from the config file:
 ```
-snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 --resources mess_slots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample --resources mess_slots=1 --cores 32
 ```
 Overriding `CLADE_IDX` and `PRIMER_BED`:
 ```
-snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB TARGET_TAXIDS=2697049 CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
 ```
 
 This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT and REF genome file.
 
 ### Arguments
 
-The `config.yaml` file has the following arguments:
+META-WEPP has the following arguments:
 
 1. `KRAKEN_DB` - Name of the Kraken database.
-2. `SIMULATION_TOOL` - Input `"MeSS"` to simulate reads with MeSS, or input `"None"` to provide your own reads.
-3. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
-4. `REF` - The reference genome in fasta.
-5. `TREE` - The Mutation-Annotated Tree.
-7. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
-8. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
-9. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
-10. `FQ1` - R1 reads in `readname_R1.fastq.gz` format.
-11. `FQ2` - R2 reads in `readname_R2.fastq.gz` format.
-12. `SEQUENCING_TYPE` - `"d"` for paired end reads, `"s"` for single ended reads.
+2. `SIMULATION_TOOL` - Input `"MESS"` to simulate reads with MeSS, or don't include the command in the command-line argument to provide your own reads.
+3. `DIR` - Directory of either the metagenomic reference fasta file (simulation) or metagenomic reads (real).
+4. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
+5. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
+6. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
+7. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
+8. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
 
 ⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
 
@@ -253,7 +257,6 @@ If you would like more information on building a Kraken database, see below:
 
 ### How to build a custom Kraken Database:
 
-**Step 1:** Install the taxonomy. This is necessary for building Kraken databases.
 **Step 1:** Install the taxonomy. This is necessary for building Kraken databases.
 ```
 kraken2-build --download-taxonomy --db $DBNAME
@@ -270,7 +273,6 @@ Add a list of files to the database's genomic library (all the .fa files in your
 ```
 k2 add-to-library --db test_kraken_DB --file *.fa
 ```
-You can also add a multi fasta file (metagenomic fasta file) in the genomic library.
 You can also add a multi fasta file (metagenomic fasta file) in the genomic library.
 
 ⚠️ For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`
