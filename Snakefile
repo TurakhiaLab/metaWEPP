@@ -307,7 +307,7 @@ rule kraken:
     params:
         db        = config["KRAKEN_DB"],
         mode_flag = "--single" if IS_SINGLE_END else "--paired",
-        mate2     = (lambda wc: "" if IS_SINGLE_END else FQ2),   # ← FIX
+        mate2     = (lambda wc: "" if IS_SINGLE_END else FQ2),
     shell:
         r"""
         mkdir -p $(dirname {output.report})
@@ -317,18 +317,6 @@ rule kraken:
                 --output {output.kraken_out}
         """
 
-# Data visualization
-rule data_visualization:
-    input:
-        report = "kraken_report.txt"
-    output:Add commentMore actions
-        png = temp("plots/last_generated_plot.txt")  # temp file just to record path
-    shell:
-        r"""
-        mkdir -p plots
-        python scripts/kraken_data_visualization.py {input.report} plots/ > {output.png}
-        """
-
 # 7) Split Kraken output into per-taxid FASTQs 
 rule split_per_accession:
     input:
@@ -336,12 +324,12 @@ rule split_per_accession:
         mapping    = TAXID_MAP,
         r1         = FQ1,
         r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
-        plot       = "classification_proportions.png"
     output:
         dir = directory(OUT_ROOT)
     params:
         script = "scripts/split_read.py",
         r2_arg = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
+        ref_arg = "--ref-accessions " + ",".join(REF_ACCESSIONS),
         dir    =  OUT_ROOT,
     shell:
         r"""
@@ -350,6 +338,7 @@ rule split_per_accession:
             --mapping    {input.mapping}    \
             --r1         {input.r1}         \
             {params.r2_arg} \
+            {params.ref_arg} \
             --out-dir    {params.dir}
         """
 
@@ -470,18 +459,18 @@ rule run_wepp:
         # ─── continue with normal WEPP run ─────────────────────────────
         mkdir -p {params.resultsdir}/{wildcards.acc}
 
-    python ./scripts/run_inner.py \
-        --snakefile  {params.snakefile} \
-        --workdir    {params.workdir} \
-        --dir        {wildcards.acc} \
-        --prefix     {params.prefix} \
-        --primer_bed {params.primer_bed} \
-        --tree       {params.tree_name} \
-        --ref        {params.ref_name} \
-        --clade_idx  {params.clade_idx} \
-        --configfile {params.cfgfile} \
-        --cores      {threads} \
-        --sequencing_type {params.seq_type}
+        python ./scripts/run_inner.py \
+            --snakefile  {params.snakefile} \
+            --workdir    {params.workdir} \
+            --dir        {wildcards.acc} \
+            --prefix     {params.prefix} \
+            --primer_bed {params.primer_bed} \
+            --tree       {params.tree_name} \
+            --ref        {params.ref_name} \
+            --clade_idx  {params.clade_idx} \
+            --configfile {params.cfgfile} \
+            --cores      {threads} \
+            --sequencing_type {params.seq_type}
 
-    touch {output.run_txt}
+        touch {output.run_txt}
         """
