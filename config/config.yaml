@@ -9,7 +9,7 @@ PRIMER_BED: "none.bed"
 CLADE_IDX: "1"
 
 # Set to "MESS" to simulate, otherwise leave it blank to provide your own reads.
-SIMULATION_TOOL: "MESS" 
+SIMULATION_TOOL: "" 
 
 # Coverage (see readme for more information).
 COVERAGE: 10
