@@ -187,7 +187,7 @@ Visualization of META-WEPP's workflow directories
                ├───rsv_a_reference.fa   
                ├───rsv_a_mat.pb.gz
 
-     ├───📁real_metagenomic_sample               # [User Created] Sample input reads (if providing reads)
+     ├───📁real_metagenomic_sample               # [User Created] Sample input reads (if providing real reads)
           ├───metagenomic_reads_R1.fastq.gz      # Paired-ended reads
           ├───metagenomic_reads_R2.fastq.gz
 
