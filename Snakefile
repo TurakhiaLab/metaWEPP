@@ -316,11 +316,12 @@ rule kraken:
                 --report {output.report} \
                 --output {output.kraken_out}
         """
+
 # Data visualization
 rule data_visualization:
     input:
         report = "kraken_report.txt"
-    output:
+    output:Add commentMore actions
         png = temp("plots/last_generated_plot.txt")  # temp file just to record path
     shell:
         r"""
