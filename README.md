@@ -182,6 +182,7 @@ Visualization of META-WEPP's workflow directories
           ├───📁SARS_COV_2_real                   
                ├───sars_cov_2_reference.fa   
                ├───sars_cov_2_mat.pb.gz
+
           ├───📁RSV_A_real                   
                ├───rsv_a_2_reference.fa   
                ├───rsv_a_mat.pb.gz
@@ -189,6 +190,7 @@ Visualization of META-WEPP's workflow directories
      ├───📁metagenomic_sample_1                  # [User Created] Sample input reads (if providing reads)
           ├───metagenomic_reads_R1.fastq.gz      # Paired-ended reads
           ├───metagenomic_reads_R2.fastq.gz
+
      ├───📁metagenomic_sample_simulation                  
           ├───metagenomic_reference.fa           # [User Created] Sample input fasta file (if simulating reads)
           ├───metagenomic_reads_R1.fastq.gz      # [META-WEPP Generated] These are created after MeSS simulation
@@ -199,13 +201,16 @@ Visualization of META-WEPP's workflow directories
            ├───📁SARS_COV_2
                 ├───sars_cov_2_reads_R1.fastq.gz    
                 ├───sars_cov_2_reads_R2.fastq.gz
+
            ├───📁RSV_A
                 ├───rsv_a_reads_R1.fastq.gz         
                 ├───rsv_a_reads_R2.fastq.gz
+
       ├───📁metagenomic_sample_simulation                        
            ├───📁SARS_COV_2
                 ├───sars_cov_2_reads_R1.fastq.gz    
                 ├───sars_cov_2_reads_R2.fastq.gz
+
            ├───📁RSV_A
                 ├───rsv_a_reads_R1.fastq.gz         
                 ├───rsv_a_reads_R2.fastq.gz
