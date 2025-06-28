@@ -238,11 +238,12 @@ META-WEPP has the following arguments:
 
 1. `KRAKEN_DB` - Name of the Kraken database.
 2. `SIMULATION_TOOL` - Input `"MESS"` to simulate reads with MeSS, or don't include the command in the command-line argument to provide your own reads.
-3. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
-4. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
-5. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
-6. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
-7. `SEQUENCING_TYPE` - `"d"` for paired end reads, `"s"` for single ended reads.
+3. `DIR` - Directory of either the metagenomic reference fasta file (simulation) or metagenomic reads (real).
+4. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
+5. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
+6. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
+7. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
+8. `SEQUENCING_TYPE` - `"d"` for paired end reads, `"s"` for single ended reads.
 
 ⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
 
