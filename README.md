@@ -162,7 +162,7 @@ rm -rf test_kraken_DB/library  #  To save disk memory
 
 **Step 4:**  Run the pipeline
 ```
-snakemake --config FQ_DIR=RSVA_real SIMULATION_TOOL=none  KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config DIR=RSVA_real KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
 **Step 5:**  Analyze Results
@@ -232,7 +232,7 @@ This will run the full pipeline and run WEPP for the taxid `2697049`, and uses t
 META-WEPP has the following arguments:
 
 1. `KRAKEN_DB` - Name of the Kraken database.
-2. `SIMULATION_TOOL` - Input `"MESS"` to simulate reads with MeSS, or leave it blank, `""`, to provide your own reads.
+2. `SIMULATION_TOOL` - Input `"MESS"` to simulate reads with MeSS, or don't include the command in the command-line argument to provide your own reads.
 3. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
 4. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
 5. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
