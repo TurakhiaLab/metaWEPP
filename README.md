@@ -191,9 +191,9 @@ Visualization of META-WEPP's workflow directories
           ├───metagenomic_reads_R1.fastq.gz      # Paired-ended reads
           ├───metagenomic_reads_R2.fastq.gz
 
-     ├───📁simulated_metagenomic_sample                  
-          ├───metagenomic_reference.fa           # [User Created] Sample input fasta file (if simulating reads)
-          ├───metagenomic_reads_R1.fastq.gz      # [META-WEPP Generated] These are created after MeSS simulation
+     ├───📁simulated_metagenomic_sample          # [User Created] Sample input fasta file (if simulating reads)               
+          ├───metagenomic_reference.fa           
+          ├───metagenomic_reads_R1.fastq.gz      # [META-WEPP Generated] These are created after MeSS simulation (for both reads)
           ├───metagenomic_reads_R2.fastq.gz
 
 └───📁results                                    # [META-WEPP Generated] Contains final META-WEPP results
