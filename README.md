@@ -176,12 +176,9 @@ All results can be found in the `WEPP/results/NC_038235.1` directory.
 
 Visualization of META-WEPP's workflow directories
 ```text
-📁 META-WEPP
-└───📁genomes                                   # [User Created] Contains metagenomic reference files
-     ├───filtered_genomes.fa                    
-
-└───📁data                                   # [User Created] Contains data to analyze 
-     ├───📁pathogens_for_detailed_analysis   # [User Created] Pathogens selected for analysis
+📁 META-WEPP             
+└───📁data                                      # [User Created] Contains data to analyze 
+     ├───📁pathogens_for_wepp                   # [User Created] Pathogens selected for analysis
           ├───📁SARS_COV_2_real                   
                ├───sars_cov_2_reference.fa   
                ├───sars_cov_2_mat.pb.gz
@@ -190,24 +187,29 @@ Visualization of META-WEPP's workflow directories
                ├───rsv_a_mat.pb.gz
 
      ├───📁metagenomic_sample_1                  # [User Created] Sample input reads (if providing reads)
-          ├───metagenomic_reads_R1.fastq.gz   # Paired-ended reads
+          ├───metagenomic_reads_R1.fastq.gz      # Paired-ended reads
+          ├───metagenomic_reads_R2.fastq.gz
+     ├───📁metagenomic_sample_2                  
+          ├───metagenomic_reference.fa           # [User Created] Sample input fasta file (if simulating reads)
+          ├───metagenomic_reads_R1.fastq.gz      # [META-WEPP Generated] These are created after MeSS simulation
           ├───metagenomic_reads_R2.fastq.gz
 
-└───📁results                                # [META-WEPP Generated] Contains final META-WEPP results
-     ├───📁fastq                             # [META-WEPP Generated] Contains simulated reads (if simulated)
-          ├───📁SARS_COV_2
-               ├───sars_cov_2_reads_R1.fastq.gz   
-               ├───sars_cov_2_reads_R2.fastq.gz
-          ├───📁RSV_A
-               ├───rsv_a_reads_R1.fastq.gz         
-               ├───rsv_a_reads_R2.fastq.gz
-      ├───📁meta_genomic_sample_1                        # [META-WEPP Generated] Contains real split reads (if provided reads)
+└───📁results                                    # [META-WEPP Generated] Contains final META-WEPP results
+      ├───📁meta_genomic_sample_1                # [META-WEPP Generated] Contains split reads
            ├───📁SARS_COV_2
                 ├───sars_cov_2_reads_R1.fastq.gz    
                 ├───sars_cov_2_reads_R2.fastq.gz
            ├───📁RSV_A
                 ├───rsv_a_reads_R1.fastq.gz         
                 ├───rsv_a_reads_R2.fastq.gz
+      ├───📁meta_genomic_sample_2                        
+           ├───📁SARS_COV_2
+                ├───sars_cov_2_reads_R1.fastq.gz    
+                ├───sars_cov_2_reads_R2.fastq.gz
+           ├───📁RSV_A
+                ├───rsv_a_reads_R1.fastq.gz         
+                ├───rsv_a_reads_R2.fastq.gz
+     
 ```
 
 ### Run Command
