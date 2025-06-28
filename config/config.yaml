@@ -1,11 +1,10 @@
-DIR: RSVA_test
+# Sequencing Type: "d" for double-end illumina, "s" for single-end illumina, "n" for ONT long reads.
 SEQUENCING_TYPE: d
-METAGENOMIC_REF: "genomes/filtered_genomes.fa"
 
-# Bed file should be present in 'WEPP/primers'
+# Bed file should be present in 'WEPP/primers'.
 PRIMER_BED: "none.bed"
 
-# Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs
+# Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
 CLADE_IDX: "1"
 
 # Set to "MESS" to simulate, otherwise leave it blank to provide your own reads.
