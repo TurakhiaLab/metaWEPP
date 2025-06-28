@@ -223,11 +223,11 @@ META-WEPP requires `KRAKEN_DB`, `DIR`, and `SIMULATE_TOOL` as config arguments t
 
 Using all parameters from the config file:
 ```
-snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=metagenomic_sample_simulation --resources mess_slots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample --resources mess_slots=1 --cores 32
 ```
 Overriding `CLADE_IDX` and `PRIMER_BED`:
 ```
-snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=metagenomic_sample_simulation CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
+snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
 ```
 
 This will run the full pipeline and run WEPP for the taxid `2697049`, and uses the provided MAT and REF genome file.
