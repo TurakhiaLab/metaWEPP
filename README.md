@@ -80,7 +80,7 @@ Follow the WEPP installation guide starting from option 3 on the [WEPP repo](htt
 
 ### <a name="mess"></a> Example - 1 RSV Dataset: Run the pipeline with MeSS simulated data
 
-**Step 1:** Download the RSVA MAT, Reference FASTA File
+**Step 1:** Download the RSVA MAT and Reference FASTA File.
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
 
@@ -92,14 +92,14 @@ mv GCF_002815475.1_ASM281547v1_genomic.fna NC_038235.fa
 cd ../..
 ```
 
-**Step 2:** Prepare simulated genomes
+**Step 2:** Prepare simulated genomes.
 ```
 mkdir genomes
 cd genomes
 mv ../data/pathogens_for_detailed_analysis/NC_038235.fa .
 ```
 
-**Step 3:** Build the Kraken database
+**Step 3:** Build the Kraken database.
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
@@ -109,14 +109,14 @@ rm -rf test_kraken_DB/taxonomy #  To save disk memory
 rm -rf test_kraken_DB/library  #  To save disk memory
 ```
 
-**Step 4:**  Run the pipeline
+**Step 4:**  Run the pipeline.
 ```
-snakemake --config SIMULATION_TOOL=MESS METAGENOMIC_REF=genomes/NC_038235.fa KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config DIR=RSV_A SIMULATION_TOOL=MESS METAGENOMIC_REF=genomes/NC_038235.fa KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
-**Step 5:**  Analyze Results
+**Step 5:**  Analyze Results.
 
-All results can be found in the `WEPP/results/2697049` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
+All results can be found in the `WEPP/results/NC_038235` directory. This taxid is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
 ### <a name="real-world"></a> Example - 2: Real World Data
 
@@ -124,7 +124,7 @@ This example will take our own metagenomic wastewater reads and use them as inpu
 
 ⚠️ Note that if you've already done Example 1, you may skip steps 1 and 2 for this example.
 
-**Step 1:** Download the RSVA MAT, Reference FASTA File
+**Step 1:** Download the RSVA MAT and Reference FASTA File
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
 
@@ -136,7 +136,7 @@ mv GCF_002815475.1_ASM281547v1_genomic.fna NC_038235.fa
 cd ../..
 ```
 
-**Step 2:** Download astewater metagenomic reads:
+**Step 2:** Download wastewater metagenomic reads:
 ```
 mkdir -p data/RSVA_real
 cd data/RSVA_real
