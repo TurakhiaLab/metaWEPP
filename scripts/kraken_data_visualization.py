@@ -1,18 +1,13 @@
 import sys
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
 
-# Get arguments
+# Get file path from command-line argument
+if len(sys.argv) < 2:
+    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file>")
+    sys.exit(1)
+
 report_path = sys.argv[1]
-
-# Determine next filename
-existing = [f for f in os.listdir(output_dir) if f.startswith("classification_proportions_") and f.endswith(".png")]
-nums = [int(f.split("_")[-1].replace(".png", "")) for f in existing if f.split("_")[-1].replace(".png", "").isdigit()]
-next_num = max(nums) + 1 if nums else 1
-
-# Define output path
-outfile = os.path.join(output_dir, f"classification_proportions_{next_num}.png")
 
 # Load the report file
 df = pd.read_csv(report_path, sep='\t', header=None,
@@ -33,10 +28,13 @@ leaves['Name'] = leaves['Name'].str.lstrip()
 # Upper case first letter "unclassified"
 leaves['Name'] = leaves['Name'].replace('unclassified', 'Unclassified')
 
-# Plot pie chart
-plt.figure(figsize=(10, 10))
+fig, ax = plt.subplots(figsize=(10, 8))
+
+# Shrink the pie chart's axes and move it to the left
+ax.set_position([0.05, 0.1, 0.5, 0.8])  # [left, bottom, width, height]
+
 colors = plt.cm.tab20.colors
-wedges, texts, autotexts = plt.pie(
+wedges, texts, autotexts = ax.pie(
     leaves['Percent'],
     labels=None,
     autopct='%1.1f%%',
@@ -44,20 +42,20 @@ wedges, texts, autotexts = plt.pie(
     startangle=140
 )
 
-# Make the percentage labels bold
 for autotext in autotexts:
     autotext.set_fontweight('bold')
 
-# Add cleaned labels to legend
-plt.legend(
+# Add legend to the right
+fig.legend(
     wedges,
     leaves['Name'],
     title="Pathogens",
-    loc="center left",
+    loc="center right",
     bbox_to_anchor=(1, 0.5),
-    labelspacing=1.2
+    labelspacing=1.2,
+    fontsize=12
 )
 
-plt.title('Classification Proportions by Pathogen')
-plt.tight_layout()
-plt.savefig("classification_proportions.png", dpi=300)
+# Add centered title across the top
+fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center')
+plt.savefig("classification_proportions.png", dpi=300, bbox_inches='tight')
