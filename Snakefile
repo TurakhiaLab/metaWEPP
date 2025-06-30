@@ -76,15 +76,15 @@ print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
 
 # ────────────────────────────────────────────────────────────────
 # Auto-discover reference genomes placed in:
-#   data/pathogens_for_detailed_analysis/pathogen*/<anything>.fa*
+#   data/pathogens_for_wepp/pathogen*/<anything>.fa*
 # ────────────────────────────────────────────────────────────────
-PATHOGEN_ROOT = Path("data/pathogens_for_detailed_analysis")
+PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
 
 # find any *.fa / *.fasta below the first directory level
 FASTAS = sorted(PATHOGEN_ROOT.glob("*/*.fa*"))
 
 if not FASTAS:
-    raise ValueError("No reference FASTA files found under data/pathogens_for_detailed_analysis")
+    raise ValueError("No reference FASTA files found under data/pathogens_for_wepp")
 
 # build:  accession list,  accession to fasta,  accession to pb ----
 REF_ACCESSIONS = sorted({fa.parent.name for fa in FASTAS})      # ['AF013254.1', …]
@@ -372,7 +372,7 @@ if IS_SINGLE_END:
     # ───────── single-end ────────────────────────────────────────────────────
     rule prepare_wepp_inputs:
         input:
-            fastq_dir = directory(OUT_ROOT),     # ensures split_per_accession ran
+            fastq_dir = OUT_ROOT,     # ensures split_per_accession ran
             r1    = lambda wc: optional_file(
                     f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R1.fq.gz"),
             fasta = lambda wc: ACC2FASTA[wc.acc],
