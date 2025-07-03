@@ -8,7 +8,7 @@ from pathlib import Path
 import sys, glob
 
 from collections import defaultdict
-import itertools
+import itertools, json
 
 # 1) Load METAWEPP config
 configfile: "config/config.yaml"
@@ -21,11 +21,11 @@ if "DIR" not in config:
         "Call snakemake with, e.g.,  --config DIR=Sample_"
     )
 
-WEPP_ROOT        = "WEPP"
-WEPP_WORKFLOW    = "WEPP/workflow/Snakefile"
-WEPP_RESULTS_DIR = "WEPP/results"
-WEPP_DATA_DIR    = "WEPP/data"
-WEPP_CONFIG      = "WEPP/config/config.yaml"
+WEPP_ROOT        = "/home/qix007@AD.UCSD.EDU/WEPP"
+WEPP_WORKFLOW    = "/home/qix007@AD.UCSD.EDU/WEPP/workflow/Snakefile"
+WEPP_RESULTS_DIR = "/home/qix007@AD.UCSD.EDU/WEPP/results"
+WEPP_DATA_DIR    = "/home/qix007@AD.UCSD.EDU/WEPP/data"
+WEPP_CONFIG      = "/home/qix007@AD.UCSD.EDU/WEPP/config/config.yaml"
 WEPP_DATA_PREFIX = f"{WEPP_DATA_DIR}/{DIR}"
 
 SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
@@ -81,33 +81,69 @@ print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
 PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
 
 # find any *.fa / *.fasta below the first directory level
-FASTAS = sorted(PATHOGEN_ROOT.glob("*/*.fa*"))
+FASTAS = sorted(PATHOGEN_ROOT.glob("*/*.[fF][aAn]*"))
 
 if not FASTAS:
     raise ValueError("No reference FASTA files found under data/pathogens_for_wepp")
 
 # build:  accession list,  accession to fasta,  accession to pb ----
-REF_ACCESSIONS = sorted({fa.parent.name for fa in FASTAS})      # ['AF013254.1', …]
 
-ACC2FASTA = {}          # accession to single FASTA path
-for fa in FASTAS:
-    acc = fa.parent.name
-    ACC2FASTA.setdefault(acc, str(fa.resolve()))   
+ACC2FASTA, ACC2PB, ACC2DIR = {}, {}, {}
 
-ACC2PB = {}
-for acc in REF_ACCESSIONS:
-    pdir = PATHOGEN_ROOT / acc
-    cand = next(itertools.chain(
-        pdir.glob("*.pb.gz"),
-        pdir.glob("*.mat"),
-        pdir.glob("*.pb"),
+for fa in FASTAS:                    #   data/pathogens_for_wepp/<dir>/<accession>.fa
+    with open(fa) as fh:
+        header = fh.readline().strip()
+    acc = header[1:].split()[0] 
+    dir_name = fa.parent.name       #   SARS_COV_2_real  /  RSV_A_real
+    ACC2FASTA[acc] = str(fa.resolve())  # Path to pathogen fa file 
+                                        # e.g /home/.../data/pathogens_for_wepp/RSV_A_real/AF013254.1.fasta
+
+    pb_file = next(itertools.chain(
+        fa.parent.glob("*.pb.gz"),
+        fa.parent.glob("*.mat"),
+        fa.parent.glob("*.pb")
     ), None)
-    if cand is None:
-        raise ValueError(f"No *.pb.gz or *.mat found in {pdir}")
-    ACC2PB[acc] = str(cand.resolve())
+    if pb_file is None:
+        raise ValueError(f"No *.pb.gz / *.mat next to {fa}")
+    ACC2PB[acc] = str(pb_file.resolve())
 
-print("Found reference folders:", ", ".join(REF_ACCESSIONS))
+# Generate acc2dirname.json
+for fasta in FASTAS:
+    dir_name = fasta.parent.name
+    with open(fasta) as f:
+        header = f.readline().strip()
+        if not header.startswith(">"):
+            raise ValueError(f"{fasta} does not start with a FASTA header")
+        acc = header[1:].split()[0]  # extract e.g. "ON811098.1" or "AF013254.1"
+        ACC2DIR[acc] = dir_name
+
+# write JSON for use in split_read.py
+Path("config").mkdir(exist_ok=True)
+ACC2DIR_JSON = "config/acc2dirname.json"
+with open(ACC2DIR_JSON, "w") as f:
+    json.dump(ACC2DIR, f, indent=2)
+
+# Extract accession IDs from .fa files' headers
+REF_ACCESSIONS = []
+for fasta in FASTAS:
+    with open(fasta) as f:
+        header = f.readline().strip()
+        if not header.startswith(">"):
+            raise ValueError(f"{fasta} does not start with a FASTA header")
+        acc = header[1:].split()[0]  # e.g., "ON811098.1"
+        REF_ACCESSIONS.append(acc)
+
+print("Headers of reference fa file:", ", ".join(REF_ACCESSIONS))
+print("Found accession → folder mappings:")
+for acc, dirname in ACC2DIR.items():
+    print(f"  {acc} -> {dirname}")
 print(f"IS_SINGLE_END = {IS_SINGLE_END}", file=sys.stderr)
+
+# dump mapping so split_read.py can use it
+Path("config").mkdir(exist_ok=True)
+ACC2DIR_JSON = "config/acc2dirname.json"
+with open(ACC2DIR_JSON, "w") as fh:
+    json.dump(ACC2DIR, fh, indent=2)
 
 # ────────────────────────────────────────────────────────────────
 # Helper function for splitting reads
@@ -118,19 +154,6 @@ def detect_out_root(fq1):
     return f"results/{sample}"
 
 OUT_ROOT = detect_out_root(FQ1)
-
-
-def split_fastq_outputs():
-    out_files = []
-    for acc in REF_ACCESSIONS:
-        pfx = acc.split(".")[0]
-        out_files.extend([
-            f"{OUT_ROOT}/{acc}/{pfx}_R1.fq.gz",
-            #f"{OUT_ROOT}/{acc}/{pfx}_R2.fq.gz",
-        ])
-    return out_files
-
-SPLIT_FASTQS = split_fastq_outputs()
 
 
 # ────────────────────────────────────────────────────────────────
@@ -153,21 +176,40 @@ for acc, fasta_path in ACC2FASTA.items():
 def optional_file(path):
     """
     Return the path as a string if it exists,
-    otherwise return an empty list (→ Snakemake ignores it).
+    otherwise return an empty list 
     """
     return path if os.path.exists(path) else []
 
 SAMPLE_TAG   = config["DIR"]        
 def tag(acc):  # AF013254.1  -->  AF013254.1_RSVA_test
-    return f"{acc}_{SAMPLE_TAG}"
+    return f"{ACC2DIR[acc]}_{SAMPLE_TAG}"
 
 # ────────────────────────────────────────────────────────────────
 # Helper function for wepp done
 def wepp_done_files():
-    return [
-        f"{WEPP_RESULTS_DIR}/{acc}/{acc}_run.txt"
-        for acc in REF_ACCESSIONS
-    ]
+    for acc in REF_ACCESSIONS:
+        if acc not in ACC2DIR:
+            print(f"Missing key in ACC2DIR: {acc}", file=sys.stderr)
+        yield f"{WEPP_RESULTS_DIR}/{tag(acc)}/{acc}_run.txt"
+
+
+
+def final_targets(_wc):
+    ckpt = checkpoints.split_per_accession.get()      # wait for split
+    files = []
+    for acc in REF_ACCESSIONS:
+        dir_ = ACC2DIR[acc]                           # pathogen_2, …
+        fq1  = Path(f"{OUT_ROOT}/{dir_}/{acc.split('.')[0]}_R1.fq.gz")
+        if fq1.exists() and fq1.stat().st_size > 0:
+            dir_tag = f"{dir_}_{TAG}"                 # pathogen_2_RSVA_test
+            files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
+    # always include the original FASTQs so Snakemake copies them if needed
+    files.append(FQ1)
+    if not IS_SINGLE_END:
+        files.append(FQ2)
+    return files
+
+
 
 # ────────────────────────────────────────────────────────────────
 # Helper function for run wepp
@@ -182,9 +224,10 @@ def has_reads(fq):
 # 3) Top‐level: these are all wildcards required for the pipeline to run smoothly
 GENOME_NAME, = glob_wildcards("individual_genomes/{genome}.fa")
 
-ALL_INPUT = wepp_done_files() + [FQ1] + ([] if IS_SINGLE_END else [FQ2])
+ALL_INPUT = list(wepp_done_files()) + [FQ1] + ([] if IS_SINGLE_END else [FQ2])
 rule all:
-    input: ALL_INPUT
+    input: 
+        final_targets
 
 if SIM_TOOL == "MESS":
 
@@ -335,29 +378,33 @@ rule kraken:
         """
 
 # 7) Split Kraken output into per-taxid FASTQs 
-rule split_per_accession:
+checkpoint split_per_accession:
     input:
         kraken_out = "kraken_output.txt",
         mapping    = TAXID_MAP,
+        acc2dir    = ACC2DIR_JSON,                   #  new
         r1         = FQ1,
-        r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
+        r2         = (lambda wc: [] if IS_SINGLE_END else FQ2)
     output:
         dir = directory(OUT_ROOT)
     params:
-        script = "scripts/split_read.py",
-        r2_arg = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
-        ref_arg = "--ref-accessions " + ",".join(REF_ACCESSIONS),
-        dir    =  OUT_ROOT,
+        script     = "scripts/split_read.py",
+        r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
+        dir_arg    = f"--acc2dir {ACC2DIR_JSON}",    #  new
+        ref_arg    = "--ref-accessions " + ",".join(REF_ACCESSIONS),
+        dir        = OUT_ROOT
     shell:
         r"""
         python {params.script} \
             --kraken-out {input.kraken_out} \
             --mapping    {input.mapping}    \
             --r1         {input.r1}         \
-            {params.r2_arg} \
-            {params.ref_arg} \
+            {params.r2_arg}                 \
+            {params.ref_arg}                \
+            {params.dir_arg}                \
             --out-dir    {params.dir}
         """
+
 
 # 7.5) Prepare wepp input directory
 # For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
@@ -365,24 +412,25 @@ rule split_per_accession:
 # the split reads.
 # helper defined
 TAG = config["DIR"]     # e.g. "RSVA_test"
-def tag(acc):           #  AF013254.1  →  AF013254.1_RSVA_test   (DIR = RSVA_test)
-    return f"{acc}_{TAG}"
+def tag(acc):           #  AF013254.1 -> AF013254.1_RSVA_test(DIR = RSVA_test)
+    return f"{ACC2DIR[acc]}_{TAG}"
 
 if IS_SINGLE_END:
     # ───────── single-end ────────────────────────────────────────────────────
     rule prepare_wepp_inputs:
         input:
-            fastq_dir = OUT_ROOT,     # ensures split_per_accession ran
-            r1    = lambda wc: optional_file(
-                    f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R1.fq.gz"),
+            r1 = lambda wc:
+                f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
+                f"{wc.acc.split('.')[0]}_R1.fq.gz",
             fasta = lambda wc: ACC2FASTA[wc.acc],
-            pb    = lambda wc: ACC2PB[wc.acc]
+            pb    = lambda wc: ACC2PB[wc.acc],
         output:
-            new_r1    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.fastq.gz",
-            fasta_out = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.fa",
-            pb_out    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.pb.gz"
+            new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
+            new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
+            fasta_out = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fa",
+            pb_out    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.pb.gz",
         params:
-            data_dir  = lambda wc: f"{WEPP_DATA_DIR}/{tag(wc.acc)}"
+            data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
         shell:
             r"""
             mkdir -p {params.data_dir}
@@ -400,20 +448,22 @@ else:
     # ───────── paired-end ───────────────────────────────────────────────────
     rule prepare_wepp_inputs:
         input:
-            fastq_dir = OUT_ROOT,          # just a string
-            r1 = lambda wc: optional_file(
-                    f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R1.fq.gz"),
-            r2 = lambda wc: optional_file(
-                    f"{OUT_ROOT}/{wc.acc}/{wc.acc.split('.')[0]}_R2.fq.gz"),
+            r1 = lambda wc:
+                f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
+                f"{wc.acc.split('.')[0]}_R1.fq.gz",
+            r2 = lambda wc:
+                f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
+                f"{wc.acc.split('.')[0]}_R2.fq.gz",
             fasta = lambda wc: ACC2FASTA[wc.acc],
-            pb    = lambda wc: ACC2PB[wc.acc]
+            pb    = lambda wc: ACC2PB[wc.acc],
         output:
-            new_r1    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}_R1.fastq.gz",
-            new_r2    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}_R2.fastq.gz",
-            fasta_out = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.fa",
-            pb_out    = f"{WEPP_DATA_DIR}/{{acc}}_{TAG}/{{acc}}.pb.gz"
+            new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz" if IS_SINGLE_END
+                        else f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
+            new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
+            fasta_out = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fa",
+            pb_out    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.pb.gz",
         params:
-            data_dir  = lambda wc: f"{WEPP_DATA_DIR}/{tag(wc.acc)}"
+            data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
         shell:
             r"""
             mkdir -p {params.data_dir}
@@ -438,19 +488,17 @@ else:
 # Run WEPP
 rule run_wepp:
     input:
-        # FASTQs are stored in   WEPP/data/<acc>_<TAG>/
-        r1 = lambda wc:
-            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}.fastq.gz"
-            if IS_SINGLE_END else
-            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}_R1.fastq.gz",
-        r2 = lambda wc: [] if IS_SINGLE_END else
-            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}_R2.fastq.gz",
-        fasta_full = lambda wc:
-            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}.fa",
-        tree_full  = lambda wc:
-            f"{WEPP_DATA_DIR}/{tag(wc.acc)}/{wc.acc}.pb.gz",
+        # FASTQs are stored in WEPP/data/<acc>_<TAG>/
+        # e.g WEPP/data/AF013254.1_RSVA_test
+        r1         = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz"
+                      if IS_SINGLE_END else
+                      f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
+        r2         = [] if IS_SINGLE_END else
+                      f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
+        fasta_full = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fa",
+        tree_full  = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.pb.gz",
     output:
-        run_txt = f"{WEPP_RESULTS_DIR}/{{acc}}/{{acc}}_run.txt",
+        run_txt    = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_run.txt",
     threads: config.get("wepp_threads", 32)
     params:
         snakefile   = str(WEPP_WORKFLOW),
@@ -465,7 +513,7 @@ rule run_wepp:
         seq_type    = config.get("SEQUENCING_TYPE", "p").lower(),
         tag_dir     = lambda wc: tag(wc.acc),          # <acc>_<TAG>
     conda:
-        "env/wepp.yaml"
+        "/home/qix007@AD.UCSD.EDU/metagenomic-WBE/env/wepp.yaml"
     shell:
         r"""
         # ── skip WEPP when both FASTQs are empty ──────────────────────
@@ -475,15 +523,12 @@ rule run_wepp:
         }}
 
         if ! has_reads "{input.r1}" && ( [ -z "{input.r2}" ] || ! has_reads "{input.r2}" ); then
-            echo "No reads for {wildcards.acc}; removing data folder and skipping WEPP." >&2
+            echo "No reads for {wildcards.acc}; removing data folder and skipping WEPP."
             rm -rf "{WEPP_DATA_DIR}/{params.tag_dir}"
             mkdir -p {params.resultsdir}/{wildcards.acc}
             touch {output.run_txt}
             exit 0
         fi
-
-        # ── run inner WEPP workflow ───────────────────────────────────
-        mkdir -p {params.resultsdir}/{wildcards.acc}
 
         python ./scripts/run_inner.py \
             --snakefile  {params.snakefile} \

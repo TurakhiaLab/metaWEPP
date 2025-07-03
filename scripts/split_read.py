@@ -2,13 +2,13 @@
 """
 Split reads classified by Kraken2 into per-accession FASTQs.
 
-• Reads whose accession *is* in the reference panel are written to
+• Reads whose accession is in the reference panel are written to
     <OUT_ROOT>/<accession>/<accession>_{R1,R2}.fq.gz
-• Reads whose accession is *not* in the panel are written to
+• Reads whose accession is not in the panel are written to
     <OUT_ROOT>/other_pathogens/<accession>/<accession>_{R1,R2}.fq.gz
 """
 
-import argparse, gzip, os, sys
+import argparse, gzip, json, os, sys
 from pathlib import Path
 
 # ────────────────────────── helpers ──────────────────────────
@@ -58,13 +58,17 @@ def load_ref_accessions(s):
     return {x.strip() for x in s.split(",") if x.strip()}
 
 # decide where to write
-def out_root_for(acc, ref_accessions, base_out):
-    if acc in ref_accessions:
-        return Path(base_out) / acc
+def out_root_for(acc, base_out, acc2dir, is_ref):
+    """
+    Return results/<dir_name>  (if accession exist in pathogens_for_wepp)
+           results/other_pathogens/<accession>  (otherwise)
+    """
+    if is_ref:
+        return Path(base_out) / acc2dir.get(acc, acc)
     return Path(base_out) / "other_pathogens" / acc
 
 # ───────────────────────── splitting ─────────────────────────
-def split_fastq(fq, mate, read2acc, refs, out_root):
+def split_fastq(fq, mate, read2acc, refs, acc2dir, out_root):
     writers, seen_accs = {}, set()
     ext = ".fq.gz" if fq.endswith(".gz") else ".fq"
 
@@ -79,7 +83,7 @@ def split_fastq(fq, mate, read2acc, refs, out_root):
                 continue
 
             seen_accs.add(acc)
-            root = out_root_for(acc, refs, out_root)
+            root = out_root_for(acc, out_root, acc2dir, acc in refs)
             if acc not in writers:
                 fn = root / f"{acc.split('.')[0]}_{mate}{ext}"
                 writers[acc] = open_out(fn)
@@ -89,7 +93,7 @@ def split_fastq(fq, mate, read2acc, refs, out_root):
 
     # ensure stub for mate that got zero reads
     for acc in seen_accs:
-        stub = out_root_for(acc, refs, out_root) / f"{acc.split('.')[0]}_{mate}{ext}"
+        stub = out_root_for(acc, out_root, acc2dir, acc in refs) / f"{acc.split('.')[0]}_{mate}{ext}"
         if not stub.exists():
             with open_out(stub): pass
 
@@ -103,6 +107,8 @@ def parse_args():
     ap.add_argument("-o", "--out-dir", required=True)
     ap.add_argument("--ref-accessions",
                     help="File or comma-list of accessions in the reference panel")
+    ap.add_argument("--acc2dir", required=True,
+                    help="JSON file mapping accession -> directory name")
     return ap.parse_args()
 
 def main():
@@ -112,13 +118,14 @@ def main():
     refs      = load_ref_accessions(a.ref_accessions)
     tax2acc   = load_taxid_map(a.mapping)
     read2acc  = load_classifications(a.kraken_out, tax2acc)
+    acc2dir   = json.load(open(a.acc2dir))
 
     if not read2acc:
         sys.exit("No classified reads matched the mapping file – nothing to split.")
 
-    split_fastq(a.r1, "R1", read2acc, refs, a.out_dir)
+    split_fastq(a.r1, "R1", read2acc, refs, acc2dir, a.out_dir)
     if a.r2:
-        split_fastq(a.r2, "R2", read2acc, refs, a.out_dir)
+        split_fastq(a.r2, "R2", read2acc, refs, acc2dir, a.out_dir)
 
 if __name__ == "__main__":
     main()
