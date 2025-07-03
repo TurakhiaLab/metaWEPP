@@ -156,6 +156,9 @@ def detect_out_root(fq1):
 OUT_ROOT = detect_out_root(FQ1)
 
 
+KRAKEN_OUTPUT = f"{OUT_ROOT}/kraken_output.txt"
+KRAKEN_REPORT = f"{OUT_ROOT}/kraken_report.txt"
+
 # ────────────────────────────────────────────────────────────────
 # Helper function to find .pb.gz to each reference pathogen
 ACC2PB = {}
@@ -361,8 +364,8 @@ rule kraken:
         r1 = FQ1,
         r2 = (lambda wc: [] if IS_SINGLE_END else FQ2),
     output:
-        report     = "kraken_report.txt",
-        kraken_out = "kraken_output.txt",
+        report     = KRAKEN_REPORT,
+        kraken_out = KRAKEN_OUTPUT,
     threads: config.get("kraken_threads", 8)
     params:
         db        = KRAKEN_DB,
@@ -380,7 +383,7 @@ rule kraken:
 # 7) Split Kraken output into per-taxid FASTQs 
 checkpoint split_per_accession:
     input:
-        kraken_out = "kraken_output.txt",
+        kraken_out = KRAKEN_OUTPUT,
         mapping    = TAXID_MAP,
         acc2dir    = ACC2DIR_JSON,                   #  new
         r1         = FQ1,
