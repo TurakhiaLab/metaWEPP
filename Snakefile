@@ -21,11 +21,11 @@ if "DIR" not in config:
         "Call snakemake with, e.g.,  --config DIR=Sample_"
     )
 
-WEPP_ROOT        = "/home/qix007@AD.UCSD.EDU/WEPP"
-WEPP_WORKFLOW    = "/home/qix007@AD.UCSD.EDU/WEPP/workflow/Snakefile"
-WEPP_RESULTS_DIR = "/home/qix007@AD.UCSD.EDU/WEPP/results"
-WEPP_DATA_DIR    = "/home/qix007@AD.UCSD.EDU/WEPP/data"
-WEPP_CONFIG      = "/home/qix007@AD.UCSD.EDU/WEPP/config/config.yaml"
+WEPP_ROOT        = "WEPP"
+WEPP_WORKFLOW    = "WEPP/workflow/Snakefile"
+WEPP_RESULTS_DIR = "WEPP/results"
+WEPP_DATA_DIR    = "WEPP/data"
+WEPP_CONFIG      = "WEPP/config/config.yaml"
 WEPP_DATA_PREFIX = f"{WEPP_DATA_DIR}/{DIR}"
 
 SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
@@ -516,7 +516,7 @@ rule run_wepp:
         seq_type    = config.get("SEQUENCING_TYPE", "p").lower(),
         tag_dir     = lambda wc: tag(wc.acc),          # <acc>_<TAG>
     conda:
-        "/home/qix007@AD.UCSD.EDU/metagenomic-WBE/env/wepp.yaml"
+        "env/wepp.yaml"
     shell:
         r"""
         # ── skip WEPP when both FASTQs are empty ──────────────────────
