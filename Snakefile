@@ -156,9 +156,6 @@ def detect_out_root(fq1):
 OUT_ROOT = detect_out_root(FQ1)
 
 
-KRAKEN_OUTPUT = f"{OUT_ROOT}/kraken_output.txt"
-KRAKEN_REPORT = f"{OUT_ROOT}/kraken_report.txt"
-
 # ────────────────────────────────────────────────────────────────
 # Helper function to find .pb.gz to each reference pathogen
 ACC2PB = {}
@@ -364,8 +361,8 @@ rule kraken:
         r1 = FQ1,
         r2 = (lambda wc: [] if IS_SINGLE_END else FQ2),
     output:
-        report     = KRAKEN_REPORT,
-        kraken_out = KRAKEN_OUTPUT,
+        report     = "kraken_report.txt",
+        kraken_out = "kraken_output.txt",
     threads: config.get("kraken_threads", 8)
     params:
         db        = KRAKEN_DB,
@@ -380,12 +377,15 @@ rule kraken:
                 --output {output.kraken_out}
         """
 
+KRAKEN_OUTPUT = f"{OUT_ROOT}/kraken_output.txt"
+KRAKEN_REPORT = f"{OUT_ROOT}/kraken_report.txt"
 # 7) Split Kraken output into per-taxid FASTQs 
 checkpoint split_per_accession:
     input:
-        kraken_out = KRAKEN_OUTPUT,
+        kraken_out = "kraken_output.txt",
+        report     = "kraken_report.txt",
         mapping    = TAXID_MAP,
-        acc2dir    = ACC2DIR_JSON,                   #  new
+        acc2dir    = ACC2DIR_JSON,  
         r1         = FQ1,
         r2         = (lambda wc: [] if IS_SINGLE_END else FQ2)
     output:
@@ -395,7 +395,9 @@ checkpoint split_per_accession:
         r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
         dir_arg    = f"--acc2dir {ACC2DIR_JSON}",    #  new
         ref_arg    = "--ref-accessions " + ",".join(REF_ACCESSIONS),
-        dir        = OUT_ROOT
+        dir        = OUT_ROOT,
+        new_kraken_out = KRAKEN_OUTPUT,
+        new_kraken_report = KRAKEN_REPORT
     shell:
         r"""
         python {params.script} \
@@ -406,8 +408,10 @@ checkpoint split_per_accession:
             {params.ref_arg}                \
             {params.dir_arg}                \
             --out-dir    {params.dir}
-        """
+        mv {input.kraken_out} {params.new_kraken_out}
+        mv {input.report} {params.new_kraken_report}
 
+        """
 
 # 7.5) Prepare wepp input directory
 # For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
@@ -533,6 +537,8 @@ rule run_wepp:
             exit 0
         fi
 
+        cp {input.tree_full}  {params.workdir}/
+        cp {input.fasta_full} {params.workdir}/
         python ./scripts/run_inner.py \
             --snakefile  {params.snakefile} \
             --workdir    {params.workdir} \
@@ -548,4 +554,3 @@ rule run_wepp:
 
         touch {output.run_txt}
         """
-
