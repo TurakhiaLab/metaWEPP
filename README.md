@@ -50,13 +50,13 @@ View the WEPP installation guid starting from option 3 on the [WEPP repo](https:
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 ```
 
-**Step 4:** Install MeSS.
+**Step 5:** Install MeSS.
 
 Follow the MeSS installation guide on the [MeSS Quick Start](https://github.com/metagenlab/MeSS?tab=readme-ov-file#zap-quick-start).
 
 ---
 
-##  <a name="example"></a> Quick Start 
+##  <a name="example"></a> Quick Start
 
 ### <a name="mess"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
 
@@ -88,6 +88,8 @@ kraken2-build --download-taxonomy --db test_kraken_DB
 k2 add-to-library --db test_kraken_DB --file metagenomic_references/*
 kraken2-build --build --db test_kraken_DB
 ```
+⚠️ Note that you must add the reference genome (in this example, the SARS COV 2 reference genome file) into the custom database for the pipeline to work. This is done for us in the third line of Step 3.
+
 
 **Step 4:**  Run the pipeline.
 ```
@@ -96,11 +98,11 @@ snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_
 
 **Step 5:**  Analyze Results.
 
-All results can be found in the `WEPP/results/sars_cov_2` directory. This accession name is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
+The classification distribuction can be found in "results/sars_cov_2/classification_proportions.png". All WEPP results can be found in the `WEPP/results/sars_cov_2` directory. 
 
 ### <a name="real-world"></a> Example - 2: Real World Data
 
-This example will take our own metagenomic wastewater reads and use them as input for our analysis, running on our RSVA dataset.
+This example will take our own metagenomic wastewater reads and use them as input FQ file for the pipeline running on a RSVA dataset.
 
 **Step 1:** Download the RSVA MAT and Reference FASTA File
 ```
@@ -118,7 +120,7 @@ mv GCF_002815475.1_ASM281547v1_genomic.fna data/pathogens_for_wepp/rsv_a/GCF_002
 
 **Step 2:** Prepare the config.yaml for RSVA
 ```
-cat <<EOF > data/pathogens_for_wepp/sars_cov_2/config.yaml
+cat <<EOF > data/pathogens_for_wepp/rsv_a/config.yaml
 PRIMER_BED: RSVA_all_primers_best_hits.bed
 CLADE_IDX: 0
 SEQUENCING_TYPE: d
@@ -133,7 +135,7 @@ kraken2-build --download-taxonomy --db test_kraken_DB
 k2 add-to-library --db test_kraken_DB --file metagenomic_references/* 
 kraken2-build --build --db test_kraken_DB
 ```
-⚠️ Note that you must add the reference genome (in this example, `GCF_002815475.1_ASM281547v1_genomic.fna`) into the custom database for the pipeline to work. This is done for us in the third line of Step 2.
+⚠️ Note that you must add the reference genome (in this example, `GCF_002815475.1_ASM281547v1_genomic.fna`) into the custom database for the pipeline to work. This is done for us in the third line of Step 3.
 
 
 **Step 4:**  Run the pipeline
@@ -143,7 +145,7 @@ snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB CLADE_ID
 
 **Step 5:**  Analyze Results
 
-All results can be found in the `WEPP/results/rsva_a` directory. 
+The classification distribuction can be found in "results/rsv_a/classification_proportions.png". WEPP results can be found in the `WEPP/results/rsva_a` directory. 
 
 
 ## <a name="usage"></a> Usage Guide:
@@ -228,15 +230,29 @@ META-WEPP requries the following arguments for config/config.yaml:
 7. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
 8. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
 
-⚠️ If you are providing your own metagenomic wastewater reads, you must provide reference genomes (in the example above, `NC_045512v2.fa`) and a MAT.
+Each pathogen can optionally override WEPP arguments using its own config file, located in: `data/pathogens_for_wepp/<pathogen_name>/config.yaml`
 
-⚠️ If you are simulating with MeSS, along with the reference genomes and MAT, you must also provide a reference mixed genome in fasta. In the quick start, the `filtered_genomes.fa` is the reference fasta file, and it must be a mixed genome sample.
-
-Requried arguments for each pathogens in pathogens_for_wepp/pathogen_1/config.yaml:
+Supported keys:
 1. `METAGENOMIC_REF`
 2. `CLADE_IDX`
 3. `PRIMER_BED`
 4. `SEQUENCING_TYPE`
+
+[See Quick Start Example 1 Step 2](#quick-start)
+
+⚠️ For each pathogen to be analyzed, place its reference genomes and corresponding MAT file in a folder under:
+`data/pathogens_for_wepp/<pathogen_name>/`
+
+⚠️ If using your own metagenomic wastewater reads, place the FASTQ files in a folder named after the sample under:
+`data/<sample_name>/`
+
+Ensure reads are named with the pattern *_R1.fastq.gz (and *_R2.fastq.gz for paired-end data).
+
+⚠️ If using MeSS to simulate reads, you must also provide a folder containing the simulated genome FASTA under:
+`data/pathogens_for_wepp/<simulated_genomes>/`
+
+This is in addition to the required reference genomes and MAT.
+
 
 ---
 ##  <a name="build-database"></a> Building Kraken Databases
@@ -252,36 +268,27 @@ kraken2-build --download-taxonomy --db $DBNAME
 
 **Step 2:** Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
 ```
-kraken2-build --add-to-library /path/to/chr1.fa --db $DBNAME
-kraken2-build --add-to-library /path/to/chr2.fa --db $DBNAME
+kraken2-build --add-to-library reference_genome.fa --db $DBNAME
 ```
 
 Add a list of files to the database's genomic library (all the .fa files in your current working directory)
 ```
-k2 add-to-library --db test_kraken_DB --file *.fa
+k2 add-to-library --db $DBNAME --file *.fa
 ```
-You can also add a multi fasta file (metagenomic fasta file) in the genomic library.
-
-⚠️ For this to work, the FASTA sequence headers must include either the NCBI accession numbers or the text `kraken:taxid` followed by the taxonomy ID for the genome. For example: `>sequence100|kraken:taxid|9606|`
-```
-kraken2-build --add-to-library /path/to/multi_fasta.fa --db $DBNAME
-```
-
-(Optional) Install one or more [reference libraries](https://github.com/DerrickWood/kraken2/wiki/Manual#standard-kraken-2-database).
-```
-kraken2-build --download-library bacteria --db $DBNAME
-```
-Installing the reference libraries can help if you do not have custom genomes you would like to input into the Kraken database.
 
 **Step 3:** Build the database 
 ```
 kraken2-build --build --db $DBNAME
 ```
-Customize kmer with `--kmer-len` and `--minimizer-len` option if needed. This may improve classification rate if tuned properly.
+
+Customize kmer with `--kmer-len` and `--minimizer-len` option if needed. For example,  
+```
+kraken2-build --build --db $DBNAME --kmer-len 21 --minimizer-len 15
+```
 
 ⚠️ If you would like to save disk memory, perform the following commands:
 ```
 rm -rf test_kraken_DB/taxonomy 
 rm -rf test_kraken_DB/library  
 ```
-View more information at the official [Kraken2 documentation](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases).
+More information for Kraken can be found [here](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases).
