@@ -1,4 +1,4 @@
-# Snakefile
+# Snakefile Before keep pd name
 
 # imports
 import os
@@ -88,11 +88,12 @@ if not FASTAS:
 
 # build:  accession list,  accession to fasta,  accession to pb ----
 
-ACC2FASTA, ACC2PB, ACC2DIR = {}, {}, {}
+ACC2FASTA, ACC2PB, ACC2DIR, ACC2CONFIG = {}, {}, {}, {}
 
 for fa in FASTAS:                    #   data/pathogens_for_wepp/<dir>/<accession>.fa
     with open(fa) as fh:
         header = fh.readline().strip()
+    path_dir = fa.parent 
     acc = header[1:].split()[0] 
     dir_name = fa.parent.name       #   SARS_COV_2_real  /  RSV_A_real
     ACC2FASTA[acc] = str(fa.resolve())  # Path to pathogen fa file 
@@ -106,6 +107,10 @@ for fa in FASTAS:                    #   data/pathogens_for_wepp/<dir>/<accessio
     if pb_file is None:
         raise ValueError(f"No *.pb.gz / *.mat next to {fa}")
     ACC2PB[acc] = str(pb_file.resolve())
+
+    # Find config.yaml for each pathogen
+    config_file = path_dir / "config.yaml"
+    ACC2CONFIG[acc] = str(config_file.resolve())
 
 # Generate acc2dirname.json
 for fasta in FASTAS:
@@ -181,17 +186,33 @@ def optional_file(path):
     return path if os.path.exists(path) else []
 
 SAMPLE_TAG   = config["DIR"]        
-def tag(acc):  # AF013254.1  -->  AF013254.1_RSVA_test
+def tag(acc):  # AF013254.1  -->  RSVA_RSVA_test
     return f"{ACC2DIR[acc]}_{SAMPLE_TAG}"
 
-# ────────────────────────────────────────────────────────────────
-# Helper function for wepp done
-def wepp_done_files():
-    for acc in REF_ACCESSIONS:
-        if acc not in ACC2DIR:
-            print(f"Missing key in ACC2DIR: {acc}", file=sys.stderr)
-        yield f"{WEPP_RESULTS_DIR}/{tag(acc)}/{acc}_run.txt"
 
+# ────────────────────────────────────────────────────────────────
+# Helper function to get the path of tree file and genome file in WEPP/data
+def WEPP_TREE(acc):
+    """
+    Return full path to the tree file for a given accession.
+    Uses the output name in the form of WEPP/data/<dir_tag>/<tree_filename>.pb.gz
+    """
+    dir_tag = tag(acc)
+    tree_filename = os.path.basename(ACC2PB[acc])  # e.g. "AF013254.1.pb.gz"
+    return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
+
+
+def WEPP_REF(acc):
+    """
+    Return full path to the genome file for a given accession.
+    Uses the output name in the form of WEPP/data/<dir_tag>/<filename>.pb.gz
+    """
+    dir_tag = tag(acc)
+    tree_filename = os.path.basename(ACC2FASTA[acc])# e.g. "AF013254.fa" or 
+                                                    # "GCF_002815475.1_ASM281547v1_genomic.fna"
+    return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
+
+# ────────────────────────────────────────────────────────────────
 
 
 def final_targets(_wc):
@@ -200,9 +221,8 @@ def final_targets(_wc):
     for acc in REF_ACCESSIONS:
         dir_ = ACC2DIR[acc]                           # pathogen_2, …
         fq1  = Path(f"{OUT_ROOT}/{dir_}/{acc.split('.')[0]}_R1.fq.gz")
-        if fq1.exists() and fq1.stat().st_size > 0:
-            dir_tag = f"{dir_}_{TAG}"                 # pathogen_2_RSVA_test
-            files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
+        dir_tag = f"{dir_}_{TAG}"                 # pathogen_2_RSVA_test
+        files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
     # always include the original FASTQs so Snakemake copies them if needed
     files.append(FQ1)
     if not IS_SINGLE_END:
@@ -220,11 +240,6 @@ def has_reads(fq):
     """
     return f'( (gzip -cd {fq} 2>/dev/null || cat {fq}) | head -4 | wc -l ) -ge 4'
 
-
-# 3) Top‐level: these are all wildcards required for the pipeline to run smoothly
-GENOME_NAME, = glob_wildcards("individual_genomes/{genome}.fa")
-
-ALL_INPUT = list(wepp_done_files()) + [FQ1] + ([] if IS_SINGLE_END else [FQ2])
 rule all:
     input: 
         final_targets
@@ -377,8 +392,21 @@ rule kraken:
                 --output {output.kraken_out}
         """
 
+# 6.5) Kraken Visualization
+rule kraken_visualization:
+    input:
+        report = "kraken_report.txt"
+    output:
+        plot = f"{OUT_ROOT}/classification_proportions.png"
+    shell:
+        """
+        python kraken_data_visualization.py {input.report}
+        mv classification_proportions.png {output.plot}
+        """
+
 KRAKEN_OUTPUT = f"{OUT_ROOT}/kraken_output.txt"
 KRAKEN_REPORT = f"{OUT_ROOT}/kraken_report.txt"
+
 # 7) Split Kraken output into per-taxid FASTQs 
 checkpoint split_per_accession:
     input:
@@ -434,15 +462,15 @@ if IS_SINGLE_END:
         output:
             new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
             new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
-            fasta_out = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fa",
-            pb_out    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.pb.gz",
         params:
             data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
+            tree_dest  = lambda wc: WEPP_TREE(wc.acc),
+            fasta_dest = lambda wc: WEPP_REF(wc.acc),
         shell:
             r"""
             mkdir -p {params.data_dir}
-            cp {input.fasta} {output.fasta_out}
-            cp {input.pb}    {output.pb_out}
+            cp {input.fasta} {params.fasta_dest}
+            cp {input.pb}    {params.tree_dest}
 
             if [ -f "{input.r1}" ]; then
                 cp {input.r1} {output.new_r1}
@@ -467,15 +495,15 @@ else:
             new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz" if IS_SINGLE_END
                         else f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
             new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
-            fasta_out = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fa",
-            pb_out    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.pb.gz",
         params:
             data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
+            tree_dest  = lambda wc: WEPP_TREE(wc.acc),
+            fasta_dest = lambda wc: WEPP_REF(wc.acc),
         shell:
             r"""
             mkdir -p {params.data_dir}
-            cp {input.fasta} {output.fasta_out}
-            cp {input.pb}    {output.pb_out}
+            cp {input.fasta} {params.fasta_dest}
+            cp {input.pb}    {params.tree_dest}
 
             if [ -f "{input.r1}" ]; then
                 cp {input.r1} {output.new_r1}
@@ -490,7 +518,6 @@ else:
             fi
             """
 
-
 # 8) Invoke WEPP’s Snakefile for each taxid
 # Run WEPP
 rule run_wepp:
@@ -502,8 +529,6 @@ rule run_wepp:
                       f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
         r2         = [] if IS_SINGLE_END else
                       f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
-        fasta_full = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fa",
-        tree_full  = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.pb.gz",
     output:
         run_txt    = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_run.txt",
     threads: config.get("wepp_threads", 32)
@@ -512,13 +537,18 @@ rule run_wepp:
         workdir     = str(WEPP_ROOT),
         primer_bed  = config["PRIMER_BED"],
         clade_idx   = config["CLADE_IDX"],
+        clade_list  = config["CLADE_LIST"],
         cfgfile     = str(WEPP_CONFIG),
         resultsdir  = str(WEPP_RESULTS_DIR),
         prefix      = lambda wc: wc.acc.split('.')[0],
         ref_name    = lambda wc: f"{wc.acc}.fa",
-        tree_name   = lambda wc: f"{wc.acc}.pb.gz",
         seq_type    = config.get("SEQUENCING_TYPE", "p").lower(),
         tag_dir     = lambda wc: tag(wc.acc),          # <acc>_<TAG>
+        tree_name   = lambda wc: os.path.basename(WEPP_TREE(wc.acc)),
+        tree_full   = lambda wc: WEPP_TREE(wc.acc),
+        fasta_name  = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
+        fasta_full  = lambda wc: WEPP_REF(wc.acc),
+        customconfig = lambda wc: ACC2CONFIG.get(wc.acc, "")
     conda:
         "env/wepp.yaml"
     shell:
@@ -537,8 +567,12 @@ rule run_wepp:
             exit 0
         fi
 
-        cp {input.tree_full}  {params.workdir}/
-        cp {input.fasta_full} {params.workdir}/
+        if [ -n "{params.customconfig}" ] && [ -f "{params.customconfig}" ]; then
+            custom_arg="--customconfig {params.customconfig}"
+        else
+            custom_arg=""
+        fi
+
         python ./scripts/run_inner.py \
             --snakefile  {params.snakefile} \
             --workdir    {params.workdir} \
@@ -546,9 +580,10 @@ rule run_wepp:
             --prefix     {params.prefix} \
             --primer_bed {params.primer_bed} \
             --tree       {params.tree_name} \
-            --ref        {params.ref_name} \
+            --ref        {params.fasta_name} \
             --clade_idx  {params.clade_idx} \
-            --configfile {params.cfgfile} \
+            --clade_list {params.clade_list} \
+            $custom_arg \
             --cores      {threads} \
             --sequencing_type {params.seq_type}
 
