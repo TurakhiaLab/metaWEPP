@@ -221,6 +221,7 @@ META-WEPP requries the following arguments for config/config.yaml:
 4. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
 
 (Default arguments for WEPP)
+
 5. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
 6. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
 7. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
