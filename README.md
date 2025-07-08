@@ -238,7 +238,7 @@ Supported keys:
 3. `PRIMER_BED`
 4. `SEQUENCING_TYPE`
 
-[See Quick Start Example 1 Step 2](#quick-start)
+[See Quick Start Example 1 Step 2](#example)
 
 ⚠️ For each pathogen to be analyzed, place its reference genomes and corresponding MAT file in a folder under:
 `data/pathogens_for_wepp/<pathogen_name>/`
