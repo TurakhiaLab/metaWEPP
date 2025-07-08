@@ -158,10 +158,12 @@ Visualization of META-WEPP's workflow directories
           ├───📁SARS_COV_2_real                   
                ├───ON811098.fa                   # SARS COV 2 reference genome
                ├───ON811098.pb.gz                # SARS COV 2 mat
+               ├───config.yaml                   # config file for SARS COV 2
 
           ├───📁RSV_A_real                   
                ├───NC_045512.fa                  # RSV A reference genome
                ├───NC_045512.pb.gz               # RSV A mat
+               ├───config.yaml                   # config file for RSV A
 
      ├───📁real_metagenomic_sample               # [User Created] Folder containing wastewater reads
           ├───metagenomic_reads_R1.fastq.gz      
@@ -211,12 +213,14 @@ snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=simulated_met
 
 ### Arguments
 
-META-WEPP requries the following arguments:
+META-WEPP requries the following arguments for config/config.yaml:
 
 1. `KRAKEN_DB` - Name of the Kraken database.
 2. `SIMULATION_TOOL` - Input `"MESS"` to simulate reads with MeSS, or don't include the command in the command-line argument to provide your own real reads.
 3. `DIR` - Directory of the metagenomic reference fasta file (simulation) or real metagenomic reads (providing your own reads).
 4. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
+
+(Default arguments for WEPP)
 5. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
 6. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
 7. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
@@ -226,7 +230,11 @@ META-WEPP requries the following arguments:
 
 ⚠️ If you are simulating with MeSS, along with the reference genomes and MAT, you must also provide a reference mixed genome in fasta. In the quick start, the `filtered_genomes.fa` is the reference fasta file, and it must be a mixed genome sample.
 
-
+Requried arguments for each pathogens in pathogens_for_wepp/pathogen_1/config.yaml:
+1. `METAGENOMIC_REF`
+2. `CLADE_IDX`
+3. `PRIMER_BED`
+4. `SEQUENCING_TYPE`
 
 ---
 ##  <a name="build-database"></a> Building Kraken Databases
@@ -268,11 +276,6 @@ Installing the reference libraries can help if you do not have custom genomes yo
 kraken2-build --build --db $DBNAME
 ```
 Customize kmer with `--kmer-len` and `--minimizer-len` option if needed. This may improve classification rate if tuned properly.
-
-**Step 4:** (Optional) Remove intermediate files after building a custom database which helps to free disk space.
-```
-kraken2-build --clean --db $DBNAME
-```
 
 ⚠️ If you would like to save disk memory, perform the following commands:
 ```
