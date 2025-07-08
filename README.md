@@ -93,7 +93,7 @@ kraken2-build --build --db test_kraken_DB
 
 **Step 4:**  Run the pipeline.
 ```
-snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_DB=test_kraken_DB --resources mess_slots=1 --cores 32
 ```
 
 **Step 5:**  Analyze Results.
@@ -140,7 +140,7 @@ kraken2-build --build --db test_kraken_DB
 
 **Step 4:**  Run the pipeline
 ```
-snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
+snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB --resources mess_slots=1 --cores 32
 ```
 
 **Step 5:**  Analyze Results
