@@ -188,6 +188,8 @@ Visualization of META-WEPP's workflow directories
           ├───📁fastq   
               ├───merged_R1.fastq.gz 
               ├───merged_R2.fastq.gz
+└───📁config
+      ├───config.yaml                            # config file for default
 
 └───📁results                                    # [META-WEPP Generated] Contains pathogens specific reads found by META-WEPP
       ├───📁real_metagenomic_sample                 
@@ -218,7 +220,7 @@ Using all parameters from the config file:
 ```
 snakemake --config KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample --resources mess_slots=1 --cores 32
 ```
-Overriding `CLADE_IDX`, `PRIMER_BED`, and `SIMULATE_TOOL`:
+Overriding `CLADE_IDX`, `PRIMER_BED`, and `SIMULATE_TOOL` to the default config.yaml:
 ```
 snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
 ```
