@@ -158,12 +158,12 @@ Visualization of META-WEPP's workflow directories
           ├───📁SARS_COV_2_real                   
                ├───ON811098.fa                   # SARS COV 2 reference genome
                ├───ON811098.pb.gz                # SARS COV 2 mat
-               ├───config.yaml                   # config file for SARS COV 2
+               ├───config.yaml                   # WEPP config file for SARS COV 2
 
           ├───📁RSV_A_real                   
                ├───NC_045512.fa                  # RSV A reference genome
                ├───NC_045512.pb.gz               # RSV A mat
-               ├───config.yaml                   # config file for RSV A
+               ├───config.yaml                   # WEPP config file for RSV A
 
      ├───📁real_metagenomic_sample               # [User Created] Folder containing wastewater reads
           ├───metagenomic_reads_R1.fastq.gz      
