@@ -32,16 +32,8 @@ META-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid 
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 cd metagenomic-WBE
 ```
-**Step 2:** Install Conda (if your system does not have it already).
-```
-wget -O Miniforge3.sh "https://github.com/conda-forge/miniforge/releases/download/24.11.3-2/Miniforge3-24.11.3-2-Linux-x86_64.sh"
-bash Miniforge3.sh -b -p "${HOME}/conda"
 
-source "${HOME}/conda/etc/profile.d/conda.sh"
-source "${HOME}/conda/etc/profile.d/mamba.sh"
-```
-
-**Step 3:** Install Kraken.
+**Step 2:** Install Kraken.
 The following commands install kraken and also update the `$PATH` variable for easily running the tool.
 ```
 git clone https://github.com/DerrickWood/kraken2.git
@@ -51,14 +43,16 @@ echo -e "\nexport PATH=\"$(pwd):\$PATH\"" >> ~/.bashrc
 source ~/.bashrc
 cd ..
 ```
+**Step 4:** Install WEPP.
+
+View the WEPP installation guid starting from option 3 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
+```
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
+```
 
 **Step 4:** Install MeSS.
 
-Follow the WEPP installation guide on the [MeSS Quick Start](https://github.com/metagenlab/MeSS?tab=readme-ov-file#zap-quick-start).
-
-**Step 5:** Install WEPP.
-
-Follow the WEPP installation guide starting from option 3 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
+Follow the MeSS installation guide on the [MeSS Quick Start](https://github.com/metagenlab/MeSS?tab=readme-ov-file#zap-quick-start).
 
 ---
 
@@ -79,15 +73,12 @@ cp metagenomic_example.fa data/simulated_metagenomic_sample
 ```
 **Step 2:** Prepare the config.yaml for SARS
 ```
-vim data/pathogens_for_wepp/rsv_a/config.yaml 
-```
-
-Put followed text into `data/pathogens_for_wepp/sars_cov_2/config.yaml`
-```
+cat <<EOF > data/pathogens_for_wepp/sars_cov_2/config.yaml
 PRIMER_BED: snap_primers.bed
 CLADE_IDX: 1
 SEQUENCING_TYPE: d
 CLADE_LIST: nextstrain,pango
+EOF
 ```
 
 **Step 3:** Build the Kraken database.
@@ -127,15 +118,12 @@ mv GCF_002815475.1_ASM281547v1_genomic.fna data/pathogens_for_wepp/rsv_a/GCF_002
 
 **Step 2:** Prepare the config.yaml for RSVA
 ```
-vim data/pathogens_for_wepp/rsv_a/config.yaml 
-```
-
-Put followed text into `data/pathogens_for_wepp/rsv_a/config.yaml`
-```
+cat <<EOF > data/pathogens_for_wepp/sars_cov_2/config.yaml
 PRIMER_BED: RSVA_all_primers_best_hits.bed
 CLADE_IDX: 0
 SEQUENCING_TYPE: d
 CLADE_LIST: annotation_1
+EOF
 ```
 
 **Step 3:** Build the Kraken database
@@ -145,7 +133,7 @@ kraken2-build --download-taxonomy --db test_kraken_DB
 k2 add-to-library --db test_kraken_DB --file metagenomic_references/* 
 kraken2-build --build --db test_kraken_DB
 ```
-⚠️ Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work. This is done for us in the third line of Step 2.
+⚠️ Note that you must add the reference genome (in this example, `GCF_002815475.1_ASM281547v1_genomic.fna`) into the custom database for the pipeline to work. This is done for us in the third line of Step 2.
 
 
 **Step 4:**  Run the pipeline
@@ -167,16 +155,15 @@ Visualization of META-WEPP's workflow directories
 📁 META-WEPP             
 └───📁data                                       # [User Created] Contains data to analyze 
      ├───📁pathogens_for_wepp                    # [User Created] Pathogens for Variant Analysis
-          ├───📁SARS_COV_2_real                   
-               ├───ON811098.fa                   # SARS COV 2 reference genome
-               ├───ON811098.pb.gz                # SARS COV 2 mat
-               ├───config.yaml                   # WEPP config file for SARS COV 2
+          ├───📁SARS_COV_2                
+               ├───SARS_COV_2_ref_genome.fa     
+               ├───SARS_COV_2_mat.pb.gz 
+               ├───config.yaml                   # customized WEPP config file for SARS COV 2
 
-          ├───📁RSV_A_real                   
-               ├───NC_045512.fa                  # RSV A reference genome
-               ├───NC_045512.pb.gz               # RSV A mat
-               ├───config.yaml                   # WEPP config file for RSV A
-
+          ├───📁RSV_A                   
+               ├───RSV_A_ref_genome.fa     
+               ├───RSV_A_mat.pb.gz 
+               ├───config.yaml                   # customized WEPP config file for RSV A
      ├───📁real_metagenomic_sample               # [User Created] Folder containing wastewater reads
           ├───metagenomic_reads_R1.fastq.gz      
           ├───metagenomic_reads_R2.fastq.gz
@@ -193,22 +180,22 @@ Visualization of META-WEPP's workflow directories
 
 └───📁results                                    # [META-WEPP Generated] Contains pathogens specific reads found by META-WEPP
       ├───📁real_metagenomic_sample                 
-           ├───📁ON811098
-                ├───ON811098_R1.fastq.gz    
-                ├───ON811098_R2.fastq.gz
+           ├───📁SARS_COV_2
+                ├───SARS_COV_2_R1.fastq.gz    
+                ├───SARS_COV_2_R2.fastq.gz
 
-           ├───📁NC_045512
-                ├───NC_045512.fastq.gz         
-                ├───NC_045512.fastq.gz
+           ├───📁RSV_A
+                ├───RSV_A_R1.fastq.gz         
+                ├───RSV_A_R2.fastq.gz
 
       ├───📁simulated_metagenomic_sample                        
-           ├───📁ON811098
-                ├───ON811098_R1.fastq.gz    
-                ├───ON811098_R2.fastq.gz
+           ├───📁SARS_COV_2
+                ├───SARS_COV_2_R1.fastq.gz    
+                ├───SARS_COV_2_R2.fastq.gz
 
-           ├───📁NC_045512
-                ├───NC_045512.fastq.gz         
-                ├───NC_045512.fastq.gz
+           ├───📁RSV_A
+                ├───RSV_A_R1.fastq.gz         
+                ├───RSV_A_R2.fastq.gz
      
 ```
 
