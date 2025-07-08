@@ -29,7 +29,7 @@ META-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid 
 
 **Step 1:** Clone the repository.
 ```
-git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
+git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 cd metagenomic-WBE
 ```
 **Step 2:** Install Conda (if your system does not have it already).
@@ -54,21 +54,7 @@ cd ..
 
 **Step 4:** Install MeSS.
 
-```
-conda config --add channels defaults
-conda config --add channels bioconda
-conda config --add channels conda-forge
-conda config --set channel_priority strict
-conda create -n mess mess
-conda activate mess
-conda install -c conda-forge singularity
-conda deactivate
-
-echo 'export SINGULARITY_TMPDIR="$PWD/.singularity/tmp"' >> ~/.bashrc
-echo 'export SINGULARITY_CACHEDIR="$PWD/.singularity/cache"' >> ~/.bashrc
-echo 'mkdir -p "$SINGULARITY_TMPDIR" "$SINGULARITY_CACHEDIR"' >> ~/.bashrc
-source ~/.bashrc
-```
+Follow the WEPP installation guide on the [MeSS Quick Start](https://github.com/metagenlab/MeSS?tab=readme-ov-file#zap-quick-start).
 
 **Step 5:** Install WEPP.
 
