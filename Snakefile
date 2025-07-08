@@ -379,6 +379,19 @@ rule kraken:
 
 KRAKEN_OUTPUT = f"{OUT_ROOT}/kraken_output.txt"
 KRAKEN_REPORT = f"{OUT_ROOT}/kraken_report.txt"
+
+# 6.5) Kraken Visualization
+rule kraken_visualization:
+    input:
+        report = "kraken_report.txt"
+    output:
+        plot = f"{OUT_ROOT}/classification_proportions.png"
+    shell:
+        """
+        python kraken_data_visualization.py {input.report}
+        mv classification_proportions.png {output.plot}
+        """
+
 # 7) Split Kraken output into per-taxid FASTQs 
 checkpoint split_per_accession:
     input:
