@@ -271,7 +271,7 @@ kraken2-build --download-taxonomy --db $DBNAME
 kraken2-build --add-to-library reference_genome.fa --db $DBNAME
 ```
 
-Add a list of files to the database's genomic library (all the .fa files in your current working directory)
+Add a list of reference genomes files to the database's genomic library (all the .fa files in your current working directory)
 ```
 k2 add-to-library --db $DBNAME --file *.fa
 ```
