@@ -77,7 +77,20 @@ mv public-2021-12-05.all.masked.pb.gz data/pathogens_for_wepp/sars_cov_2
 cp metagenomic_references/NC_045512.2.fasta data/pathogens_for_wepp/sars_cov_2
 cp metagenomic_example.fa data/simulated_metagenomic_sample
 ```
-**Step 2:** Build the Kraken database.
+**Step 2:** Prepare the config.yaml for SARS
+```
+vim data/pathogens_for_wepp/rsv_a/config.yaml 
+```
+
+Put followed text into `data/pathogens_for_wepp/sars_cov_2/config.yaml`
+```
+PRIMER_BED: snap_primers.bed
+CLADE_IDX: 1
+SEQUENCING_TYPE: d
+CLADE_LIST: nextstrain,pango
+```
+
+**Step 3:** Build the Kraken database.
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
@@ -85,12 +98,12 @@ k2 add-to-library --db test_kraken_DB --file metagenomic_references/*
 kraken2-build --build --db test_kraken_DB
 ```
 
-**Step 3:**  Run the pipeline.
+**Step 4:**  Run the pipeline.
 ```
 snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
-**Step 4:**  Analyze Results.
+**Step 5:**  Analyze Results.
 
 All results can be found in the `WEPP/results/sars_cov_2` directory. This accession name is mapped to SARS-CoV-2, so analysis for this example is done on SARS-CoV-2. 
 
@@ -125,7 +138,7 @@ SEQUENCING_TYPE: d
 CLADE_LIST: annotation_1
 ```
 
-**Step 2:** Build the Kraken database
+**Step 3:** Build the Kraken database
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
@@ -135,12 +148,12 @@ kraken2-build --build --db test_kraken_DB
 ⚠️ Note that you must add the reference genome (in this example, `NC_045512v2.fa`) into the custom database for the pipeline to work. This is done for us in the third line of Step 2.
 
 
-**Step 3:**  Run the pipeline
+**Step 4:**  Run the pipeline
 ```
 snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB CLADE_IDX=1 --resources mess_slots=1 --cores 32
 ```
 
-**Step 4:**  Analyze Results
+**Step 5:**  Analyze Results
 
 All results can be found in the `WEPP/results/rsva_a` directory. 
 
