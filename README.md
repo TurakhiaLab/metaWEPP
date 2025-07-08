@@ -29,7 +29,7 @@ META-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid 
 
 **Step 1:** Clone the repository.
 ```
-git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
+git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
 cd metagenomic-WBE
 ```
 
