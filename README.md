@@ -112,6 +112,19 @@ mv rsvA.2025-04-25.pb.gz data/pathogens_for_wepp/rsv_a
 mv GCF_002815475.1_ASM281547v1_genomic.fna data/pathogens_for_wepp/rsv_a/GCF_002815475.1_ASM281547v1_genomic.fa
 ```
 
+**Step 2:** Prepare the config.yaml for RSVA
+```
+vim data/pathogens_for_wepp/rsv_a/config.yaml 
+```
+
+Put followed text into `data/pathogens_for_wepp/rsv_a/config.yaml`
+```
+PRIMER_BED: RSVA_all_primers_best_hits.bed
+CLADE_IDX: 0
+SEQUENCING_TYPE: d
+CLADE_LIST: annotation_1
+```
+
 **Step 2:** Build the Kraken database
 ```
 mkdir test_kraken_DB
