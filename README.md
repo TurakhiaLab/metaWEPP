@@ -68,7 +68,7 @@ mkdir -p data/pathogens_for_wepp/sars_cov_2
 mkdir data/simulated_metagenomic_sample
 
 mv public-2021-12-05.all.masked.pb.gz data/pathogens_for_wepp/sars_cov_2
-cp metagenomic_references/NC_045512.2.fasta data/pathogens_for_wepp/sars_cov_2
+cp metagenomic_references/NC_045512.fasta data/pathogens_for_wepp/sars_cov_2
 cp metagenomic_example.fa data/simulated_metagenomic_sample
 ```
 **Step 2:** Prepare the config.yaml for SARS
