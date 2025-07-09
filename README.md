@@ -101,7 +101,7 @@ snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_
 
 **Step 5:**  Analyze Results.
 
-The classification distribuction can be found in "results/simulated_metagenomic_sample/classification_proportions.png". All WEPP results can be found in the `WEPP/results/sars_cov_2` directory. 
+The classification distribuction can be found in "results/simulated_metagenomic_sample/classification_proportions.png". All WEPP results can be found in the `WEPP/results/sars_cov_2_simulated_metagenomic_sample` directory. 
 
 ### <a name="real-world"></a> Example - 2: Real World Data
 
@@ -147,7 +147,7 @@ snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB --resour
 
 **Step 5:**  Analyze Results.
 
-The classification distribuction can be found in "results/real_metagenomic_sample/classification_proportions.png". WEPP results can be found in the `WEPP/results/rsva_a` directory. 
+The classification distribuction can be found in "results/real_metagenomic_sample/classification_proportions.png". WEPP results can be found in the `WEPP/results/rsva_a_real_metagenomic_sample` directory. 
 
 
 ## <a name="guide"></a> User Guide
@@ -158,10 +158,7 @@ We assume that all wastewater samples are organized in the data directory, each 
 OR
 2. Genomes: Single `fasta` file containing all the genomes to be simulated in the sample. MeSS will generate reads and place it in the same folder.
 
-
 For each sample, meta-WEPP stores metagenomic analysis results in corresponding subdirectories under `results`. Variant-specific analysis outputs are located within the respective pathogen directories under `WEPP/results`. 
-
-
 
 Visualization of meta-WEPP's workflow directories
 ```
@@ -197,9 +194,14 @@ Visualization of meta-WEPP's workflow directories
                 ├───RSV_A_R1.fastq.gz         
                 ├───RSV_A_R2.fastq.gz
                 
-          ├───📁Other Pathogens
-                ├───other_R1.fastq.gz         
-                ├───other_R2.fastq.gz
+          ├───📁Other_Pathogens
+                ├───📁Pathogen_1
+                ├───Pathogen_1_R1.fastq.gz         
+                ├───Pathogen_1_R2.fastq.gz
+
+                ├───📁Pathogen_2
+                ├───Pathogen_2_R1.fastq.gz         
+                ├───Pathogen_2_R2.fastq.gz
 
       ├───📁simulated_metagenomic_sample                        
            ├───📁SARS_COV_2

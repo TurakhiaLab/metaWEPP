@@ -84,7 +84,7 @@ PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
 FASTAS = sorted(PATHOGEN_ROOT.glob("*/*.[fF][aAn]*"))
 
 if not FASTAS:
-    raise ValueError("No reference FASTA files found under data/pathogens_for_wepp")
+    print("\nWarning: No pathogens given for variant analysis with WEPP!\n")
 
 # build:  accession list,  accession to fasta,  accession to pb ----
 
@@ -422,8 +422,8 @@ checkpoint split_per_accession:
         script     = "scripts/split_read.py",
         plot_script  = "scripts/kraken_data_visualization.py",
         r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
-        dir_arg    = f"--acc2dir {ACC2DIR_JSON}",    #  new
-        ref_arg    = "--ref-accessions " + ",".join(REF_ACCESSIONS),
+        dir_arg    = f"--acc2dir {ACC2DIR_JSON}", 
+        ref_arg = "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS),
         dir        = OUT_ROOT,
         new_kraken_out = KRAKEN_OUTPUT,
         new_kraken_report = KRAKEN_REPORT,
