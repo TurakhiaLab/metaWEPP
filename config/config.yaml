@@ -24,12 +24,6 @@ CLADE_LIST: "nextstrain,pango"
 # Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
 CLADE_IDX: "1"
 
-# True to view WEPP results on dashboard, otherwise False. 
-DASHBOARD_ENABLED: False 
-
-# Name of the Taxonium '.jsonl' file. 
-TAXONIUM_FILE: ""
-
 # Simulation Settings:
 #    * Set to "MESS" to simulate
 #    * Set to "none" or blank to skip simulation. But, you must provide your own real reads in fq1 and fq2.

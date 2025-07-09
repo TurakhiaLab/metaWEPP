@@ -1,4 +1,4 @@
-# META-WEPP: Metagenomic Wastewater-Based Epidemiology using Phylogenetic Placements
+# meta-WEPP: Metagenomic Wastewater-Based Epidemiology using Phylogenetic Placements
 
 ## Table of Contents
 - [Introduction](#intro)
@@ -15,11 +15,11 @@
 
 ## <a name="intro"></a> Introduction
 
-META-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid classification and haplotype-level analysis of mixed-pathogen metagenomic samples. Developed for flexible, high-throughput use in public health surveillance, META-WEPP integrates [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification and routes identified pathogen reads into [WEPP](https://github.com/TurakhiaLab/WEPP) for phylogenetic placement and haplotype inference. The pipeline automates the end-to-end workflow—from raw mixed reads to lineage-level analysis—with optional support for simulated read generation using [MeSS](https://github.com/metagenlab/MeSS). 
+meta-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid classification and haplotype-level analysis of mixed-pathogen metagenomic samples. Developed for flexible, high-throughput use in public health surveillance, meta-WEPP integrates [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification and routes identified pathogen reads into [WEPP](https://github.com/TurakhiaLab/WEPP) for phylogenetic placement and haplotype inference. The pipeline automates the end-to-end workflow—from raw mixed reads to lineage-level analysis—with optional support for simulated read generation using [MeSS](https://github.com/metagenlab/MeSS). 
 
 <div align="center">
     <img src="docs/images/metawepp-figure.png" width="600">
-    <div><b>Figure 1: META-WEPP Pipeline Visual</b></div>
+    <div><b>Figure 1: meta-WEPP Pipeline Visual</b></div>
 </div>
 
 
@@ -60,7 +60,7 @@ Follow the MeSS installation guide on the [MeSS Quick Start](https://github.com/
 
 ### <a name="mess"></a> Example - 1 SARS-CoV-2 Dataset: Run the pipeline with MeSS simulated data
 
-**Step 1:** Download the RSVA MAT and Reference FASTA File.
+**Step 1:** Download the metagenomic sample along with the MAT and reference files for SARS-CoV-2.
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2021/12/05/public-2021-12-05.all.masked.pb.gz
 
@@ -71,7 +71,7 @@ mv public-2021-12-05.all.masked.pb.gz data/pathogens_for_wepp/sars_cov_2
 cp metagenomic_references/NC_045512.2.fasta data/pathogens_for_wepp/sars_cov_2
 cp metagenomic_example.fa data/simulated_metagenomic_sample
 ```
-**Step 2:** Prepare the config.yaml for SARS
+**Step 2:** Prepare the config.yaml for SARS-CoV-2.
 ```
 cat <<EOF > data/pathogens_for_wepp/sars_cov_2/config.yaml
 PRIMER_BED: snap_primers.bed
@@ -88,7 +88,7 @@ kraken2-build --download-taxonomy --db test_kraken_DB
 k2 add-to-library --db test_kraken_DB --file metagenomic_references/*
 kraken2-build --build --db test_kraken_DB
 ```
-⚠️ Note that you must add the reference genome (in this example, the SARS COV 2 reference genome file) into the custom database for the pipeline to work. This is done for us in the third line of Step 3.
+⚠️ Note that you must add the reference genome (in this example, the SARS-COV-2 reference genome file) into the custom database for the pipeline to work. This is done for us in the third line of Step 3.
 
 
 **Step 4:**  Run the pipeline.
@@ -98,13 +98,13 @@ snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_
 
 **Step 5:**  Analyze Results.
 
-The classification distribuction can be found in "results/sars_cov_2/classification_proportions.png". All WEPP results can be found in the `WEPP/results/sars_cov_2` directory. 
+The classification distribuction can be found in "results/simulated_metagenomic_sample/classification_proportions.png". All WEPP results can be found in the `WEPP/results/sars_cov_2` directory. 
 
 ### <a name="real-world"></a> Example - 2: Real World Data
 
-This example will take our own metagenomic wastewater reads and use them as input FQ file for the pipeline running on a RSVA dataset.
+This example will take our own metagenomic wastewater reads and use them as input FQ file for the pipeline running on a RSV-A dataset.
 
-**Step 1:** Download the RSVA MAT and Reference FASTA File
+**Step 1:** Download the metagenomic sample along with the MAT and reference files for RSV-A.
 ```
 mkdir -p data/pathogens_for_wepp/rsv_a
 mkdir data/real_metagenomic_sample
@@ -118,7 +118,7 @@ mv rsvA.2025-04-25.pb.gz data/pathogens_for_wepp/rsv_a
 mv GCF_002815475.1_ASM281547v1_genomic.fna data/pathogens_for_wepp/rsv_a/GCF_002815475.1_ASM281547v1_genomic.fa
 ```
 
-**Step 2:** Prepare the config.yaml for RSVA
+**Step 2:** Prepare the config.yaml for RSV-A.
 ```
 cat <<EOF > data/pathogens_for_wepp/rsv_a/config.yaml
 PRIMER_BED: RSVA_all_primers_best_hits.bed
@@ -128,57 +128,63 @@ CLADE_LIST: annotation_1
 EOF
 ```
 
-**Step 3:** Build the Kraken database
+**Step 3:** Build the Kraken database.
 ```
 mkdir test_kraken_DB
 kraken2-build --download-taxonomy --db test_kraken_DB
 k2 add-to-library --db test_kraken_DB --file metagenomic_references/* 
 kraken2-build --build --db test_kraken_DB
 ```
+⚠️ Note that you must add the reference genome (in this example, the RSV-A reference genome file) into the custom database for the pipeline to work. This is done for us in the third line of Step 3.
 
-**Step 4:**  Run the pipeline
+**Step 4:**  Run the pipeline.
 ```
 snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB --resources mess_slots=1 --cores 32
 ```
 
-**Step 5:**  Analyze Results
+**Step 5:**  Analyze Results.
 
-The classification distribuction can be found in "results/rsv_a/classification_proportions.png". WEPP results can be found in the `WEPP/results/rsva_a` directory. 
+The classification distribuction can be found in "results/real_metagenomic_sample/classification_proportions.png". WEPP results can be found in the `WEPP/results/rsva_a` directory. 
 
 
 ## <a name="usage"></a> Usage Guide:
 
-### Data Organization
+### <a name="data"> Data Organization
+We assume that all wastewater samples are organized in the data directory, each within its own subdirectory given by DIR argument (see Run Command). For each pathogen to be analyzed for variants with WEPP, place its reference genome, corresponding MAT, and the config.yaml (optional) in the folder: `data/pathogens_for_wepp/<pathogen_name>`. Moreover, each created `DIR` inside `data` is expected to contain either of these files.
+1. Sequencing Reads: Ending with `*_R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
+OR
+2. Genomes: Single `fasta` file containing all the genomes to be simulated in the sample. MeSS will generate reads and place it in the same folder.
 
-Visualization of META-WEPP's workflow directories
+
+For each sample, meta-WEPP stores metagenomic analysis results in corresponding subdirectories under `results`. Variant-specific analysis outputs are located within the respective pathogen directories under `WEPP/results`. 
+
+
+
+Visualization of meta-WEPP's workflow directories
 ```
-📁 META-WEPP             
+📁 meta-WEPP             
 └───📁data                                       # [User Created] Contains data to analyze 
-     ├───📁pathogens_for_wepp                    # [User Created] Pathogens for Variant Analysis
+     ├───📁pathogens_for_wepp                    # [User Created] Pathogens for Variant Analysis with WEPP
           ├───📁SARS_COV_2                
                ├───SARS_COV_2_ref_genome.fa     
                ├───SARS_COV_2_mat.pb.gz 
-               ├───config.yaml                   # customized WEPP config file for SARS COV 2
+               ├───config.yaml                   # customized WEPP config for SARS-COV-2
 
           ├───📁RSV_A                   
                ├───RSV_A_ref_genome.fa     
                ├───RSV_A_mat.pb.gz 
-               ├───config.yaml                   # customized WEPP config file for RSV A
-     ├───📁real_metagenomic_sample               # [User Created] Folder containing wastewater reads
+               ├───config.yaml                   # customized WEPP config for RSV-A
+
+     ├───📁real_metagenomic_sample               # [User Created] Contains metagenomic sample for analysis
           ├───metagenomic_reads_R1.fastq.gz      
           ├───metagenomic_reads_R2.fastq.gz
 
-     ├───📁simulated_metagenomic_sample          # [User Created] Folder containing metagenomic fasta file for simulating reads with MeSS               
+     ├───📁simulated_metagenomic_sample          # [User Created] Contains metagenomic fasta for simulating reads with MeSS               
           ├───metagenomic_reference.fa           
+          ├───MeSS_R1.fastq.gz                   # [MeSS Generated] Simulated reads
+          ├───MeSS_R2.fastq.gz
 
-     ├───📁simulated_reads                       # [META-WEPP Generated] Reads generated by MeSS
-          ├───📁fastq   
-              ├───merged_R1.fastq.gz 
-              ├───merged_R2.fastq.gz
-└───📁config
-      ├───config.yaml                            # config file for default
-
-└───📁results                                    # [META-WEPP Generated] Contains pathogens specific reads found by META-WEPP
+└───📁results                                    # [meta-WEPP Generated] 
       ├───📁real_metagenomic_sample                 
            ├───📁SARS_COV_2
                 ├───SARS_COV_2_R1.fastq.gz    
@@ -187,6 +193,10 @@ Visualization of META-WEPP's workflow directories
            ├───📁RSV_A
                 ├───RSV_A_R1.fastq.gz         
                 ├───RSV_A_R2.fastq.gz
+                
+          ├───📁Other Pathogens
+                ├───other_R1.fastq.gz         
+                ├───other_R2.fastq.gz
 
       ├───📁simulated_metagenomic_sample                        
            ├───📁SARS_COV_2
@@ -199,79 +209,57 @@ Visualization of META-WEPP's workflow directories
      
 ```
 
+### Arguments
+
+meta-WEPP requries the following arguments for config/config.yaml:
+
+1. `KRAKEN_DB` - Name of the Kraken database.
+2. `DIR` - Folder containing either metagenomic reads for analysis or reference FASTA files for read simulation using MeSS. 
+3. `SIMULATION_TOOL` - Input `MESS` to simulate reads with MeSS, or leave it blank to analyze your own reads.
+4. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
+5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
+
+Arguments required to run WEPP. These may vary by pathogen and can be placed within each pathogen-specific directory inside `pathogens_for_wepp`, e.g. `data/pathogens_for_wepp/<pathogen_name>/config.yaml`. See [Data Organization](#data).  
+6. `PRIMER_BED` - BED file for primers. These should be present in the `WEPP/primers` directory.
+7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked.
+8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
+9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime
+10. `CLADE_LIST` - List the clade annotation schemes used in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, so use "nextstrain,pango" for it.
+11. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Use '1' for Pango naming and '0' for Nextstrain naming for SARS-CoV-2. Other pathogens usually follow a single lineage annotation system, so work with '0'. In case of NO lineage annotations, use '-1'. Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2.
+
+
+⚠️ Example of pathogen specific `config.yaml` can be found in [Quick Start](#example).
+
+
 ### Run Command
 
-META-WEPP requires `KRAKEN_DB` and `DIR` as config arguments through the command line, while the remaining ones can be taken from the config file. It requires `--cores` from the command line, which is the number of threads used by the workflow, and also requires `--resources mess_slots=1` to prevent MeSS running in parallel which causes some issues.
+meta-WEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line config arguments. Other parameters can be provided via the config file. It also accepts `--cores`  to control the number of threads used during execution, and uses `--resources mess_slots=1` to  ensure the MeSS pipeline runs serially, preventing concurrency-related issues.
 
-Using all parameters from the config file:
+Examples:
+1. Using all parameters from the config file:
 ```
 snakemake --config KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample --resources mess_slots=1 --cores 32
 ```
-Overriding `CLADE_IDX`, `PRIMER_BED`, and `SIMULATE_TOOL` to the default config.yaml:
+
+2. Overriding `CLADE_IDX` and `SIMULATE_TOOL` through the command line:
 ```
-snakemake --config SIMULATE_TOOL=MESS KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample CLADE_IDX=1 PRIMER_BED=none.bed --resources mess_slots=1 --cores 32
+snakemake --config KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample CLADE_IDX=1 SIMULATE_TOOL=MESS --resources mess_slots=1 --cores 32
 ```
 
-### Arguments
 
-META-WEPP requries the following arguments for config/config.yaml:
-
-1. `KRAKEN_DB` - Name of the Kraken database.
-2. `SIMULATION_TOOL` - Input `"MESS"` to simulate reads with MeSS, or don't include the command in the command-line argument to provide your own real reads.
-3. `DIR` - Directory of the metagenomic reference fasta file (simulation) or real metagenomic reads (providing your own reads).
-4. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
-
-(Default arguments for WEPP)
-
-5. `METAGENOMIC_REF` - Reference mixed fasta file if simulating with MeSS.
-6. `CLADE_IDX` - Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
-7. `PRIMER_BED` - BED file for primers. These are located in the `WEPP/primers` directory.
-8. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
-
-Each pathogen can optionally override WEPP arguments using its own config file, located in: `data/pathogens_for_wepp/<pathogen_name>/config.yaml`
-
-Supported keys:
-1. `METAGENOMIC_REF`
-2. `CLADE_IDX`
-3. `PRIMER_BED`
-4. `SEQUENCING_TYPE`
-
-[See Quick Start Example 1 Step 2](#example)
-
-⚠️ For each pathogen to be analyzed, place its reference genomes and corresponding MAT file in a folder under:
-`data/pathogens_for_wepp/<pathogen_name>/`
-
-⚠️ If using your own metagenomic wastewater reads, place the FASTQ files in a folder named after the sample under:
-`data/<sample_name>/`
-
-Ensure reads are named with the pattern *_R1.fastq.gz (and *_R2.fastq.gz for paired-end data).
-
-⚠️ If using MeSS to simulate reads, you must also provide a folder containing the simulated genome FASTA under:
-`data/pathogens_for_wepp/<simulated_genomes>/`
-
-This is in addition to the required reference genomes and MAT.
-
-
----
 ##  <a name="build-database"></a> Building Kraken Databases
 If you would like more information on building a Kraken database, see below:
 
 ### How to build a custom Kraken Database:
 
-**Step 1:** Install the taxonomy. This is necessary for building Kraken databases.
+**Step 1:** Install the taxonomy. This is necessary for building a Kraken database. Replace "$DBNAME" above with your preferred database name.
 ```
 kraken2-build --download-taxonomy --db $DBNAME
 ```
-(Replace "$DBNAME" above with your preferred database name/location. The database will use approximately 100 GB of disk space during creation. )
 
-**Step 2:** Add sequence to the database's genomic library using the --add-to-library switch, e.g.:
+**Step 2:** Add sequences to the database's genomic library.
 ```
-kraken2-build --add-to-library reference_genome.fa --db $DBNAME
-```
-
-Add a list of reference genomes files to the database's genomic library (all the .fa files in your current working directory)
-```
-k2 add-to-library --db $DBNAME --file *.fa
+kraken2-build --add-to-library <reference_genomes.fa> --db $DBNAME
 ```
 
 **Step 3:** Build the database 
@@ -279,7 +267,7 @@ k2 add-to-library --db $DBNAME --file *.fa
 kraken2-build --build --db $DBNAME
 ```
 
-Customize kmer with `--kmer-len` and `--minimizer-len` option if needed. For example,  
+You can also customize kmer with `--kmer-len` and `--minimizer-len` option if needed. For example,  
 ```
 kraken2-build --build --db $DBNAME --kmer-len 21 --minimizer-len 15
 ```
@@ -289,4 +277,4 @@ kraken2-build --build --db $DBNAME --kmer-len 21 --minimizer-len 15
 rm -rf test_kraken_DB/taxonomy 
 rm -rf test_kraken_DB/library  
 ```
-More information for Kraken can be found [here](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases).
+More information about creating custom databases can be found [here](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases).
