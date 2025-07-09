@@ -7,8 +7,11 @@
 - [Quick Start](#example)
   - [Example-1: Simulated Data](#mess)
   - [Example-2: Real World Data](#real-world) 
-- [Usage Guide](#usage)
-- [Building Kraken Databases](#build-database)
+- [User Guide](#guide)
+  - [Data Organization](#data)
+  - [Arguments](#arg)
+  - [Run Command](#run) 
+- [Building Kraken Database](#build-database)
 
 <br>
 
@@ -147,7 +150,7 @@ snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB --resour
 The classification distribuction can be found in "results/real_metagenomic_sample/classification_proportions.png". WEPP results can be found in the `WEPP/results/rsva_a` directory. 
 
 
-## <a name="usage"></a> Usage Guide:
+## <a name="guide"></a> User Guide
 
 ### <a name="data"> Data Organization
 We assume that all wastewater samples are organized in the data directory, each within its own subdirectory given by DIR argument (see Run Command). For each pathogen to be analyzed for variants with WEPP, place its reference genome, corresponding MAT, and the config.yaml (optional) in the folder: `data/pathogens_for_wepp/<pathogen_name>`. Moreover, each created `DIR` inside `data` is expected to contain either of these files.
@@ -209,7 +212,7 @@ Visualization of meta-WEPP's workflow directories
      
 ```
 
-### Arguments
+### <a name="arg"> Arguments
 
 meta-WEPP requries the following arguments for config/config.yaml:
 
@@ -219,7 +222,8 @@ meta-WEPP requries the following arguments for config/config.yaml:
 4. `COVERAGE` - MESS's genomic coverage - Learn more about MESS's coverage calculation [here](https://metagenlab.github.io/MeSS/guide/simulate/coverage/).
 5. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
 
-Arguments required to run WEPP. These may vary by pathogen and can be placed within each pathogen-specific directory inside `pathogens_for_wepp`, e.g. `data/pathogens_for_wepp/<pathogen_name>/config.yaml`. See [Data Organization](#data).  
+Arguments required to run WEPP. These may vary by pathogen and can be placed within each pathogen-specific directory inside `pathogens_for_wepp`, e.g. `data/pathogens_for_wepp/<pathogen_name>/config.yaml`. See [Data Organization](#data).
+
 6. `PRIMER_BED` - BED file for primers. These should be present in the `WEPP/primers` directory.
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked.
 8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
@@ -231,7 +235,7 @@ Arguments required to run WEPP. These may vary by pathogen and can be placed wit
 ⚠️ Example of pathogen specific `config.yaml` can be found in [Quick Start](#example).
 
 
-### Run Command
+### <a name="run"> Run Command
 
 meta-WEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line config arguments. Other parameters can be provided via the config file. It also accepts `--cores`  to control the number of threads used during execution, and uses `--resources mess_slots=1` to  ensure the MeSS pipeline runs serially, preventing concurrency-related issues.
 
@@ -247,10 +251,8 @@ snakemake --config KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample CLA
 ```
 
 
-##  <a name="build-database"></a> Building Kraken Databases
+##  <a name="build-database"></a> Building Kraken Database
 If you would like more information on building a Kraken database, see below:
-
-### How to build a custom Kraken Database:
 
 **Step 1:** Install the taxonomy. This is necessary for building a Kraken database. Replace "$DBNAME" above with your preferred database name.
 ```
