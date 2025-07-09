@@ -3,11 +3,32 @@
 SEQUENCING_TYPE: d
 
 # Bed file should be present in 'WEPP/primers'
-
 PRIMER_BED: "none.bed"
 
-# Clade index for inferring lineages from MAT: Generally '1' for SARS-CoV-2 MAT and '0' for other MATs.
+# Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
+MIN_AF: "0.005"
+
+# Mask any allele with base quality score below this threshold
+MIN_Q: "20"
+
+# Subsampling Reads to reduce WEPP's runtime
+MAX_READS: "1000000000"
+
+# List the clade naming systems present in the MAT
+CLADE_LIST: "nextstrain,pango"
+
+# Clade index for inferring lineages from MAT:
+# '1' for using Pango naming for SARS-CoV-2 and '0' for using Nextstrain
+# '0' for other pathogen as they use a single lineage naming systems
+# '-1' in case of NO lineage annotations 
+# Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
 CLADE_IDX: "1"
+
+# True to view WEPP results on dashboard, otherwise False. 
+DASHBOARD_ENABLED: False 
+
+# Name of the Taxonium '.jsonl' file. 
+TAXONIUM_FILE: ""
 
 # Simulation Settings:
 #    * Set to "MESS" to simulate

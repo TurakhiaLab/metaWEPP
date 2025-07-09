@@ -135,8 +135,6 @@ kraken2-build --download-taxonomy --db test_kraken_DB
 k2 add-to-library --db test_kraken_DB --file metagenomic_references/* 
 kraken2-build --build --db test_kraken_DB
 ```
-⚠️ Note that you must add the reference genome (in this example, `GCF_002815475.1_ASM281547v1_genomic.fna`) into the custom database for the pipeline to work. This is done for us in the third line of Step 3.
-
 
 **Step 4:**  Run the pipeline
 ```
