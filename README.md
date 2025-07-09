@@ -45,10 +45,10 @@ cd ..
 ```
 **Step 4:** Install WEPP.
 
-View the WEPP installation guid starting from option 3 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
 ```
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 ```
+View the WEPP installation guid starting from option 3 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
 
 **Step 5:** Install MeSS.
 
