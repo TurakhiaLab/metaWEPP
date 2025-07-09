@@ -420,12 +420,14 @@ checkpoint split_per_accession:
         dir = directory(OUT_ROOT)
     params:
         script     = "scripts/split_read.py",
+        plot_script  = "scripts/kraken_data_visualization.py",
         r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
         dir_arg    = f"--acc2dir {ACC2DIR_JSON}",    #  new
         ref_arg    = "--ref-accessions " + ",".join(REF_ACCESSIONS),
         dir        = OUT_ROOT,
         new_kraken_out = KRAKEN_OUTPUT,
-        new_kraken_report = KRAKEN_REPORT
+        new_kraken_report = KRAKEN_REPORT,
+        ref_accessions_str = " ".join(REF_ACCESSIONS)
     shell:
         r"""
         python {params.script} \
@@ -435,10 +437,20 @@ checkpoint split_per_accession:
             {params.r2_arg}                 \
             {params.ref_arg}                \
             {params.dir_arg}                \
-            --out-dir    {params.dir}
+            --out-dir    {params.dir}       
         mv {input.kraken_out} {params.new_kraken_out}
         mv {input.report} {params.new_kraken_report}
 
+        python {params.plot_script} {output.dir}/kraken_report.txt
+
+        # Load acc2dir map
+        acc2dir_map=$(cat {input.acc2dir})
+        
+        for acc in {params.ref_accessions_str}; do
+            dir=$(echo "$acc2dir_map" | python3 -c "import sys, json; print(json.load(sys.stdin)[\"$acc\"])")
+            mkdir -p {output.dir}/$dir
+            mv classification_proportions.png {output.dir}/$dir/classification_proportions.png
+        done
         """
 
 # 7.5) Prepare wepp input directory

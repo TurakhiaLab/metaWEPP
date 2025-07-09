@@ -57,5 +57,5 @@ fig.legend(
 )
 
 # Add centered title across the top
-fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center')
+fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center', y=0.85)
 plt.savefig("classification_proportions.png", dpi=300, bbox_inches='tight')
