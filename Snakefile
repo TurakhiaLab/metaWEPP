@@ -37,7 +37,7 @@ if KRAKEN_DB is None:
         "  --config KRAKEN_DB=<folder>"
     )
 TAXID_MAP = os.path.join(config["KRAKEN_DB"], "seqid2taxid.map")
-IS_SINGLE_END = config.get("SEQUENCING_TYPE", "p").lower() in {"s", "n"}
+IS_SINGLE_END = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
 # Get FQ1 and FQ2
 if SIM_TOOL == "MESS":
@@ -457,7 +457,6 @@ if IS_SINGLE_END:
             pb    = lambda wc: ACC2PB[wc.acc],
         output:
             new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
-            new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
         params:
             data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
             tree_dest  = lambda wc: WEPP_TREE(wc.acc),
@@ -488,8 +487,7 @@ else:
             fasta = lambda wc: ACC2FASTA[wc.acc],
             pb    = lambda wc: ACC2PB[wc.acc],
         output:
-            new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz" if IS_SINGLE_END
-                        else f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
+            new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
             new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
         params:
             data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
