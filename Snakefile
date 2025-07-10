@@ -95,17 +95,15 @@ for fa in FASTAS:                    #   data/pathogens_for_wepp/<dir>/<accessio
         header = fh.readline().strip()
     path_dir = fa.parent 
     acc = header[1:].split()[0] 
-    dir_name = fa.parent.name       #   SARS_COV_2_real  /  RSV_A_real
+    dir_name = fa.parent.name 
     ACC2FASTA[acc] = str(fa.resolve())  # Path to pathogen fa file 
-                                        # e.g /home/.../data/pathogens_for_wepp/RSV_A_real/AF013254.1.fasta
 
     pb_file = next(itertools.chain(
         fa.parent.glob("*.pb.gz"),
-        fa.parent.glob("*.mat"),
         fa.parent.glob("*.pb")
     ), None)
     if pb_file is None:
-        raise ValueError(f"No *.pb.gz / *.mat next to {fa}")
+        raise ValueError(f"No *.pb.gz / *.pb next to {fa}")
     ACC2PB[acc] = str(pb_file.resolve())
 
     # Find config.yaml for each pathogen
@@ -119,7 +117,7 @@ for fasta in FASTAS:
         header = f.readline().strip()
         if not header.startswith(">"):
             raise ValueError(f"{fasta} does not start with a FASTA header")
-        acc = header[1:].split()[0]  # extract e.g. "ON811098.1" or "AF013254.1"
+        acc = header[1:].split()[0]
         ACC2DIR[acc] = dir_name
 
 # write JSON for use in split_read.py
@@ -135,7 +133,7 @@ for fasta in FASTAS:
         header = f.readline().strip()
         if not header.startswith(">"):
             raise ValueError(f"{fasta} does not start with a FASTA header")
-        acc = header[1:].split()[0]  # e.g., "ON811098.1"
+        acc = header[1:].split()[0]
         REF_ACCESSIONS.append(acc)
 
 print("Headers of reference fa file:", ", ".join(REF_ACCESSIONS))
@@ -166,11 +164,10 @@ OUT_ROOT = detect_out_root(FQ1)
 ACC2PB = {}
 for acc, fasta_path in ACC2FASTA.items():
     pdir = Path(fasta_path).parent
-    # allow either *.pb.gz or *.mat – first match wins
+    # allow either *.pb.gz or *.pb – first match wins
     pb_candidates = list(itertools.chain(
         pdir.glob("*.pb.gz"),
-        pdir.glob("*.mat"),
-        pdir.glob("*.pb")          # just in case
+        pdir.glob("*.pb")         
     ))
     if not pb_candidates:
         raise ValueError(f"No PB/MAT file found next to {fasta_path}")
@@ -186,7 +183,7 @@ def optional_file(path):
     return path if os.path.exists(path) else []
 
 SAMPLE_TAG   = config["DIR"]        
-def tag(acc):  # AF013254.1  -->  RSVA_RSVA_test
+def tag(acc):  
     return f"{ACC2DIR[acc]}_{SAMPLE_TAG}"
 
 
@@ -198,7 +195,7 @@ def WEPP_TREE(acc):
     Uses the output name in the form of WEPP/data/<dir_tag>/<tree_filename>.pb.gz
     """
     dir_tag = tag(acc)
-    tree_filename = os.path.basename(ACC2PB[acc])  # e.g. "AF013254.1.pb.gz"
+    tree_filename = os.path.basename(ACC2PB[acc])  
     return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
 
 
@@ -208,8 +205,8 @@ def WEPP_REF(acc):
     Uses the output name in the form of WEPP/data/<dir_tag>/<filename>.pb.gz
     """
     dir_tag = tag(acc)
-    tree_filename = os.path.basename(ACC2FASTA[acc])# e.g. "AF013254.fa" or 
-                                                    # "GCF_002815475.1_ASM281547v1_genomic.fna"
+    tree_filename = os.path.basename(ACC2FASTA[acc])
+                                                    
     return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
 
 # ────────────────────────────────────────────────────────────────
@@ -219,9 +216,9 @@ def final_targets(_wc):
     ckpt = checkpoints.split_per_accession.get()      # wait for split
     files = []
     for acc in REF_ACCESSIONS:
-        dir_ = ACC2DIR[acc]                           # pathogen_2, …
+        dir_ = ACC2DIR[acc]                       
         fq1  = Path(f"{OUT_ROOT}/{dir_}/{acc.split('.')[0]}_R1.fq.gz")
-        dir_tag = f"{dir_}_{TAG}"                 # pathogen_2_RSVA_test
+        dir_tag = f"{dir_}_{TAG}"      
         files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
     # always include the original FASTQs so Snakemake copies them if needed
     files.append(FQ1)
@@ -442,11 +439,11 @@ checkpoint split_per_accession:
 
 # 7.5) Prepare wepp input directory
 # For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
-# *.pb.gz / *.mat into the same OUT_ROOT/<acc>/ directory that already contains 
+# *.pb.gz / *.pb into the same OUT_ROOT/<acc>/ directory that already contains 
 # the split reads.
 # helper defined
-TAG = config["DIR"]     # e.g. "RSVA_test"
-def tag(acc):           #  AF013254.1 -> AF013254.1_RSVA_test(DIR = RSVA_test)
+TAG = config["DIR"]
+def tag(acc):
     return f"{ACC2DIR[acc]}_{TAG}"
 
 if IS_SINGLE_END:
@@ -522,7 +519,6 @@ else:
 rule run_wepp:
     input:
         # FASTQs are stored in WEPP/data/<acc>_<TAG>/
-        # e.g WEPP/data/AF013254.1_RSVA_test
         r1         = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz"
                       if IS_SINGLE_END else
                       f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
@@ -534,15 +530,18 @@ rule run_wepp:
     params:
         snakefile   = str(WEPP_WORKFLOW),
         workdir     = str(WEPP_ROOT),
+        seq_type    = config.get("SEQUENCING_TYPE", "d").lower(),
         primer_bed  = config["PRIMER_BED"],
-        clade_idx   = config["CLADE_IDX"],
+        min_af      = config["MIN_AF"],
+        min_q       = config["MIN_Q"],
+        max_reads   = config["MAX_READS"],
         clade_list  = config["CLADE_LIST"],
+        clade_idx   = config["CLADE_IDX"],
         cfgfile     = str(WEPP_CONFIG),
         resultsdir  = str(WEPP_RESULTS_DIR),
         prefix      = lambda wc: wc.acc.split('.')[0],
         ref_name    = lambda wc: f"{wc.acc}.fa",
-        seq_type    = config.get("SEQUENCING_TYPE", "p").lower(),
-        tag_dir     = lambda wc: tag(wc.acc),          # <acc>_<TAG>
+        tag_dir     = lambda wc: tag(wc.acc),  
         tree_name   = lambda wc: os.path.basename(WEPP_TREE(wc.acc)),
         tree_full   = lambda wc: WEPP_TREE(wc.acc),
         fasta_name  = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
@@ -573,14 +572,17 @@ rule run_wepp:
         fi
 
         python ./scripts/run_inner.py \
-            --snakefile  {params.snakefile} \
-            --workdir    {params.workdir} \
             --dir        {params.tag_dir} \
             --prefix     {params.prefix} \
             --primer_bed {params.primer_bed} \
+            --min_af     {params.min_af} \
+            --min_q      {params.min_q} \
+            --max_reads  {params.max_reads} \
             --tree       {params.tree_name} \
             --ref        {params.fasta_name} \
             --clade_idx  {params.clade_idx} \
+            --snakefile  {params.snakefile} \
+            --workdir    {params.workdir} \
             --clade_list {params.clade_list} \
             $custom_arg \
             --cores      {threads} \
