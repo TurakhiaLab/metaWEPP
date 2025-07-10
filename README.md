@@ -32,8 +32,8 @@ metaWEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid c
 
 **Step 1:** Clone the repository.
 ```
-git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
-cd metagenomic-WBE
+git clone https://github.com/TurakhiaLab/metaWEPP.git
+cd metaWEPP
 ```
 
 **Step 2:** Install Kraken.
