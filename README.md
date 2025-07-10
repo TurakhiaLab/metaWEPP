@@ -101,7 +101,7 @@ snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_
 
 **Step 5:**  Analyze Results.
 
-The classification distribuction can be found in "results/simulated_metagenomic_sample/classification_proportions.png". All WEPP results can be found in the `WEPP/results/sars_cov_2_simulated_metagenomic_sample` directory. 
+The classification distribuction can be found in `results/simulated_metagenomic_sample/classification_proportions.png`. All WEPP results can be found in the `WEPP/results/sars_cov_2_simulated_metagenomic_sample` directory. 
 
 ### <a name="real-world"></a> Example - 2: Real World Data
 
