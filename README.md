@@ -1,4 +1,4 @@
-# meta-WEPP: Metagenomic Wastewater-Based Epidemiology using Phylogenetic Placements
+# metaWEPP: Metagenomic Wastewater-Based Epidemiology using Phylogenetic Placements
 
 ## Table of Contents
 - [Introduction](#intro)
@@ -18,11 +18,11 @@
 
 ## <a name="intro"></a> Introduction
 
-meta-WEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid classification and haplotype-level analysis of mixed-pathogen metagenomic samples. Developed for flexible, high-throughput use in public health surveillance, meta-WEPP integrates [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification and routes identified pathogen reads into [WEPP](https://github.com/TurakhiaLab/WEPP) for phylogenetic placement and haplotype inference. The pipeline automates the end-to-end workflow—from raw mixed reads to lineage-level analysis—with optional support for simulated read generation using [MeSS](https://github.com/metagenlab/MeSS). 
+metaWEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid classification and haplotype-level analysis of mixed-pathogen metagenomic samples. Developed for flexible, high-throughput use in public health surveillance, metaWEPP integrates [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification and routes identified pathogen reads into [WEPP](https://github.com/TurakhiaLab/WEPP) for phylogenetic placement and haplotype inference. The pipeline automates the end-to-end workflow—from raw mixed reads to lineage-level analysis—with optional support for simulated read generation using [MeSS](https://github.com/metagenlab/MeSS). 
 
 <div align="center">
     <img src="docs/images/metawepp-figure.png" width="600">
-    <div><b>Figure 1: meta-WEPP Pipeline Visual</b></div>
+    <div><b>Figure 1: metaWEPP Pipeline Visual</b></div>
 </div>
 
 
@@ -158,11 +158,11 @@ We assume that all wastewater samples are organized in the data directory, each 
 OR
 2. Genomes: Single `fasta` file containing all the genomes to be simulated in the sample. MeSS will generate reads and place it in the same folder.
 
-For each sample, meta-WEPP stores metagenomic analysis results in corresponding subdirectories under `results`. Variant-specific analysis outputs are located within the respective pathogen directories under `WEPP/results`. 
+For each sample, metaWEPP stores metagenomic analysis results in corresponding subdirectories under `results`. Variant-specific analysis outputs are located within the respective pathogen directories under `WEPP/results`. 
 
-Visualization of meta-WEPP's workflow directories
+Visualization of metaWEPP's workflow directories
 ```
-📁 meta-WEPP             
+📁 metaWEPP             
 └───📁data                                       # [User Created] Contains data to analyze 
      ├───📁pathogens_for_wepp                    # [User Created] Pathogens for Variant Analysis with WEPP
           ├───📁SARS_COV_2                
@@ -184,7 +184,7 @@ Visualization of meta-WEPP's workflow directories
           ├───MeSS_R1.fastq.gz                   # [MeSS Generated] Simulated reads
           ├───MeSS_R2.fastq.gz
 
-└───📁results                                    # [meta-WEPP Generated] 
+└───📁results                                    # [metaWEPP Generated] 
       ├───📁real_metagenomic_sample                 
            ├───📁SARS_COV_2
                 ├───SARS_COV_2_R1.fastq.gz    
@@ -216,7 +216,7 @@ Visualization of meta-WEPP's workflow directories
 
 ### <a name="arg"> Arguments
 
-meta-WEPP requries the following arguments for config/config.yaml:
+metaWEPP requries the following arguments for config/config.yaml:
 
 1. `KRAKEN_DB` - Name of the Kraken database.
 2. `DIR` - Folder containing either metagenomic reads for analysis or reference FASTA files for read simulation using MeSS. 
@@ -239,7 +239,7 @@ Arguments required to run WEPP. These may vary by pathogen and can be placed wit
 
 ### <a name="run"> Run Command
 
-meta-WEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line config arguments. Other parameters can be provided via the config file. It also accepts `--cores`  to control the number of threads used during execution, and uses `--resources mess_slots=1` to  ensure the MeSS pipeline runs serially, preventing concurrency-related issues.
+metaWEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line config arguments. Other parameters can be provided via the config file. It also accepts `--cores`  to control the number of threads used during execution, and uses `--resources mess_slots=1` to  ensure the MeSS pipeline runs serially, preventing concurrency-related issues.
 
 Examples:
 1. Using all parameters from the config file:
