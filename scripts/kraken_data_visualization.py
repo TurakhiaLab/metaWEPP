@@ -44,16 +44,18 @@ wedges, texts, autotexts = ax.pie(
 
 for autotext in autotexts:
     autotext.set_fontweight('bold')
+    autotext.set_fontsize(14) 
 
 # Add legend to the right
 fig.legend(
     wedges,
     leaves['Name'],
     title="Pathogens",
+    title_fontsize=16,
     loc="center right",
-    bbox_to_anchor=(1, 0.5),
+    bbox_to_anchor=(0.95, 0.5),
     labelspacing=1.2,
-    fontsize=12
+    fontsize=14
 )
 
 # Add centered title across the top

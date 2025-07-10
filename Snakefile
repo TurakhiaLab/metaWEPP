@@ -84,7 +84,7 @@ PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
 FASTAS = sorted(PATHOGEN_ROOT.glob("*/*.[fF][aAn]*"))
 
 if not FASTAS:
-    print("\nWarning: No pathogens given for variant analysis with WEPP!\n")
+    print("\nWARNING: No pathogens given for variant analysis with WEPP!\n")
 
 # build:  accession list,  accession to fasta,  accession to pb ----
 
@@ -241,7 +241,7 @@ def has_reads(fq):
     return f'( (gzip -cd {fq} 2>/dev/null || cat {fq}) | head -4 | wc -l ) -ge 4'
 
 rule all:
-    input: 
+    input:
         final_targets
 
 if SIM_TOOL == "MESS":
@@ -397,15 +397,11 @@ rule kraken_visualization:
     input:
         report = "kraken_report.txt"
     output:
-        plot = f"{OUT_ROOT}/classification_proportions.png"
+        dir = "classification_proportions.png"
     shell:
         """
-        python kraken_data_visualization.py {input.report}
-        mv classification_proportions.png {output.plot}
+        python scripts/kraken_data_visualization.py {input.report}
         """
-
-KRAKEN_OUTPUT = f"{OUT_ROOT}/kraken_output.txt"
-KRAKEN_REPORT = f"{OUT_ROOT}/kraken_report.txt"
 
 # 7) Split Kraken output into per-taxid FASTQs 
 checkpoint split_per_accession:
@@ -415,19 +411,20 @@ checkpoint split_per_accession:
         mapping    = TAXID_MAP,
         acc2dir    = ACC2DIR_JSON,  
         r1         = FQ1,
-        r2         = (lambda wc: [] if IS_SINGLE_END else FQ2)
+        r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
+        viz        = "classification_proportions.png"
     output:
         dir = directory(OUT_ROOT)
     params:
         script     = "scripts/split_read.py",
-        plot_script  = "scripts/kraken_data_visualization.py",
         r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
         dir_arg    = f"--acc2dir {ACC2DIR_JSON}", 
         ref_arg = "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS),
         dir        = OUT_ROOT,
-        new_kraken_out = KRAKEN_OUTPUT,
-        new_kraken_report = KRAKEN_REPORT,
+        new_kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+        new_kraken_report = f"{OUT_ROOT}/kraken_report.txt",
         ref_accessions_str = " ".join(REF_ACCESSIONS)
+
     shell:
         r"""
         python {params.script} \
@@ -440,17 +437,7 @@ checkpoint split_per_accession:
             --out-dir    {params.dir}       
         mv {input.kraken_out} {params.new_kraken_out}
         mv {input.report} {params.new_kraken_report}
-
-        python {params.plot_script} {output.dir}/kraken_report.txt
-
-        # Load acc2dir map
-        acc2dir_map=$(cat {input.acc2dir})
-        
-        for acc in {params.ref_accessions_str}; do
-            dir=$(echo "$acc2dir_map" | python3 -c "import sys, json; print(json.load(sys.stdin)[\"$acc\"])")
-            mkdir -p {output.dir}/$dir
-            mv classification_proportions.png {output.dir}/$dir/classification_proportions.png
-        done
+        mv classification_proportions.png {output.dir}/classification_proportions.png
         """
 
 # 7.5) Prepare wepp input directory
