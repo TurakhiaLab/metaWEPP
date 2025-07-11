@@ -35,39 +35,28 @@ fig, ax = plt.subplots(figsize=(10, 8))
 ax.set_position([0.05, 0.1, 0.5, 0.8])  # [left, bottom, width, height]
 
 colors = plt.cm.tab20.colors
-wedges, texts, autotexts = ax.pie(
-    leaves['Percent'],
-    labels=None,
-    autopct='%1.1f%%',
-    colors=colors[:len(leaves)],
-    startangle=140
-)
-
-for autotext in autotexts:
-    autotext.set_fontweight('bold')
-    autotext.set_fontsize(14) 
 
 # Function to wrap long labels to two lines
 def wrap_labels(labels, width=25):
     return ['\n'.join(textwrap.wrap(label, width)) for label in labels]
 
-# Wrap the pathogen names
-wrapped_labels = wrap_labels(leaves['Name'].tolist())
+# Add percentages to the labels for legend
+wrapped_labels_with_percent = [
+    f"{name} ({percent:.2f}%)"
+    for name, percent in zip(leaves['Name'], leaves['Percent'])
+    if round(percent, 2) > 0
+]
+wrapped_labels = wrap_labels(wrapped_labels_with_percent)
 
-# Pie chart
-wedges, texts, autotexts = ax.pie(
+# Pie chart without percentages on slices
+wedges, texts = ax.pie(
     leaves['Percent'],
     labels=None,
-    autopct='%1.1f%%',
     colors=colors[:len(leaves)],
     startangle=140
 )
 
-for autotext in autotexts:
-    autotext.set_fontweight('bold')
-    autotext.set_fontsize(14)
-
-# Legend with wrapped labels
+# Legend showing labels with percentage
 fig.legend(
     wedges,
     wrapped_labels,
@@ -79,6 +68,7 @@ fig.legend(
     fontsize=14
 )
 
+ax.axis('equal')
 
 # Add centered title across the top
 fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center', y=0.85)
