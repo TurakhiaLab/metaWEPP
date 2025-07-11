@@ -49,14 +49,19 @@ RUN pip install snakemake taxoniumtools matplotlib
 # Create workspace directory
 RUN mkdir -p /workspace
 
+# Clone metaWEPP repository
+RUN git clone https://github.com/TurakhiaLab/metaWEPP.git
+
 # Clone WEPP repository with submodules
+WORKDIR /metaWEPP
 RUN git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 
 # Clone and install Kraken2
 RUN git clone https://github.com/DerrickWood/kraken2.git && \
     cd kraken2 && \
     ./install_kraken2.sh . && \
-    echo -e "\nexport PATH=\"$(pwd):\$PATH\"" >> ~/.bashrc
+    echo 'export PATH="/metaWEPP/kraken2:$PATH"' >> /root/.bashrc
+
 
 # Default command: start an interactive login shell to source ~/.bashrc
 CMD [ "bash", "--login" ]
