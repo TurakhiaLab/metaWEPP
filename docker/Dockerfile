@@ -40,18 +40,6 @@ ENV PATH=/root/miniforge3/bin:$PATH
 RUN /root/miniforge3/bin/conda init bash && \
     echo "source ~/.bashrc" >> /root/.bash_profile
 
-## Downgrade Python to 3.8 in base, install mess and singularity
-#RUN conda config --add channels defaults && \
-#    conda config --add channels bioconda && \
-#    conda config --add channels conda-forge && \
-#    conda config --set channel_priority strict && \
-#    conda install -y python=3.8 mess singularity
-#
-## Setup Singularity env vars for runtime
-#RUN echo 'export SINGULARITY_TMPDIR="$PWD/.singularity/tmp"' >> ~/.bashrc && \
-#    echo 'export SINGULARITY_CACHEDIR="$PWD/.singularity/cache"' >> ~/.bashrc && \
-#    echo 'mkdir -p "$SINGULARITY_TMPDIR" "$SINGULARITY_CACHEDIR"' >> ~/.bashrc
-
 # Install yarn
 RUN npm install -g yarn
 

@@ -1,4 +1,13 @@
+<div align="center">
+
 # metaWEPP: Metagenomic Wastewater-Based Epidemiology using Phylogenetic Placements
+
+[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
+[license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
+
+[![License][license-badge]][license-link]
+[<img src="https://img.shields.io/badge/Build with-CMake-green.svg?logo=snakemake">](https://cmake.org)
+[<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
 
 ## Table of Contents
 - [Introduction](#intro)
