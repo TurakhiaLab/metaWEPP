@@ -1,4 +1,15 @@
+<div align="center">
+
 # metaWEPP: Metagenomic Wastewater-Based Epidemiology using Phylogenetic Placements
+
+[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
+[license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
+
+[![License][license-badge]][license-link]
+[<img src="https://img.shields.io/badge/Build with-CMake-green.svg?logo=snakemake">](https://cmake.org)
+[<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
+
+</div>
 
 ## Table of Contents
 - [Introduction](#intro)
@@ -21,8 +32,8 @@
 metaWEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid classification and haplotype-level analysis of mixed-pathogen metagenomic samples. Developed for flexible, high-throughput use in public health surveillance, metaWEPP integrates [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification and routes identified pathogen reads into [WEPP](https://github.com/TurakhiaLab/WEPP) for phylogenetic placement and haplotype inference. The pipeline automates the end-to-end workflow—from raw mixed reads to lineage-level analysis—with optional support for simulated read generation using [MeSS](https://github.com/metagenlab/MeSS). 
 
 <div align="center">
-    <img src="docs/images/metawepp-figure.png" width="600">
-    <div><b>Figure 1: metaWEPP Pipeline Visual</b></div>
+    <img src="metaWEPP.png" width="600">
+    <div><b>Figure 1: metaWEPP Pipeline</b></div>
 </div>
 
 

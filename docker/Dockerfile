@@ -40,18 +40,6 @@ ENV PATH=/root/miniforge3/bin:$PATH
 RUN /root/miniforge3/bin/conda init bash && \
     echo "source ~/.bashrc" >> /root/.bash_profile
 
-## Downgrade Python to 3.8 in base, install mess and singularity
-#RUN conda config --add channels defaults && \
-#    conda config --add channels bioconda && \
-#    conda config --add channels conda-forge && \
-#    conda config --set channel_priority strict && \
-#    conda install -y python=3.8 mess singularity
-#
-## Setup Singularity env vars for runtime
-#RUN echo 'export SINGULARITY_TMPDIR="$PWD/.singularity/tmp"' >> ~/.bashrc && \
-#    echo 'export SINGULARITY_CACHEDIR="$PWD/.singularity/cache"' >> ~/.bashrc && \
-#    echo 'mkdir -p "$SINGULARITY_TMPDIR" "$SINGULARITY_CACHEDIR"' >> ~/.bashrc
-
 # Install yarn
 RUN npm install -g yarn
 
@@ -61,14 +49,19 @@ RUN pip install snakemake taxoniumtools matplotlib
 # Create workspace directory
 RUN mkdir -p /workspace
 
+# Clone metaWEPP repository
+RUN git clone https://github.com/TurakhiaLab/metaWEPP.git
+
 # Clone WEPP repository with submodules
+WORKDIR /metaWEPP
 RUN git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 
 # Clone and install Kraken2
 RUN git clone https://github.com/DerrickWood/kraken2.git && \
     cd kraken2 && \
     ./install_kraken2.sh . && \
-    echo -e "\nexport PATH=\"$(pwd):\$PATH\"" >> ~/.bashrc
+    echo 'export PATH="/metaWEPP/kraken2:$PATH"' >> /root/.bashrc
+
 
 # Default command: start an interactive login shell to source ~/.bashrc
 CMD [ "bash", "--login" ]
