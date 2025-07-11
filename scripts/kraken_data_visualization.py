@@ -1,6 +1,7 @@
 import sys
 import pandas as pd
 import matplotlib.pyplot as plt
+import textwrap
 
 # Get file path from command-line argument
 if len(sys.argv) < 2:
@@ -46,10 +47,30 @@ for autotext in autotexts:
     autotext.set_fontweight('bold')
     autotext.set_fontsize(14) 
 
-# Add legend to the right
+# Function to wrap long labels to two lines
+def wrap_labels(labels, width=25):
+    return ['\n'.join(textwrap.wrap(label, width)) for label in labels]
+
+# Wrap the pathogen names
+wrapped_labels = wrap_labels(leaves['Name'].tolist())
+
+# Pie chart
+wedges, texts, autotexts = ax.pie(
+    leaves['Percent'],
+    labels=None,
+    autopct='%1.1f%%',
+    colors=colors[:len(leaves)],
+    startangle=140
+)
+
+for autotext in autotexts:
+    autotext.set_fontweight('bold')
+    autotext.set_fontsize(14)
+
+# Legend with wrapped labels
 fig.legend(
     wedges,
-    leaves['Name'],
+    wrapped_labels,
     title="Pathogens",
     title_fontsize=16,
     loc="center right",
@@ -57,6 +78,7 @@ fig.legend(
     labelspacing=1.2,
     fontsize=14
 )
+
 
 # Add centered title across the top
 fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center', y=0.85)

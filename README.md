@@ -32,8 +32,8 @@ metaWEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid c
 
 **Step 1:** Clone the repository.
 ```
-git clone https://github.com/TurakhiaLab/metagenomic-WBE.git
-cd metagenomic-WBE
+git clone https://github.com/TurakhiaLab/metaWEPP.git
+cd metaWEPP
 ```
 
 **Step 2:** Install Kraken.
@@ -77,7 +77,7 @@ cp metagenomic_example.fa data/simulated_metagenomic_sample
 **Step 2:** Prepare the config.yaml for SARS-CoV-2.
 ```
 cat <<EOF > data/pathogens_for_wepp/sars_cov_2/config.yaml
-PRIMER_BED: snap_primers.bed
+PRIMER_BED: none.bed
 CLADE_IDX: 1
 SEQUENCING_TYPE: d
 CLADE_LIST: nextstrain,pango
@@ -147,7 +147,7 @@ snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB --resour
 
 **Step 5:**  Analyze Results.
 
-The classification distribuction can be found in "results/real_metagenomic_sample/classification_proportions.png". WEPP results can be found in the `WEPP/results/rsva_a_real_metagenomic_sample` directory. 
+The classification distribuction can be found in `results/real_metagenomic_sample/classification_proportions.png`. WEPP results can be found in the `WEPP/results/rsva_a_real_metagenomic_sample` directory. 
 
 
 ## <a name="guide"></a> User Guide
