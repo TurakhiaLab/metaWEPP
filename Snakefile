@@ -317,10 +317,10 @@ if SIM_TOOL == "MESS":
             tsv = "individual_genomes_tsvs/{genome}.tsv"
         params:
             script = "scripts/generate_mess_tsv.py",
-            reads_count = config["READS_COUNT"]
+            coverage = config["COVERAGE"]
         shell:
             """
-            python {params.script} {output.tsv} {input.fasta} {params.reads_count}
+            python {params.script} {output.tsv} {input.fasta} {params.coverage}
             """
 
     rule simulate_reads_mess:

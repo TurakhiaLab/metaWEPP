@@ -61,6 +61,6 @@ if __name__ == "__main__":
 
     with open(output_tsv, 'w', newline='') as tsv_file:
         writer = csv.writer(tsv_file, delimiter='\t')
-        writer.writerow(["fasta", "path", "reads", "tax_id", "total_sequence_length"])
+        writer.writerow(["fasta", "path", "cov_sim", "tax_id", "total_sequence_length"])
         writer.writerow([fasta_name, fasta_path, coverage, tax_id, total_length])
         print(f"-------- Wrote TSV for {fasta_name} → {output_tsv} --------")
