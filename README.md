@@ -9,6 +9,8 @@
 [<img src="https://img.shields.io/badge/Build with-CMake-green.svg?logo=snakemake">](https://cmake.org)
 [<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
 
+</div>
+
 ## Table of Contents
 - [Introduction](#intro)
 - [Installation](#install)
