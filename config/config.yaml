@@ -30,4 +30,4 @@ CLADE_IDX: "1"
 SIMULATION_TOOL: "" 
 
 # MESS's genomic coverage 
-COVERAGE: 8000
+COVERAGE: 20
