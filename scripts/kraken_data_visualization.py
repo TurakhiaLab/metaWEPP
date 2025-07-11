@@ -14,20 +14,41 @@ report_path = sys.argv[1]
 df = pd.read_csv(report_path, sep='\t', header=None,
                  names=['Percent', 'Reads', 'Direct_Assigned', 'Rank', 'TaxID', 'Name'])
 
+# Keep Unclassified, Family, genus, and Species
+df = df[df['Rank'].str.startswith(('U', 'F', 'G', 'S'))]
+
 # Filter only leaf nodes with actual classified reads
 leaves = df[df['Direct_Assigned'] > 0].copy()
 
 # Remove duplicates
 leaves = leaves.drop_duplicates(subset='TaxID')
 
-# Sort by percent
-leaves.sort_values(by='Percent', ascending=False, inplace=True)
+# Sum of all retained percentages
+retained_pct = leaves['Percent'].sum()
+
+# Calculate the leftover percentage
+other_pct = 100.0 - retained_pct
+
+# Append 'Other' category only if it's non-zero
+if other_pct >= 0.01:
+    leaves = pd.concat([
+        leaves,
+        pd.DataFrame([{
+            'Percent': other_pct,
+            'Reads': 0,
+            'Direct_Assigned': 0,
+            'Rank': 'Other',
+            'TaxID': -1,
+            'Name': 'Other'
+        }])
+    ], ignore_index=True)
 
 # Clean up whitespace from pathogen names
 leaves['Name'] = leaves['Name'].str.lstrip()
-
-# Upper case first letter "unclassified"
 leaves['Name'] = leaves['Name'].replace('unclassified', 'Unclassified')
+
+# Sort by percent
+leaves.sort_values(by='Percent', ascending=False, inplace=True)
 
 fig, ax = plt.subplots(figsize=(10, 8))
 
@@ -35,39 +56,28 @@ fig, ax = plt.subplots(figsize=(10, 8))
 ax.set_position([0.05, 0.1, 0.5, 0.8])  # [left, bottom, width, height]
 
 colors = plt.cm.tab20.colors
-wedges, texts, autotexts = ax.pie(
-    leaves['Percent'],
-    labels=None,
-    autopct='%1.1f%%',
-    colors=colors[:len(leaves)],
-    startangle=140
-)
-
-for autotext in autotexts:
-    autotext.set_fontweight('bold')
-    autotext.set_fontsize(14) 
 
 # Function to wrap long labels to two lines
 def wrap_labels(labels, width=25):
     return ['\n'.join(textwrap.wrap(label, width)) for label in labels]
 
-# Wrap the pathogen names
-wrapped_labels = wrap_labels(leaves['Name'].tolist())
+# Add percentages to the labels for legend
+wrapped_labels_with_percent = [
+    f"{name} ({percent:.2f}%)"
+    for name, percent in zip(leaves['Name'], leaves['Percent'])
+    if round(percent, 2) > 0
+]
+wrapped_labels = wrap_labels(wrapped_labels_with_percent)
 
-# Pie chart
-wedges, texts, autotexts = ax.pie(
+# Pie chart without percentages on slices
+wedges, texts = ax.pie(
     leaves['Percent'],
     labels=None,
-    autopct='%1.1f%%',
     colors=colors[:len(leaves)],
     startangle=140
 )
 
-for autotext in autotexts:
-    autotext.set_fontweight('bold')
-    autotext.set_fontsize(14)
-
-# Legend with wrapped labels
+# Legend showing labels with percentage
 fig.legend(
     wedges,
     wrapped_labels,
@@ -79,6 +89,7 @@ fig.legend(
     fontsize=14
 )
 
+ax.axis('equal')
 
 # Add centered title across the top
 fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center', y=0.85)

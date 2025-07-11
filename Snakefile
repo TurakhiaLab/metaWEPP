@@ -213,7 +213,7 @@ def WEPP_REF(acc):
     return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
 
 # ────────────────────────────────────────────────────────────────
-
+ACC2CLASSIFIEDDIR = {}
 
 def final_targets(_wc):
     ckpt = checkpoints.build_acc2classified_dir.get()  # wait for split
@@ -221,20 +221,38 @@ def final_targets(_wc):
     if Path(ACC2CLASSIFIEDDIR_JSON).exists():
         with open(ACC2CLASSIFIEDDIR_JSON) as f:
             ACC2CLASSIFIEDDIR = json.load(f)
-        print("ACC2CLASSIFIEDDIR contents:")
-        print(json.dumps(ACC2CLASSIFIEDDIR, indent=2))
     else:
         ACC2CLASSIFIEDDIR = {}          # fall-back (empty) so the Snakefile still parses
     for acc in REF_ACCESSIONS:
         dir_ = ACC2CLASSIFIEDDIR.get(acc)  # use .get() to avoid KeyError
         if dir_:
-            fq1 = Path(f"{OUT_ROOT}/{dir_}/{acc.split('.')[0]}_R1.fq.gz")
             dir_tag = f"{dir_}_{TAG}"
             files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
     files.append(FQ1)
     if not IS_SINGLE_END:
         files.append(FQ2)
     return files
+
+def final_results_files(wc):
+    # ── wait until the checkpoint that builds acc2classified_dir.json is done ──
+    ckpt = checkpoints.build_acc2classified_dir.get(**wc)   # ← blocks until file exists
+    classified_json = ckpt.output[0]                        # same as ckpt.output.classified
+    with open(classified_json) as fh:
+        acc2dir = json.load(fh)                             # {acc : "NC_045512" …}
+
+    wanted = []
+
+    # one job per accession → per-accession FASTQs produced by split_per_accession
+    for acc in REF_ACCESSIONS:
+        out_dir = acc2dir.get(acc)          # directory name chosen by split_read.py
+        if not out_dir:                     # accession not present → skip
+            continue
+
+        # R1 (and, if paired-end, R2) produced by split_per_accession
+        wanted.append(f"{OUT_ROOT}/{out_dir}/{acc.split('.')[0]}_R1.fq.gz")
+        if not IS_SINGLE_END:
+            wanted.append(f"{OUT_ROOT}/{out_dir}/{acc.split('.')[0]}_R2.fq.gz")
+    return wanted
 
 
 
@@ -250,7 +268,10 @@ def has_reads(fq):
 rule all:
     input:
         final_targets,
-        ACC2CLASSIFIEDDIR_JSON
+        final_results_files,
+        ACC2CLASSIFIEDDIR_JSON,
+        f"{OUT_ROOT}/kraken_output.txt",
+        f"{OUT_ROOT}/kraken_report.txt"
 
 if SIM_TOOL == "MESS":
 
@@ -327,6 +348,19 @@ if SIM_TOOL == "MESS":
             mv simulated_reads/fastq/{params.genome_base}_R2.fq.gz {output.r2}
             """
 
+    def sim_reads_R1(wc):
+        ckpt = checkpoints.split_genomes.get(**wc)           # wait for checkpoint
+        genomes, = glob_wildcards(os.path.join(ckpt.output[0], "{genome}.fa"))
+        return expand("simulated_reads/fastq/{genome}_R1.fq.gz", genome=genomes)
+
+    def sim_reads_R2(wc):
+        if IS_SINGLE_END:
+            return []                                        # no second read file
+        ckpt = checkpoints.split_genomes.get(**wc)
+        genomes, = glob_wildcards(os.path.join(ckpt.output[0], "{genome}.fa"))
+        return expand("simulated_reads/fastq/{genome}_R2.fq.gz", genome=genomes)
+
+
     rule merge_reads:
         input:
             sim_reads_1 = lambda wc: expand("simulated_reads/fastq/{genome}_R1.fq.gz", genome=get_genomes_from_checkpoint(wc)),
@@ -347,6 +381,7 @@ if SIM_TOOL == "MESS":
 
             rm -rf simulated_reads
             """
+
 
 # ─── helper function for names ──────────────────────────────────────────
 FQ1_GZ = FQ1 if str(FQ1).endswith(".gz") else str(FQ1) + ".gz"
@@ -418,47 +453,9 @@ rule kraken_visualization:
         python scripts/kraken_data_visualization.py {input.report}
         """
 
-
-# 7) Split Kraken output into per-taxid FASTQs 
-checkpoint split_per_accession:
-    input:
-        kraken_out = "kraken_output.txt",
-        report     = "kraken_report.txt",
-        mapping    = TAXID_MAP,
-        acc2dir    = ACC2DIR_JSON,  
-        r1         = FQ1,
-        r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
-        viz        = "classification_proportions.png"
-    output:
-        dir = directory(OUT_ROOT),
-        new_kraken_out = f"{OUT_ROOT}/kraken_output.txt",
-        new_kraken_report = f"{OUT_ROOT}/kraken_report.txt",
-    params:
-        script     = "scripts/split_read.py",
-        r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
-        dir_arg    = f"--acc2dir {ACC2DIR_JSON}", 
-        ref_arg = "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS),
-        dir        = OUT_ROOT,
-        ref_accessions_str = " ".join(REF_ACCESSIONS)
-
-    shell:
-        r"""
-        python {params.script} \
-            --kraken-out {input.kraken_out} \
-            --mapping    {input.mapping}    \
-            --r1         {input.r1}         \
-            {params.r2_arg}                 \
-            {params.ref_arg}                \
-            {params.dir_arg}                \
-            --out-dir    {params.dir}       
-        mv {input.kraken_out} {output.new_kraken_out}
-        mv {input.report} {output.new_kraken_report}
-        mv classification_proportions.png {output.dir}/classification_proportions.png
-        """
-
 checkpoint build_acc2classified_dir:
     input:
-        kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+        kraken_out = f"kraken_output.txt",
         mapping    = TAXID_MAP,
         acc2dir    = ACC2DIR_JSON
     output:
@@ -471,6 +468,59 @@ checkpoint build_acc2classified_dir:
         "--mapping {input.mapping} "
         "--acc2dir {input.acc2dir} "
         "-o {output.classified}"
+
+# 7) Split Kraken output into per-taxid FASTQs 
+rule split_per_accession:
+    input:
+        mapping    = TAXID_MAP,
+        acc2dir    = ACC2DIR_JSON,  
+        r1         = FQ1,
+        r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
+        kraken_out = "kraken_output.txt",
+        classified = ACC2CLASSIFIEDDIR_JSON
+    output:
+        r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
+        r2_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R2.fq.gz",
+    params:
+        script     = "scripts/split_read.py",
+        r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
+        dir_arg    = f"--acc2dir {ACC2DIR_JSON}", 
+        ref_arg = "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS),
+        dir        = OUT_ROOT,
+        ref_accessions_str = " ".join(REF_ACCESSIONS),
+
+    shell:
+        r"""
+        python {params.script} \
+            --kraken-out {input.kraken_out} \
+            --mapping    {input.mapping}    \
+            --r1         {input.r1}         \
+            {params.r2_arg}                 \
+            {params.ref_arg}                \
+            {params.dir_arg}                \
+            --out-dir    {params.dir}       
+        """
+
+rule move_shared_files:
+    input:
+        acc_reads = expand(f"{OUT_ROOT}/{{dir}}/{{acc}}_R1.fq.gz", zip,
+                           dir=[ACC2CLASSIFIEDDIR[acc] for acc in REF_ACCESSIONS if acc in ACC2CLASSIFIEDDIR],
+                           acc=[acc for acc in REF_ACCESSIONS if acc in ACC2CLASSIFIEDDIR]),
+        kraken_out = "kraken_output.txt",
+        kraken_report = "kraken_report.txt",
+        viz = "classification_proportions.png",
+        classified = ACC2CLASSIFIEDDIR_JSON
+    output:
+        new_kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+        new_kraken_report = f"{OUT_ROOT}/kraken_report.txt",
+        new_classified = f"{OUT_ROOT}/classification_proportions.png"
+    shell:
+        r"""
+        mv {input.kraken_out} {output.new_kraken_out}
+        mv {input.kraken_report} {output.new_kraken_report}
+        mv {input.viz} {output.new_classified}
+        """
+
 
 # 7.5) Prepare wepp input directory
 # For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
@@ -485,18 +535,21 @@ if IS_SINGLE_END:
     # ───────── single-end ────────────────────────────────────────────────────
     rule prepare_wepp_inputs:
         input:
-            r1 = lambda wc:
+            r1          = lambda wc:
                 f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
                 f"{wc.acc.split('.')[0]}_R1.fq.gz",
-            fasta = lambda wc: ACC2FASTA[wc.acc],
-            pb    = lambda wc: ACC2PB[wc.acc],
-            classified = ACC2CLASSIFIEDDIR_JSON,
+            fasta       = lambda wc: ACC2FASTA[wc.acc],
+            pb          = lambda wc: ACC2PB[wc.acc],
+            viz         = f"{OUT_ROOT}/classification_proportions.png", 
+            classified  = ACC2CLASSIFIEDDIR_JSON,
+            kraken_out  = f"{OUT_ROOT}/kraken_output.txt", 
+            kraken_report = f"{OUT_ROOT}/kraken_report.txt",
         output:
-            new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
+            new_r1      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
         params:
-            data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
-            tree_dest  = lambda wc: WEPP_TREE(wc.acc),
-            fasta_dest = lambda wc: WEPP_REF(wc.acc),
+            data_dir    = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
+            tree_dest   = lambda wc: WEPP_TREE(wc.acc),
+            fasta_dest  = lambda wc: WEPP_REF(wc.acc),
         shell:
             r"""
             mkdir -p {params.data_dir}
@@ -514,22 +567,25 @@ else:
     # ───────── paired-end ───────────────────────────────────────────────────
     rule prepare_wepp_inputs:
         input:
-            r1 = lambda wc:
+            r1          = lambda wc:
                 f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
                 f"{wc.acc.split('.')[0]}_R1.fq.gz",
-            r2 = lambda wc:
+            r2          = lambda wc:
                 f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
                 f"{wc.acc.split('.')[0]}_R2.fq.gz",
-            fasta = lambda wc: ACC2FASTA[wc.acc],
-            pb    = lambda wc: ACC2PB[wc.acc],
-            classified = ACC2CLASSIFIEDDIR_JSON,
+            fasta       = lambda wc: ACC2FASTA[wc.acc],
+            pb          = lambda wc: ACC2PB[wc.acc],
+            viz         = f"{OUT_ROOT}/classification_proportions.png",   # ← f-string
+            classified  = ACC2CLASSIFIEDDIR_JSON,
+            kraken_out  = f"{OUT_ROOT}/kraken_output.txt",
+            kraken_report = f"{OUT_ROOT}/kraken_report.txt",
         output:
-            new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
-            new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
+            new_r1      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
+            new_r2      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
         params:
-            data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
-            tree_dest  = lambda wc: WEPP_TREE(wc.acc),
-            fasta_dest = lambda wc: WEPP_REF(wc.acc),
+            data_dir    = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
+            tree_dest   = lambda wc: WEPP_TREE(wc.acc),
+            fasta_dest  = lambda wc: WEPP_REF(wc.acc),
         shell:
             r"""
             mkdir -p {params.data_dir}
