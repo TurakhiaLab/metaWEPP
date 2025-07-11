@@ -29,5 +29,5 @@ CLADE_IDX: "1"
 #    * Set to "none" or blank to skip simulation. But, you must provide your own real reads in fq1 and fq2.
 SIMULATION_TOOL: "" 
 
-# MESS's genomic coverage 
-COVERAGE: 10
+# Number of reads that generate by MeSS
+READS_COUNT: 8000
