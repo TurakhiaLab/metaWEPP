@@ -136,6 +136,11 @@ snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_
 
 The classification distribuction can be found in `results/simulated_metagenomic_sample/classification_proportions.png`. All WEPP results can be found in the `WEPP/results/sars_cov_2_simulated_metagenomic_sample` directory. 
 
+Expected classification proportion:
+ 53.85%  Severe acute respiratory syndrome coronavirus 2
+ 25.92%  human respiratory syncytial virus
+ 19.23%  dengue virus type 4
+
 ### <a name="real-world"></a> Example - 2: Real World Data
 
 This example will take our own metagenomic wastewater reads and use them as input FQ file for the pipeline running on a RSV-A dataset.
