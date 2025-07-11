@@ -14,20 +14,41 @@ report_path = sys.argv[1]
 df = pd.read_csv(report_path, sep='\t', header=None,
                  names=['Percent', 'Reads', 'Direct_Assigned', 'Rank', 'TaxID', 'Name'])
 
+# Keep Unclassified, Family, genus, and Species
+df = df[df['Rank'].str.startswith(('U', 'F', 'G', 'S'))]
+
 # Filter only leaf nodes with actual classified reads
 leaves = df[df['Direct_Assigned'] > 0].copy()
 
 # Remove duplicates
 leaves = leaves.drop_duplicates(subset='TaxID')
 
-# Sort by percent
-leaves.sort_values(by='Percent', ascending=False, inplace=True)
+# Sum of all retained percentages
+retained_pct = leaves['Percent'].sum()
+
+# Calculate the leftover percentage
+other_pct = 100.0 - retained_pct
+
+# Append 'Other' category only if it's non-zero
+if other_pct >= 0.01:
+    leaves = pd.concat([
+        leaves,
+        pd.DataFrame([{
+            'Percent': other_pct,
+            'Reads': 0,
+            'Direct_Assigned': 0,
+            'Rank': 'Other',
+            'TaxID': -1,
+            'Name': 'Other'
+        }])
+    ], ignore_index=True)
 
 # Clean up whitespace from pathogen names
 leaves['Name'] = leaves['Name'].str.lstrip()
-
-# Upper case first letter "unclassified"
 leaves['Name'] = leaves['Name'].replace('unclassified', 'Unclassified')
+
+# Sort by percent
+leaves.sort_values(by='Percent', ascending=False, inplace=True)
 
 fig, ax = plt.subplots(figsize=(10, 8))
 
