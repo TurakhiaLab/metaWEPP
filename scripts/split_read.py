@@ -5,7 +5,7 @@ Split reads classified by Kraken2 into per-accession FASTQs.
 • Reads whose accession is in the reference panel are written to
     <OUT_ROOT>/<accession>/<accession>_{R1,R2}.fq.gz
 • Reads whose accession is not in the panel are written to
-    <OUT_ROOT>/other_pathogens/<accession>/<accession>_{R1,R2}.fq.gz
+    <OUT_ROOT>/Other_Pathogens/<accession>/<accession>_{R1,R2}.fq.gz
 """
 
 import argparse, gzip, json, os, sys
@@ -61,11 +61,11 @@ def load_ref_accessions(s):
 def out_root_for(acc, base_out, acc2dir, is_ref):
     """
     Return results/<dir_name>  (if accession exist in pathogens_for_wepp)
-           results/other_pathogens/<accession>  (otherwise)
+           results/Other_Pathogens/<accession>  (otherwise)
     """
     if is_ref:
         return Path(base_out) / acc2dir.get(acc, acc)
-    return Path(base_out) / "other_pathogens" / acc
+    return Path(base_out) / "Other_Pathogens" / acc
 
 # ───────────────────────── splitting ─────────────────────────
 def split_fastq(fq, mate, read2acc, refs, acc2dir, out_root):

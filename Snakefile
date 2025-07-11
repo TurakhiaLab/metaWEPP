@@ -41,8 +41,9 @@ IS_SINGLE_END = config.get("SEQUENCING_TYPE", "p").lower() in {"s", "n"}
 
 # Get FQ1 and FQ2
 if SIM_TOOL == "MESS":
-    FQ1 = "simulated_reads/fastq/merged_R1.fq.gz"
-    FQ2 = "simulated_reads/fastq/merged_R2.fq.gz"
+    FQ1 = Path("data") / config["DIR"] / "merged_R1.fq.gz"
+    FQ2 = Path("data") / config["DIR"] / "merged_R2.fq.gz"
+    #"simulated_reads/fastq/merged_R1.fq.gz"
 
 else:
     fq_dir = Path("data") / config["DIR"]
@@ -142,6 +143,10 @@ for acc, dirname in ACC2DIR.items():
     print(f"  {acc} -> {dirname}")
 print(f"IS_SINGLE_END = {IS_SINGLE_END}", file=sys.stderr)
 
+# ACC2CLASSIFIEDDIR
+ACC2CLASSIFIEDDIR_JSON = "config/acc2classified_dir.json"
+
+
 # dump mapping so split_read.py can use it
 Path("config").mkdir(exist_ok=True)
 ACC2DIR_JSON = "config/acc2dirname.json"
@@ -151,8 +156,6 @@ with open(ACC2DIR_JSON, "w") as fh:
 # ────────────────────────────────────────────────────────────────
 # Helper function for splitting reads
 def detect_out_root(fq1):
-    if "simulated_reads/fastq" in fq1:
-        return f"results/{DIR}"
     sample = os.path.basename(os.path.dirname(fq1)) # e.g. data/sample_1/…
     return f"results/{sample}"
 
@@ -213,14 +216,21 @@ def WEPP_REF(acc):
 
 
 def final_targets(_wc):
-    ckpt = checkpoints.split_per_accession.get()      # wait for split
+    ckpt = checkpoints.build_acc2classified_dir.get()  # wait for split
     files = []
+    if Path(ACC2CLASSIFIEDDIR_JSON).exists():
+        with open(ACC2CLASSIFIEDDIR_JSON) as f:
+            ACC2CLASSIFIEDDIR = json.load(f)
+        print("ACC2CLASSIFIEDDIR contents:")
+        print(json.dumps(ACC2CLASSIFIEDDIR, indent=2))
+    else:
+        ACC2CLASSIFIEDDIR = {}          # fall-back (empty) so the Snakefile still parses
     for acc in REF_ACCESSIONS:
-        dir_ = ACC2DIR[acc]                       
-        fq1  = Path(f"{OUT_ROOT}/{dir_}/{acc.split('.')[0]}_R1.fq.gz")
-        dir_tag = f"{dir_}_{TAG}"      
-        files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
-    # always include the original FASTQs so Snakemake copies them if needed
+        dir_ = ACC2CLASSIFIEDDIR.get(acc)  # use .get() to avoid KeyError
+        if dir_:
+            fq1 = Path(f"{OUT_ROOT}/{dir_}/{acc.split('.')[0]}_R1.fq.gz")
+            dir_tag = f"{dir_}_{TAG}"
+            files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
     files.append(FQ1)
     if not IS_SINGLE_END:
         files.append(FQ2)
@@ -239,7 +249,8 @@ def has_reads(fq):
 
 rule all:
     input:
-        final_targets
+        final_targets,
+        ACC2CLASSIFIEDDIR_JSON
 
 if SIM_TOOL == "MESS":
 
@@ -323,18 +334,25 @@ if SIM_TOOL == "MESS":
         output:
             R1 = FQ1,
             R2 = FQ2
-
+        params:
+            FQ1_sim = "simulated_reads/fastq/merged_R1.fq.gz",
+            FQ2_sim = "simulated_reads/fastq/merged_R2.fq.gz",
         shell:
             """
-            zcat simulated_reads/fastq/*_R1.fq.gz | gzip > {output.R1}
-            zcat simulated_reads/fastq/*_R2.fq.gz | gzip > {output.R2}
+            zcat simulated_reads/fastq/*_R1.fq.gz | gzip > {params.FQ1_sim}
+            zcat simulated_reads/fastq/*_R2.fq.gz | gzip > {params.FQ2_sim}
+            
+            mv {params.FQ1_sim} {output.R1}
+            mv {params.FQ2_sim} {output.R2}
+
+            rm -rf simulated_reads
             """
 
 # ─── helper function for names ──────────────────────────────────────────
-FQ1_GZ = FQ1 if FQ1.endswith(".gz") else FQ1 + ".gz"
+FQ1_GZ = FQ1 if str(FQ1).endswith(".gz") else str(FQ1) + ".gz"
 FQ2_GZ = (
     "" if IS_SINGLE_END
-    else (FQ2 if FQ2.endswith(".gz") else FQ2 + ".gz")
+    else (FQ2 if str(FQ2).endswith(".gz") else str(FQ2) + ".gz")
 )
 
 # Make sure everything is compressed (Compresses fq files, turns them into fastq.gz files, 
@@ -400,6 +418,7 @@ rule kraken_visualization:
         python scripts/kraken_data_visualization.py {input.report}
         """
 
+
 # 7) Split Kraken output into per-taxid FASTQs 
 checkpoint split_per_accession:
     input:
@@ -411,15 +430,15 @@ checkpoint split_per_accession:
         r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
         viz        = "classification_proportions.png"
     output:
-        dir = directory(OUT_ROOT)
+        dir = directory(OUT_ROOT),
+        new_kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+        new_kraken_report = f"{OUT_ROOT}/kraken_report.txt",
     params:
         script     = "scripts/split_read.py",
         r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
         dir_arg    = f"--acc2dir {ACC2DIR_JSON}", 
         ref_arg = "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS),
         dir        = OUT_ROOT,
-        new_kraken_out = f"{OUT_ROOT}/kraken_output.txt",
-        new_kraken_report = f"{OUT_ROOT}/kraken_report.txt",
         ref_accessions_str = " ".join(REF_ACCESSIONS)
 
     shell:
@@ -432,10 +451,26 @@ checkpoint split_per_accession:
             {params.ref_arg}                \
             {params.dir_arg}                \
             --out-dir    {params.dir}       
-        mv {input.kraken_out} {params.new_kraken_out}
-        mv {input.report} {params.new_kraken_report}
+        mv {input.kraken_out} {output.new_kraken_out}
+        mv {input.report} {output.new_kraken_report}
         mv classification_proportions.png {output.dir}/classification_proportions.png
         """
+
+checkpoint build_acc2classified_dir:
+    input:
+        kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+        mapping    = TAXID_MAP,
+        acc2dir    = ACC2DIR_JSON
+    output:
+        classified = ACC2CLASSIFIEDDIR_JSON
+    params:
+        script = "scripts/generate_acc2classified_dir.py"
+    shell:
+        "python {params.script} "
+        "--kraken-out {input.kraken_out} "
+        "--mapping {input.mapping} "
+        "--acc2dir {input.acc2dir} "
+        "-o {output.classified}"
 
 # 7.5) Prepare wepp input directory
 # For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
@@ -455,6 +490,7 @@ if IS_SINGLE_END:
                 f"{wc.acc.split('.')[0]}_R1.fq.gz",
             fasta = lambda wc: ACC2FASTA[wc.acc],
             pb    = lambda wc: ACC2PB[wc.acc],
+            classified = ACC2CLASSIFIEDDIR_JSON,
         output:
             new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
             new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
@@ -487,6 +523,7 @@ else:
                 f"{wc.acc.split('.')[0]}_R2.fq.gz",
             fasta = lambda wc: ACC2FASTA[wc.acc],
             pb    = lambda wc: ACC2PB[wc.acc],
+            classified = ACC2CLASSIFIEDDIR_JSON,
         output:
             new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz" if IS_SINGLE_END
                         else f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
