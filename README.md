@@ -14,7 +14,8 @@
 ## Table of Contents
 - [Introduction](#intro)
 - [Installation](#install)
-  - [Option-1: Install via Shell Commands](#shell)
+  - [Option-1: Install via Dockerfile](#docker)
+  - [Option-2: Install via Shell Commands](#shell)
 - [Quick Start](#example)
   - [Example-1: Simulated Data](#mess)
   - [Example-2: Real World Data](#real-world) 
@@ -39,7 +40,28 @@ metaWEPP is a Snakemake-based bioinformatics pipeline designed to enable rapid c
 
 ## <a name="install"></a> Installation
 
-### <a name="shell"></a> Option-1: Install via Shell Commands.
+### <a name="docker"></a> Option-1: Install via Dockerfile.
+
+**Step 1:** Clone the repository.
+```
+git clone https://github.com/TurakhiaLab/metaWEPP.git
+cd metaWEPP
+```
+
+**Step 2:** Build a Docker Image.
+```
+cd docker
+docker build -t metawepp . 
+cd ..
+```
+**Step 3:** Start and run Docker container. The command below will take you inside the docker container with metaWEPP already installed. 
+```
+docker run -it metawepp
+```
+⚠️ Note: MeSS cannot be used to simulate reads within the Docker container, as it internally relies on Singularity, which causes issues with the Docker container.
+
+
+### <a name="shell"></a> Option-2: Install via Shell Commands.
 
 **Step 1:** Clone the repository.
 ```
@@ -57,14 +79,14 @@ echo -e "\nexport PATH=\"$(pwd):\$PATH\"" >> ~/.bashrc
 source ~/.bashrc
 cd ..
 ```
-**Step 4:** Install WEPP.
+**Step 3:** Install WEPP.
 
 ```
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 ```
 View the WEPP installation guid starting from option 3 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
 
-**Step 5:** Install MeSS.
+**Step 4:** Install MeSS.
 
 Follow the MeSS installation guide on the [MeSS Quick Start](https://github.com/metagenlab/MeSS?tab=readme-ov-file#zap-quick-start).
 
