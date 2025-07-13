@@ -143,10 +143,9 @@ Expected classification proportion:
 - 19.13% Dengue virus type 4
 - 1.53% Unclassified
 
-Expected haplotype abundance in `WEPP/results/sars_cov_2_simulated_metagenomic_sample_5/NC_045512_haplotype_abundance.csv`:
+Expected lineage abundance in `WEPP/results/sars_cov_2_simulated_metagenomic_sample_5/NC_045512_lineage_abundance.csv`:
 
-> node_96773,AY.103,1.000000
-
+> AY.103,1.000000
 
 ### <a name="real-world"></a> Example - 2: Real World Data
 
@@ -199,20 +198,14 @@ Expected classification proportion:
 - 57.01% Human respiratory syncytial virus
 - 42.99% Unclassified
 
-Expected haplotype abundance in `WEPP/results/rsv_a_real_metagenomic_sample/NC_038235_haplotype_abundance.csv`:
-> node_3377,A.D.3,0.235340
+Expected haplotype abundance in `WEPP/results/rsv_a_real_metagenomic_sample/NC_038235_lineage_abundance.csv `:
+> A.D.3,0.450398
 > 
-> node_3411,A.D.3,0.215058
-> 
-> node_887,A.D.1,0.214890
-> 
-> node_886,A.D.1,0.205000
-> 
-> node_33,A.D,0.070975
-> 
-> node_5519,A.D.5,0.035429
-> 
-> node_3276,A.D,0.023308
+> A.D.1,0.419891
+>
+> A.D,0.094283
+>
+> A.D.5,0.035429
 
 ## <a name="guide"></a> User Guide
 
