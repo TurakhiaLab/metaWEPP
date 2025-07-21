@@ -23,10 +23,12 @@ leaves = df[df['Direct_Assigned'] > 0].copy()
 # Remove duplicates
 leaves = leaves.drop_duplicates(subset='TaxID')
 
-# Sum of all retained percentages
-retained_pct = leaves['Percent'].sum()
+# Recalculate percentages using Direct_Assigned column
+total_assigned = leaves['Direct_Assigned'].sum()
+leaves['Percent'] = 100.0 * leaves['Direct_Assigned'] / total_assigned
 
 # Calculate the leftover percentage
+retained_pct = leaves['Percent'].sum()
 other_pct = 100.0 - retained_pct
 
 # Append 'Other' category only if it's non-zero
@@ -51,13 +53,11 @@ leaves['Name'] = leaves['Name'].replace('unclassified', 'Unclassified')
 leaves.sort_values(by='Percent', ascending=False, inplace=True)
 
 fig, ax = plt.subplots(figsize=(10, 8))
-
-# Shrink the pie chart's axes and move it to the left
 ax.set_position([0.05, 0.1, 0.5, 0.8])  # [left, bottom, width, height]
 
 colors = plt.cm.tab20.colors
 
-# Function to wrap long labels to two lines
+# Function to wrap long labels
 def wrap_labels(labels, width=25):
     return ['\n'.join(textwrap.wrap(label, width)) for label in labels]
 
@@ -69,7 +69,7 @@ wrapped_labels_with_percent = [
 ]
 wrapped_labels = wrap_labels(wrapped_labels_with_percent)
 
-# Pie chart without percentages on slices
+# Pie chart
 wedges, texts = ax.pie(
     leaves['Percent'],
     labels=None,
@@ -77,7 +77,7 @@ wedges, texts = ax.pie(
     startangle=140
 )
 
-# Legend showing labels with percentage
+# Legend
 fig.legend(
     wedges,
     wrapped_labels,
@@ -90,7 +90,5 @@ fig.legend(
 )
 
 ax.axis('equal')
-
-# Add centered title across the top
 fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center', y=0.85)
 plt.savefig("classification_proportions.png", dpi=300, bbox_inches='tight')
