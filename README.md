@@ -136,6 +136,17 @@ snakemake --config DIR=simulated_metagenomic_sample SIMULATION_TOOL=MESS KRAKEN_
 
 The classification distribuction can be found in `results/simulated_metagenomic_sample/classification_proportions.png`. All WEPP results can be found in the `WEPP/results/sars_cov_2_simulated_metagenomic_sample` directory. 
 
+Expected classification proportion:
+
+- 54.10% Severe acute respiratory syndrome coronavirus 2
+- 25.25% Human respiratory syncytial virus
+- 19.13% Dengue virus type 4
+- 1.53% Unclassified
+
+Expected lineage abundance in `WEPP/results/sars_cov_2_simulated_metagenomic_sample_5/NC_045512_lineage_abundance.csv`:
+
+> AY.103,1.000000
+
 ### <a name="real-world"></a> Example - 2: Real World Data
 
 This example will take our own metagenomic wastewater reads and use them as input FQ file for the pipeline running on a RSV-A dataset.
@@ -182,6 +193,19 @@ snakemake --config DIR=real_metagenomic_sample KRAKEN_DB=test_kraken_DB --resour
 
 The classification distribuction can be found in `results/real_metagenomic_sample/classification_proportions.png`. WEPP results can be found in the `WEPP/results/rsva_a_real_metagenomic_sample` directory. 
 
+Expected classification proportion:
+
+- 57.01% Human respiratory syncytial virus
+- 42.99% Unclassified
+
+Expected haplotype abundance in `WEPP/results/rsv_a_real_metagenomic_sample/NC_038235_lineage_abundance.csv `:
+> A.D.3,0.450398
+> 
+> A.D.1,0.419891
+>
+> A.D,0.094283
+>
+> A.D.5,0.035429
 
 ## <a name="guide"></a> User Guide
 

@@ -470,36 +470,70 @@ checkpoint build_acc2classified_dir:
         "-o {output.classified}"
 
 # 7) Split Kraken output into per-taxid FASTQs 
-rule split_per_accession:
-    input:
-        mapping    = TAXID_MAP,
-        acc2dir    = ACC2DIR_JSON,  
-        r1         = FQ1,
-        r2         = (lambda wc: [] if IS_SINGLE_END else FQ2),
-        kraken_out = "kraken_output.txt",
-        classified = ACC2CLASSIFIEDDIR_JSON
-    output:
-        r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
-        r2_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R2.fq.gz",
-    params:
-        script     = "scripts/split_read.py",
-        r2_arg     = (lambda wc: "" if IS_SINGLE_END else f"--r2 {FQ2}"),
-        dir_arg    = f"--acc2dir {ACC2DIR_JSON}", 
-        ref_arg = "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS),
-        dir        = OUT_ROOT,
-        ref_accessions_str = " ".join(REF_ACCESSIONS),
+if IS_SINGLE_END:
 
-    shell:
-        r"""
-        python {params.script} \
-            --kraken-out {input.kraken_out} \
-            --mapping    {input.mapping}    \
-            --r1         {input.r1}         \
-            {params.r2_arg}                 \
-            {params.ref_arg}                \
-            {params.dir_arg}                \
-            --out-dir    {params.dir}       
-        """
+    rule split_per_accession:
+        input:
+            mapping    = TAXID_MAP,
+            acc2dir    = ACC2DIR_JSON,
+            r1         = FQ1,
+            kraken_out = "kraken_output.txt",
+            classified = ACC2CLASSIFIEDDIR_JSON
+        output:
+            r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
+        params:
+            script  = "scripts/split_read.py",
+            dir_arg = f"--acc2dir {ACC2DIR_JSON}",
+            ref_arg = "" if not REF_ACCESSIONS else
+                       "--ref-accessions " + ",".join(REF_ACCESSIONS),
+            dir     = OUT_ROOT
+        threads: 32
+        shell:
+            r"""
+            python {params.script} \
+              --kraken-out {input.kraken_out} \
+              --mapping    {input.mapping} \
+              --r1         {input.r1} \
+              {params.ref_arg} \
+              {params.dir_arg} \
+              --out-dir    {params.dir} \
+              --pigz-threads {threads}
+            """
+
+else:
+
+    rule split_per_accession:
+        input:
+            mapping    = TAXID_MAP,
+            acc2dir    = ACC2DIR_JSON,
+            r1         = FQ1,
+            r2         = FQ2,
+            kraken_out = "kraken_output.txt",
+            classified = ACC2CLASSIFIEDDIR_JSON
+        output:
+            r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
+            r2_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R2.fq.gz",
+        params:
+            script  = "scripts/split_read.py",
+            r2_arg  = f"--r2 {FQ2}",
+            dir_arg = f"--acc2dir {ACC2DIR_JSON}",
+            ref_arg = "" if not REF_ACCESSIONS else
+                       "--ref-accessions " + ",".join(REF_ACCESSIONS),
+            dir     = OUT_ROOT
+        threads: 32
+        shell:
+            r"""
+            python {params.script} \
+              --kraken-out {input.kraken_out} \
+              --mapping    {input.mapping} \
+              --r1         {input.r1} \
+              {params.r2_arg} \
+              {params.ref_arg} \
+              {params.dir_arg} \
+              --out-dir    {params.dir} \
+              --pigz-threads {threads}
+            """
+
 
 rule move_shared_files:
     input:
