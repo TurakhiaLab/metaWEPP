@@ -34,8 +34,8 @@
 metaWEPP is a Snakemake-based bioinformatics pipeline that achieves haplotype-level resolution from metagenomic sequencing data. As illustrated in Figure 1, metaWEPP can analyze mixed sequencing read samples originating from diverse sources, including environmental metagenomes and clinical samples containing co-infections. It leverages [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification and then employs [WEPP](https://github.com/TurakhiaLab/WEPP) to determine haplotypes for each identified pathogen, enabling high-resolution variant analysis of metagenomic samples. The pipeline also integrates WEPP’s interactive visualization dashboard, which allows in-depth exploration of detected haplotypes for each pathogen — offering unprecedented fine-grained insight into metagenomic samples. For benchmarking and testing, metaWEPP incorporates the metagenomic simulation tool, [MeSS](https://github.com/metagenlab/MeSS). 
 
 <div align="center">
-    <img src="metaWEPP.pdf" width="600">
-    <div><b>Figure 1: metaWEPP Pipeline</b></div>
+    <img src="metaWEPP.png" width="600">
+    <div><b>Figure 1: metaWEPP Overview</b></div>
 </div>
 
 
