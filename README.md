@@ -1,6 +1,6 @@
 <div align="center">
 
-# metaWEPP: Metagenomic Wastewater-Based Epidemiology using Phylogenetic Placements
+# metaWEPP: Improving the resolution of metagenomic analysis using WEPP
 
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
 [license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
@@ -31,7 +31,7 @@
 
 ## <a name="intro"></a> Introduction
 
-metaWEPP is a Snakemake-based bioinformatics pipeline that enables haplotype-level resolution from metagenomic or mixed-genome sequencing data. As illustrated in Figure 1, metaWEPP can analyze complex mixed-genome samples, such as environmental metagenomes or clinical specimens with co-infections. It leverages [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification, and then uses [WEPP](https://github.com/TurakhiaLab/WEPP) to determine haplotypes for each identified pathogen using a Mutation-Annotated Tree (MAT) built with [UShER](https://github.com/yatisht/usher) — a daily updated phylogeny of globally available clinical sequences and their inferred ancestors, enabling near-haplotype variant resolution of variants in metagenomic samples. The pipeline also integrates WEPP’s interactive visualization dashboard, which allows in-depth exploration of detected haplotypes for each pathogen — offering unprecedented fine-grained insight into metagenomic samples. For benchmarking and testing, metaWEPP incorporates the metagenomic simulation tool, [MeSS](https://github.com/metagenlab/MeSS). 
+metaWEPP is a Snakemake-based bioinformatics pipeline that enables haplotype-level resolution from metagenomic or mixed-genome samples. As illustrated in Figure 1, metaWEPP can analyze complex mixed-genome samples, such as environmental metagenomes or clinical specimens with co-infections. It leverages [Kraken2](https://github.com/DerrickWood/kraken2) for taxonomic classification, and then uses [WEPP](https://github.com/TurakhiaLab/WEPP) to determine haplotypes for each identified pathogen using a Mutation-Annotated Tree (MAT) built with [UShER](https://github.com/yatisht/usher) — a daily updated phylogeny of globally available clinical sequences and their inferred ancestors, enabling near-haplotype variant resolution in metagenomic samples. The pipeline also integrates WEPP’s interactive visualization dashboard, which allows in-depth exploration of detected haplotypes for each pathogen — offering fine-grained insights into metagenomic samples. For benchmarking and testing, metaWEPP incorporates the metagenomic simulation tool, [MeSS](https://github.com/metagenlab/MeSS). 
 
 <div align="center">
     <img src="metaWEPP.png" width="600">
@@ -85,7 +85,7 @@ cd ..
 ```
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 ```
-View the WEPP installation guid starting from option 3 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
+View the WEPP installation guide starting from option 3 on the [WEPP repo](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
 
 **Step 4:** Install MeSS.
 
@@ -206,10 +206,10 @@ Expected RSV-A lineage abundance results, which can be viewed at `WEPP/results/r
 ## <a name="guide"></a> User Guide
 
 ### <a name="data"> Data Organization
-We assume that all wastewater samples are stored in the data directory, each within its own subdirectory given by DIR argument (see Run Command). For each pathogen to be analyzed for variants with WEPP, place its reference genome, corresponding MAT file, and the config.yaml (optional) in the folder: `data/pathogens_for_wepp/<pathogen_name>`. Moreover, each created `DIR` inside `data` is expected to contain either of these files.
+We assume that all wastewater samples are stored in the data directory, each within its own subdirectory given by DIR argument (see [Run Command](#run)). For each pathogen to be analyzed for variants with WEPP, place its reference genome, corresponding MAT file, and the config.yaml (optional) in the folder: `data/pathogens_for_wepp/<pathogen_name>`. Moreover, each created `DIR` inside `data` is expected to contain either of these files.
 1. Sequencing Reads: Ending with `*_R{1/2}.fastq.gz` for paired-ended reads and `*.fastq.gz` for single-ended.
 OR
-2. Genomes: Single `fasta` file containing all the genomes to be simulated in the sample. MeSS will generate reads and place it in the same folder.
+2. Genomes: Single `fasta` file containing all the genomes to be simulated in the sample. MeSS will generate reads and place them in the same folder.
 
 For each sample, metaWEPP stores metagenomic analysis results in corresponding subdirectories under `results`. Variant-specific analysis outputs are located within the respective pathogen directories under `WEPP/results`. 
 
@@ -269,7 +269,7 @@ Visualization of metaWEPP's workflow directories
 
 ### <a name="arg"> Arguments
 
-metaWEPP requries the following arguments, either through the 'config/config.yaml' or as command-line arguments.:
+metaWEPP requires the following arguments, either through the 'config/config.yaml' or as command-line arguments.:
 
 1. `KRAKEN_DB` - Name of the Kraken database.
 2. `DIR` - Folder containing either metagenomic reads for analysis or reference FASTA files for simulating reads with MeSS. 
@@ -282,7 +282,7 @@ Arguments required to run WEPP. These may vary by pathogens and can be placed wi
 6. `PRIMER_BED` - BED file for primers, which should be present in the `WEPP/primers` directory.
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked.
 8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
-9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful in the reducing runtime.
+9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful in reducing runtime.
 10. `CLADE_LIST` - List the clade annotation schemes stored in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, so use "nextstrain,pango" for it.
 11. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Use '1' for Pango naming and '0' for Nextstrain naming for SARS-CoV-2. Other pathogens usually follow a single lineage annotation system, so work with '0'. In case of NO lineage annotations, use '-1'. Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2.
 
@@ -292,7 +292,7 @@ Arguments required to run WEPP. These may vary by pathogens and can be placed wi
 
 ### <a name="run"> Run Command
 
-metaWEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line config arguments. Other parameters can also be provided via the config file. It also accepts `--cores`  to control the number of threads used during execution, and uses `--resources mess_slots=1` to  ensure the MeSS pipeline runs serially, preventing concurrency-related issues.
+metaWEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line config arguments. Other parameters can also be provided via the config file. It also accepts `--cores`  to control the number of threads used during execution, and uses `--resources mess_slots=1` to ensure the MeSS pipeline runs serially, preventing concurrency-related issues.
 
 Examples:
 1. Using all parameters from the config file:
