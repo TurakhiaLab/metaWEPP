@@ -58,7 +58,9 @@ def load_ref_accessions(s):
 def out_root_for(acc, base_out, acc2dir, is_ref):
     if is_ref:
         return Path(base_out) / acc2dir.get(acc, acc)
-    return Path(base_out) / "Other_Pathogens" / acc
+    # take the token after the last '|'
+    acc_name = acc.rsplit("|", 1)[-1]
+    return Path(base_out) / "Other_Pathogens" / acc_name
 
 def writer_for(acc, mate, ext, out_root, refs, acc2dir, writers, processes, pigz_threads, batch_dir):
     if acc in writers:
