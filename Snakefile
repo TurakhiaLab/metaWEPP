@@ -36,7 +36,24 @@ if KRAKEN_DB is None:
         "Please provide the path to the Kraken2 database via\n"
         "  --config KRAKEN_DB=<folder>"
     )
-TAXID_MAP = os.path.join(config["KRAKEN_DB"], "seqid2taxid.map")
+
+# Original map file path
+original_map = os.path.join(config["KRAKEN_DB"], "seqid2taxid.map")
+
+# New map output path
+TAXID_MAP = os.path.join("config", "accession2taxid.map")
+
+# Ensure the output directory exists
+os.makedirs("config", exist_ok=True)
+
+# Convert the map
+with open(original_map) as infile, open(TAXID_MAP, "w") as outfile:
+    for line in infile:
+        if line.strip():
+            full_id, taxid = line.strip().split()
+            accession = full_id.split("|")[-1]
+            outfile.write(f"{accession}\t{taxid}\n")
+
 IS_SINGLE_END = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
 # Get FQ1 and FQ2
