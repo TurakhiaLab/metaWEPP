@@ -541,14 +541,12 @@ if CLASSIFIED_EMPTY:
                 mapping    = TAXID_MAP,
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
-                r2         = FQ2,
                 kraken_out = "kraken_output.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 done = f"{OUT_ROOT}/.split_done"
             params:
                 script  = "scripts/split_read.py",
-                r2_arg  = f"--r2 {FQ2}",
                 dir_arg = f"--acc2dir {ACC2DIR_JSON}",
                 ref_arg = "" if not REF_ACCESSIONS else
                         "--ref-accessions " + ",".join(REF_ACCESSIONS),
@@ -579,7 +577,6 @@ if CLASSIFIED_EMPTY:
                 done = f"{OUT_ROOT}/.split_done"
             params:
                 script  = "scripts/split_read.py",
-                r2_arg  = f"--r2 {FQ2}",
                 dir_arg = f"--acc2dir {ACC2DIR_JSON}",
                 ref_arg = "" if not REF_ACCESSIONS else
                         "--ref-accessions " + ",".join(REF_ACCESSIONS),
@@ -591,7 +588,7 @@ if CLASSIFIED_EMPTY:
                 --kraken-out {input.kraken_out} \
                 --mapping    {input.mapping} \
                 --r1         {input.r1} \
-                {params.r2_arg} \
+                --r2         {input.r2} \
                 {params.ref_arg} \
                 {params.dir_arg} \
                 --out-dir    {params.dir} \
@@ -607,14 +604,12 @@ else:
                 mapping    = TAXID_MAP,
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
-                r2         = FQ2,
                 kraken_out = "kraken_output.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
             params:
                 script  = "scripts/split_read.py",
-                r2_arg  = f"--r2 {FQ2}",
                 dir_arg = f"--acc2dir {ACC2DIR_JSON}",
                 ref_arg = "" if not REF_ACCESSIONS else
                         "--ref-accessions " + ",".join(REF_ACCESSIONS),
@@ -647,7 +642,6 @@ else:
                 r2_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R2.fq.gz",
             params:
                 script  = "scripts/split_read.py",
-                r2_arg  = f"--r2 {FQ2}",
                 dir_arg = f"--acc2dir {ACC2DIR_JSON}",
                 ref_arg = "" if not REF_ACCESSIONS else
                         "--ref-accessions " + ",".join(REF_ACCESSIONS),
@@ -660,7 +654,7 @@ else:
                 --kraken-out {input.kraken_out} \
                 --mapping    {input.mapping} \
                 --r1         {input.r1} \
-                {params.r2_arg} \
+                --r2         {input.r2} \
                 {params.ref_arg} \
                 {params.dir_arg} \
                 --out-dir    {params.dir} \
