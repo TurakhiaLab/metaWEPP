@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 import textwrap
 
 # Get file path from command-line argument
-if len(sys.argv) < 2:
-    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file>")
+if len(sys.argv) < 3:
+    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file>")
     sys.exit(1)
 
 report_path = sys.argv[1]
+fig_path = sys.argv[2]
 
 # Load the report file
 df = pd.read_csv(report_path, sep='\t', header=None,
@@ -91,4 +92,4 @@ fig.legend(
 
 ax.axis('equal')
 fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center', y=0.85)
-plt.savefig("classification_proportions.png", dpi=300, bbox_inches='tight')
+plt.savefig(f"{fig_path}", dpi=300, bbox_inches='tight')
