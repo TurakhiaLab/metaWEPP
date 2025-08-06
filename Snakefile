@@ -301,7 +301,8 @@ if CLASSIFIED_EMPTY:
             ACC2CLASSIFIEDDIR_JSON,
             f"{OUT_ROOT}/kraken_output.txt",
             f"{OUT_ROOT}/kraken_report.txt",
-            f"{OUT_ROOT}/.split_done"
+            f"{OUT_ROOT}/.split_done",
+            f"{OUT_ROOT}/classification_proportions.png"
 else: 
     rule all:
         input:
@@ -310,6 +311,7 @@ else:
             ACC2CLASSIFIEDDIR_JSON,
             f"{OUT_ROOT}/kraken_output.txt",
             f"{OUT_ROOT}/kraken_report.txt",
+            f"{OUT_ROOT}/classification_proportions.png"
 
 if SIM_TOOL == "MESS":
 
@@ -464,8 +466,8 @@ rule kraken:
         r1 = FQ1,
         r2 = (lambda wc: [] if IS_SINGLE_END else FQ2),
     output:
-        report     = "kraken_report.txt",
-        kraken_out = "kraken_output.txt",
+        kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+        kraken_report = f"{OUT_ROOT}/kraken_report.txt",
     threads: config.get("kraken_threads", 8)
     params:
         db        = KRAKEN_DB,
@@ -473,27 +475,27 @@ rule kraken:
         mate2     = (lambda wc: "" if IS_SINGLE_END else FQ2),
     shell:
         r"""
-        mkdir -p $(dirname {output.report})
+        mkdir -p $(dirname {output.kraken_report})
         kraken2 --db {params.db} --threads {threads} {params.mode_flag} \
                 {input.r1} {params.mate2} \
-                --report {output.report} \
+                --report {output.kraken_report} \
                 --output {output.kraken_out}
         """
 
 # 6.5) Kraken Visualization
 rule kraken_visualization:
     input:
-        report = "kraken_report.txt"
+        kraken_report = f"{OUT_ROOT}/kraken_report.txt",
     output:
-        dir = "classification_proportions.png"
+        fig_name = f"{OUT_ROOT}/classification_proportions.png"
     shell:
         """
-        python scripts/kraken_data_visualization.py {input.report}
+        python scripts/kraken_data_visualization.py {input.kraken_report} {output.fig_name}
         """
 
 checkpoint build_acc2classified_dir:
     input:
-        kraken_out = f"kraken_output.txt",
+        kraken_out = f"{OUT_ROOT}/kraken_output.txt",
         mapping    = TAXID_MAP,
         acc2dir    = ACC2DIR_JSON
     output:
@@ -511,28 +513,6 @@ checkpoint build_acc2classified_dir:
 # --- config / flags ---
 ACC2CLASSIFIEDDIR_JSON = "config/acc2classified_dir.json"
 
-
-# IS_SINGLE_END already defined elsewhere
-# OUT_ROOT, TAXID_MAP, ACC2DIR_JSON, FQ1, FQ2, REF_ACCESSIONS defined elsewhere
-
-# Common bits
-SPLIT_SCRIPT = "scripts/split_read.py"
-REF_ARG = "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS)
-DIR_ARG = f"--acc2dir {ACC2DIR_JSON}"
-
-SHELL_BASE = r"""
-    python {params.script} \
-        --kraken-out {input.kraken_out} \
-        --mapping    {input.mapping} \
-        --r1         {input.r1} \
-        {params.r2_arg} \
-        {params.ref_arg} \
-        {params.dir_arg} \
-        --out-dir    {params.dir} \
-        --pigz-threads {threads} \
-        && touch {output.done}
-"""
-
 # ----------------- CASE 1: ACC2CLASSIFIEDDIR_JSON is EMPTY ------------------
 if CLASSIFIED_EMPTY:
     if IS_SINGLE_END:
@@ -541,7 +521,7 @@ if CLASSIFIED_EMPTY:
                 mapping    = TAXID_MAP,
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
-                kraken_out = "kraken_output.txt",
+                kraken_out = f"{OUT_ROOT}/kraken_output.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 done = f"{OUT_ROOT}/.split_done"
@@ -571,7 +551,7 @@ if CLASSIFIED_EMPTY:
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
                 r2         = FQ2,
-                kraken_out = "kraken_output.txt",
+                kraken_out = f"{OUT_ROOT}/kraken_output.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 done = f"{OUT_ROOT}/.split_done"
@@ -604,7 +584,7 @@ else:
                 mapping    = TAXID_MAP,
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
-                kraken_out = "kraken_output.txt",
+                kraken_out = f"{OUT_ROOT}/kraken_output.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
@@ -635,7 +615,7 @@ else:
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
                 r2         = FQ2,
-                kraken_out = "kraken_output.txt",
+                kraken_out = f"{OUT_ROOT}/kraken_output.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
@@ -661,28 +641,6 @@ else:
                 --pigz-threads {threads}\
                 && touch {params.done}            
                 """
-
-
-rule move_shared_files:
-    input:
-        acc_reads = expand(f"{OUT_ROOT}/{{dir}}/{{acc}}_R1.fq.gz", zip,
-                           dir=[ACC2CLASSIFIEDDIR[acc] for acc in REF_ACCESSIONS if acc in ACC2CLASSIFIEDDIR],
-                           acc=[acc for acc in REF_ACCESSIONS if acc in ACC2CLASSIFIEDDIR]),
-        kraken_out = "kraken_output.txt",
-        kraken_report = "kraken_report.txt",
-        viz = "classification_proportions.png",
-        classified = ACC2CLASSIFIEDDIR_JSON
-    output:
-        new_kraken_out = f"{OUT_ROOT}/kraken_output.txt",
-        new_kraken_report = f"{OUT_ROOT}/kraken_report.txt",
-        new_classified = f"{OUT_ROOT}/classification_proportions.png"
-    shell:
-        r"""
-        mv {input.kraken_out} {output.new_kraken_out}
-        mv {input.kraken_report} {output.new_kraken_report}
-        mv {input.viz} {output.new_classified}
-        """
-
 
 # 7.5) Prepare wepp input directory
 # For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
