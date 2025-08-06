@@ -281,10 +281,11 @@ Arguments required to run WEPP. These may vary by pathogens and can be placed wi
 
 6. `PRIMER_BED` - BED file for primers, which should be present in the `WEPP/primers` directory.
 7. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked.
-8. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
-9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful in reducing runtime.
-10. `CLADE_LIST` - List the clade annotation schemes stored in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, so use "nextstrain,pango" for it.
-11. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Use '1' for Pango naming and '0' for Nextstrain naming for SARS-CoV-2. Other pathogens usually follow a single lineage annotation system, so work with '0'. In case of NO lineage annotations, use '-1'. Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2.
+8. `MIN_DEPTH` - Sites with read depth below this threshold will be masked.
+9. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked.
+10. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful in reducing runtime.
+11. `CLADE_LIST` - List the clade annotation schemes stored in the MAT. SARS-CoV-2 MAT uses both nextstrain and pango lineage naming systems, so use "nextstrain,pango" for it.
+12. `CLADE_IDX` - Index used for assigning clades to selected haplotypes from MAT. Use '1' for Pango naming and '0' for Nextstrain naming for SARS-CoV-2. Other pathogens usually follow a single lineage annotation system, so work with '0'. In case of NO lineage annotations, use '-1'. Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2.
 
 
 ⚠️ Example of pathogen specific `config.yaml` can be found in the [Quick Start](#example).
