@@ -469,7 +469,7 @@ rule kraken:
     threads: config.get("kraken_threads", 8)
     params:
         db        = KRAKEN_DB,
-        mode_flag = "--single" if IS_SINGLE_END else "--paired",
+        mode_flag = "" if IS_SINGLE_END else "--paired",
         mate2     = (lambda wc: "" if IS_SINGLE_END else FQ2),
     shell:
         r"""
