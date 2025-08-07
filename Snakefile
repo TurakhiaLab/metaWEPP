@@ -763,16 +763,16 @@ rule run_wepp:
     shell:
         r"""
         # ── skip WEPP when both FASTQs are empty ──────────────────────
+        min_reads=100
         has_reads() {{
             local f=$1
-            local min_reads=100
             local num_reads
             num_reads=$( (gzip -cd "$f" 2>/dev/null || cat "$f") | wc -l )
             [ "$((num_reads / 4))" -ge "$min_reads" ]
         }}
 
         if ! has_reads "{input.r1}" && ( [ -z "{input.r2}" ] || ! has_reads "{input.r2}" ); then
-            echo "Fewer than {min_reads} for {wildcards.acc}; removing data folder and skipping WEPP."
+            echo "Fewer than $min_reads for {wildcards.acc}; removing data folder and skipping WEPP."
             rm -rf "{WEPP_DATA_DIR}/{params.tag_dir}"
             mkdir -p {params.resultsdir}/{wildcards.acc}
             touch {output.run_txt}
