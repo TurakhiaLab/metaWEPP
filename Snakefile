@@ -765,7 +765,10 @@ rule run_wepp:
         # ── skip WEPP when both FASTQs are empty ──────────────────────
         has_reads() {{
             local f=$1
-            [ "$( (gzip -cd "$f" 2>/dev/null || cat "$f") | head -4 | wc -l )" -ge 4 ]
+            local min_reads=100
+            local num_reads
+            num_reads=$( (gzip -cd "$f" 2>/dev/null || cat "$f") | wc -l )
+            [ "$((num_reads / 4))" -ge "$min_reads" ]
         }}
 
         if ! has_reads "{input.r1}" && ( [ -z "{input.r2}" ] || ! has_reads "{input.r2}" ); then
