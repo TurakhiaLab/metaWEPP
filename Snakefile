@@ -772,7 +772,7 @@ rule run_wepp:
         }}
 
         if ! has_reads "{input.r1}" && ( [ -z "{input.r2}" ] || ! has_reads "{input.r2}" ); then
-            echo "No reads for {wildcards.acc}; removing data folder and skipping WEPP."
+            echo "Fewer than {min_reads} for {wildcards.acc}; removing data folder and skipping WEPP."
             rm -rf "{WEPP_DATA_DIR}/{params.tag_dir}"
             mkdir -p {params.resultsdir}/{wildcards.acc}
             touch {output.run_txt}
