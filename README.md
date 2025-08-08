@@ -25,6 +25,8 @@
   - [Run Command](#run) 
   - [MAT Download](#mat) 
 - [Building Kraken Database](#build-database)
+  - [Downloading prebuilt database](#prebuilt)
+  - [Creating custom database](#custom)
 
 <br>
 
@@ -310,7 +312,19 @@ snakemake --config KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample CLA
 Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found [here](https://dev.usher.bio). You can also create your own MAT for any pathogen from the consensus genome assemblies using [viral_usher](https://github.com/AngieHinrichs/viral_usher).
 
 ##  <a name="build-database"></a> Building Kraken Database
+Users can either download prebuilt databases available online or create custom ones using their genomes.
 
+### <a name="prebuilt"> Downloading prebuilt database
+**Step 1:** Get the link of `.tar.gz` file of the genome collection you want from [here](https://benlangmead.github.io/aws-indexes/k2). Download the database using either `wget` or `curl` command.
+
+
+**Step 2:** Unzip the downloaded database in a new directory using `tar`.
+```
+tar -xzf file.tar.gz
+```
+
+
+### <a name="custom"> Creating custom database
 **Step 1:** Install the taxonomy. This is necessary for building a Kraken database. Replace "$DBNAME" above with your preferred database name.
 ```
 kraken2-build --download-taxonomy --db $DBNAME
