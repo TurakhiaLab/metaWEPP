@@ -18,6 +18,9 @@ df = pd.read_csv(report_path, sep='\t', header=None,
 # Keep Unclassified, Family, genus, and Species
 df = df[df['Rank'].str.startswith(('U', 'F', 'G', 'S'))]
 
+# Convert Percent to numeric
+df['Percent'] = pd.to_numeric(df['Percent'], errors='coerce')
+
 # Filter only leaf nodes with actual classified reads
 leaves = df[df['Direct_Assigned'] > 0].copy()
 
@@ -28,23 +31,26 @@ leaves = leaves.drop_duplicates(subset='TaxID')
 total_assigned = leaves['Direct_Assigned'].sum()
 leaves['Percent'] = 100.0 * leaves['Direct_Assigned'] / total_assigned
 
+# Drop leaf nodes with recalculated Percent < 1%
+leaves = leaves[leaves['Percent'] >= 1]
+
 # Calculate the leftover percentage
 retained_pct = leaves['Percent'].sum()
 other_pct = 100.0 - retained_pct
 
-# Append 'Other' category only if it's non-zero
-if other_pct >= 0.01:
-    leaves = pd.concat([
-        leaves,
-        pd.DataFrame([{
-            'Percent': other_pct,
-            'Reads': 0,
-            'Direct_Assigned': 0,
-            'Rank': 'Other',
-            'TaxID': -1,
-            'Name': 'Other'
-        }])
-    ], ignore_index=True)
+# Add 'Other' if needed
+percent_sum = leaves['Percent'].sum()
+remainder = 100.0 - percent_sum
+if remainder > 0.01: 
+    other_row = {
+        'Percent': remainder,
+        'Reads': 0,
+        'Direct_Assigned': 0,
+        'Rank': 'O',
+        'TaxID': -1,
+        'Name': 'Others'
+    }
+    leaves = pd.concat([leaves, pd.DataFrame([other_row])], ignore_index=True)
 
 # Clean up whitespace from pathogen names
 leaves['Name'] = leaves['Name'].str.lstrip()
