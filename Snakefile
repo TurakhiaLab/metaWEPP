@@ -468,7 +468,7 @@ rule kraken:
     output:
         kraken_out = f"{OUT_ROOT}/kraken_output.txt",
         kraken_report = f"{OUT_ROOT}/kraken_report.txt",
-    threads: config.get("kraken_threads", 8)
+    threads: workflow.cores
     params:
         db        = KRAKEN_DB,
         mode_flag = "" if IS_SINGLE_END else "--paired",
@@ -531,7 +531,7 @@ if CLASSIFIED_EMPTY:
                 ref_arg = "" if not REF_ACCESSIONS else
                         "--ref-accessions " + ",".join(REF_ACCESSIONS),
                 dir     = OUT_ROOT
-            threads: 32
+            threads: workflow.cores
             shell:
                 r"""
                 python {params.script} \
@@ -561,7 +561,7 @@ if CLASSIFIED_EMPTY:
                 ref_arg = "" if not REF_ACCESSIONS else
                         "--ref-accessions " + ",".join(REF_ACCESSIONS),
                 dir     = OUT_ROOT
-            threads: 32
+            threads: workflow.cores
             shell:
                 r"""
                 python {params.script} \
@@ -595,7 +595,7 @@ else:
                         "--ref-accessions " + ",".join(REF_ACCESSIONS),
                 dir     = OUT_ROOT,
                 done = f"{OUT_ROOT}/.split_done"
-            threads: 32
+            threads: workflow.cores
             shell:
                 r"""
                 python {params.script} \
@@ -627,7 +627,7 @@ else:
                         "--ref-accessions " + ",".join(REF_ACCESSIONS),
                 dir     = OUT_ROOT,
                 done = f"{OUT_ROOT}/.split_done"
-            threads: 32
+            threads: workflow.cores
             shell:
                 r"""
                 python {params.script} \
@@ -737,7 +737,7 @@ rule run_wepp:
                       f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
     output:
         run_txt    = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_run.txt",
-    threads: config.get("wepp_threads", 32)
+    threads: workflow.cores
     params:
         snakefile   = str(WEPP_WORKFLOW),
         workdir     = str(WEPP_ROOT),
