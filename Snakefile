@@ -1,4 +1,4 @@
-# Snakefile Before keep pd name
+# Snakefile
 
 # imports
 import os
@@ -27,8 +27,20 @@ WEPP_RESULTS_DIR = "WEPP/results"
 WEPP_DATA_DIR    = "WEPP/data"
 WEPP_CONFIG      = "WEPP/config/config.yaml"
 WEPP_DATA_PREFIX = f"{WEPP_DATA_DIR}/{DIR}"
+WEPP_CMD_LOG     = "WEPP/cmd_log"
 
 SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
+
+# Dashboard variable from config
+DASHBOARD_ENABLED = config.get("DASHBOARD_ENABLED", False)
+
+# Get comma-separated pathogens string
+pathogen_str = config.get("PATHOGENS_FOR_DASHBOARD", "")
+PATHOGENS_FOR_DASHBOARD = [p.strip() for p in pathogen_str.split(",") if p.strip()]
+print(f"Dashboard = {DASHBOARD_ENABLED}", file=sys.stderr)
+print("PATHOGENS_FOR_DASHBOARD:", ", ".join(PATHOGENS_FOR_DASHBOARD))
+
+
 
 KRAKEN_DB = config.get("KRAKEN_DB")
 if KRAKEN_DB is None:
@@ -205,6 +217,8 @@ def optional_file(path):
 SAMPLE_TAG   = config["DIR"]        
 def tag(acc):  
     return f"{ACC2DIR[acc]}_{SAMPLE_TAG}"
+def dir(acc):  
+    return f"{ACC2DIR[acc]}"
 
 
 # ────────────────────────────────────────────────────────────────
@@ -250,6 +264,37 @@ def final_targets(_wc):
         files.append(FQ2)
     return files
 
+def final_targets_enabled_dashboard(_wc):
+    ckpt = checkpoints.build_acc2classified_dir.get()  # wait for split
+    files = []
+    wanted = []
+
+    if Path(ACC2CLASSIFIEDDIR_JSON).exists():
+        with open(ACC2CLASSIFIEDDIR_JSON) as f:
+            ACC2CLASSIFIEDDIR = json.load(f)
+    else:
+        ACC2CLASSIFIEDDIR = {}  # fallback (empty) so the Snakefile still parses
+
+    # Make sure PATHOGENS_FOR_DASHBOARD is defined
+    dashboard_set = set(PATHOGENS_FOR_DASHBOARD)  # assumes PATHOGENS_FOR_DASHBOARD is a list
+
+    for acc in REF_ACCESSIONS:
+        dir_ = ACC2CLASSIFIEDDIR.get(acc)
+        dashboard_ = ACC2CLASSIFIEDDIR.get(acc)
+        if dir_:
+            dir_tag = f"{dir_}_{TAG}"
+            #files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
+            if dashboard_:
+                wanted.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_dashboard_run.txt") 
+
+    files.append(FQ1)
+    if not IS_SINGLE_END:
+        files.append(FQ2)
+
+    return files + wanted
+
+
+
 def final_results_files(wc):
     # ── wait until the checkpoint that builds acc2classified_dir.json is done ──
     ckpt = checkpoints.build_acc2classified_dir.get(**wc)   # ← blocks until file exists
@@ -271,7 +316,23 @@ def final_results_files(wc):
             wanted.append(f"{OUT_ROOT}/{out_dir}/{acc.split('.')[0]}_R2.fq.gz")
     return wanted
 
+def run_txts_for_all(_wc):
+    ckpt = checkpoints.build_acc2classified_dir.get()
+    if Path(ACC2CLASSIFIEDDIR_JSON).exists():
+        with open(ACC2CLASSIFIEDDIR_JSON) as f:
+            acc2dir = json.load(f)
+    else:
+        acc2dir = {}
+    files = []
+    for acc in REF_ACCESSIONS:
+        d = acc2dir.get(acc)
+        if d:
+            dir_tag = f"{d}_{TAG}"
+            files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
+    return files
 
+def dashboard_howto_path(_wc):
+    return f"{WEPP_CMD_LOG}/{TAG}_dashboard_howto.txt"
 
 # ────────────────────────────────────────────────────────────────
 # Helper function for run wepp
@@ -295,23 +356,44 @@ def _classified_empty(p):
 
 CLASSIFIED_EMPTY = _classified_empty(ACC2CLASSIFIEDDIR_JSON)
 
+# Determine input list for rule all
 if CLASSIFIED_EMPTY:
-    rule all:
-        input:
+    all_inputs = [
+        ACC2CLASSIFIEDDIR_JSON,
+        f"{OUT_ROOT}/kraken_output.txt",
+        f"{OUT_ROOT}/kraken_report.txt",
+        f"{OUT_ROOT}/.split_done",
+        f"{OUT_ROOT}/classification_proportions.png"
+    ]
+elif DASHBOARD_ENABLED:
+    all_inputs = (
+        final_targets_enabled_dashboard,
+        final_results_files,
+        [
             ACC2CLASSIFIEDDIR_JSON,
             f"{OUT_ROOT}/kraken_output.txt",
             f"{OUT_ROOT}/kraken_report.txt",
-            f"{OUT_ROOT}/.split_done",
             f"{OUT_ROOT}/classification_proportions.png"
-else: 
-    rule all:
-        input:
-            final_targets,
-            final_results_files,
+        ]
+    )
+else:
+    all_inputs = (
+        final_targets,
+        final_results_files,
+        [
             ACC2CLASSIFIEDDIR_JSON,
             f"{OUT_ROOT}/kraken_output.txt",
             f"{OUT_ROOT}/kraken_report.txt",
-            f"{OUT_ROOT}/classification_proportions.png"
+            f"{OUT_ROOT}/classification_proportions.png",
+            dashboard_howto_path
+        ]
+    )
+
+# Single rule all
+rule all:
+    input:
+        all_inputs
+
 
 if SIM_TOOL == "MESS":
 
@@ -466,8 +548,8 @@ rule kraken:
         r1 = FQ1,
         r2 = (lambda wc: [] if IS_SINGLE_END else FQ2),
     output:
+        report     = f"{OUT_ROOT}/kraken_report.txt",
         kraken_out = f"{OUT_ROOT}/kraken_output.txt",
-        kraken_report = f"{OUT_ROOT}/kraken_report.txt",
     threads: workflow.cores
     params:
         db        = KRAKEN_DB,
@@ -475,27 +557,27 @@ rule kraken:
         mate2     = (lambda wc: "" if IS_SINGLE_END else FQ2),
     shell:
         r"""
-        mkdir -p $(dirname {output.kraken_report})
+        mkdir -p $(dirname {output.report})
         kraken2 --db {params.db} --threads {threads} {params.mode_flag} \
                 {input.r1} {params.mate2} \
-                --report {output.kraken_report} \
+                --report {output.report} \
                 --output {output.kraken_out}
         """
 
 # 6.5) Kraken Visualization
 rule kraken_visualization:
     input:
-        kraken_report = f"{OUT_ROOT}/kraken_report.txt",
+        report = "kraken_report.txt"
     output:
-        fig_name = f"{OUT_ROOT}/classification_proportions.png"
+        dir = "classification_proportions.png"
     shell:
         """
-        python scripts/kraken_data_visualization.py {input.kraken_report} {output.fig_name}
+        python scripts/kraken_data_visualization.py {input.report}
         """
 
 checkpoint build_acc2classified_dir:
     input:
-        kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+        kraken_out = f"kraken_output.txt",
         mapping    = TAXID_MAP,
         acc2dir    = ACC2DIR_JSON
     output:
@@ -513,6 +595,8 @@ checkpoint build_acc2classified_dir:
 # --- config / flags ---
 ACC2CLASSIFIEDDIR_JSON = "config/acc2classified_dir.json"
 
+
+
 # ----------------- CASE 1: ACC2CLASSIFIEDDIR_JSON is EMPTY ------------------
 if CLASSIFIED_EMPTY:
     if IS_SINGLE_END:
@@ -521,7 +605,8 @@ if CLASSIFIED_EMPTY:
                 mapping    = TAXID_MAP,
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
-                kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+                kraken_out = "kraken_output.txt",
+                kraken_report = "kraken_report.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 done = f"{OUT_ROOT}/.split_done"
@@ -536,6 +621,7 @@ if CLASSIFIED_EMPTY:
                 r"""
                 python {params.script} \
                 --kraken-out {input.kraken_out} \
+                --kraken-report {input.kraken_report} \
                 --mapping    {input.mapping} \
                 --r1         {input.r1} \
                 {params.ref_arg} \
@@ -551,7 +637,8 @@ if CLASSIFIED_EMPTY:
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
                 r2         = FQ2,
-                kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+                kraken_out = "kraken_output.txt",
+                kraken_report = "kraken_report.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 done = f"{OUT_ROOT}/.split_done"
@@ -566,6 +653,7 @@ if CLASSIFIED_EMPTY:
                 r"""
                 python {params.script} \
                 --kraken-out {input.kraken_out} \
+                --kraken-report {input.kraken_report} \
                 --mapping    {input.mapping} \
                 --r1         {input.r1} \
                 --r2         {input.r2} \
@@ -584,7 +672,8 @@ else:
                 mapping    = TAXID_MAP,
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
-                kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+                kraken_out = "kraken_output.txt",
+                kraken_report = "kraken_report.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
@@ -600,6 +689,7 @@ else:
                 r"""
                 python {params.script} \
                 --kraken-out {input.kraken_out} \
+                --kraken-report {input.kraken_report} \
                 --mapping    {input.mapping} \
                 --r1         {input.r1} \
                 {params.ref_arg} \
@@ -615,7 +705,8 @@ else:
                 acc2dir    = ACC2DIR_JSON,
                 r1         = FQ1,
                 r2         = FQ2,
-                kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+                kraken_out = "kraken_output.txt",
+                kraken_report = "kraken_report.txt",
                 classified = ACC2CLASSIFIEDDIR_JSON
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
@@ -632,6 +723,7 @@ else:
                 r"""
                 python {params.script} \
                 --kraken-out {input.kraken_out} \
+                --kraken-report {input.kraken_report} \
                 --mapping    {input.mapping} \
                 --r1         {input.r1} \
                 --r2         {input.r2} \
@@ -641,6 +733,28 @@ else:
                 --pigz-threads {threads}\
                 && touch {params.done}            
                 """
+
+
+rule move_shared_files:
+    input:
+        acc_reads = expand(f"{OUT_ROOT}/{{dir}}/{{acc}}_R1.fq.gz", zip,
+                           dir=[ACC2CLASSIFIEDDIR[acc] for acc in REF_ACCESSIONS if acc in ACC2CLASSIFIEDDIR],
+                           acc=[acc for acc in REF_ACCESSIONS if acc in ACC2CLASSIFIEDDIR]),
+        kraken_out = "kraken_output.txt",
+        kraken_report = "kraken_report.txt",
+        viz = "classification_proportions.png",
+        classified = ACC2CLASSIFIEDDIR_JSON
+    output:
+        new_kraken_out = f"{OUT_ROOT}/kraken_output.txt",
+        new_kraken_report = f"{OUT_ROOT}/kraken_report.txt",
+        new_classified = f"{OUT_ROOT}/classification_proportions.png"
+    shell:
+        r"""
+        mv {input.kraken_out} {output.new_kraken_out}
+        mv {input.kraken_report} {output.new_kraken_report}
+        mv {input.viz} {output.new_classified}
+        """
+
 
 # 7.5) Prepare wepp input directory
 # For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
@@ -757,7 +871,9 @@ rule run_wepp:
         tree_full   = lambda wc: WEPP_TREE(wc.acc),
         fasta_name  = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
         fasta_full  = lambda wc: WEPP_REF(wc.acc),
-        customconfig = lambda wc: ACC2CONFIG.get(wc.acc, "")
+        customconfig = lambda wc: ACC2CONFIG.get(wc.acc, ""),
+        cmd_log     = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
+        pathogens_name = lambda wc: dir(wc.acc)
     conda:
         "env/wepp.yaml"
     shell:
@@ -785,6 +901,9 @@ rule run_wepp:
             custom_arg=""
         fi
 
+        mkdir -p {WEPP_CMD_LOG}
+        [ -f {params.cmd_log} ] || touch {params.cmd_log}
+
         python ./scripts/run_inner.py \
             --dir        {params.tag_dir} \
             --prefix     {params.prefix} \
@@ -800,7 +919,85 @@ rule run_wepp:
             --clade_list {params.clade_list} \
             $custom_arg \
             --cores      {threads} \
-            --sequencing_type {params.seq_type}
+            --sequencing_type {params.seq_type} \
+            --pathogens_name {params.pathogens_name} \
+            --cmd_log {params.cmd_log}
 
-        touch {output.run_txt}
+        touch {output.run_txt} 
         """
+
+rule emit_dashboard_instructions:
+    input:
+        cmd_log = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
+        runs    = run_txts_for_all
+    output:
+        howto   = f"{WEPP_CMD_LOG}/{TAG}_dashboard_howto.txt"
+    params:
+        script = "scripts/emit_dashboard_howto.py"
+    shell:
+        "python scripts/emit_dashboard_howto.py --cmd-log {input.cmd_log} --out {output.howto}"
+
+
+rule run_wepp_dashboard:
+    input:
+        run_txt = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_run.txt",
+    output:
+        dash_txt = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_dashboard_run.txt",
+    threads: workflow.cores
+    params:
+        snakefile    = str(WEPP_WORKFLOW),
+        workdir      = str(WEPP_ROOT),
+        seq_type     = config.get("SEQUENCING_TYPE", "d").lower(),
+        primer_bed   = config["PRIMER_BED"],
+        min_af       = config["MIN_AF"],
+        min_q        = config["MIN_Q"],
+        max_reads    = config["MAX_READS"],
+        clade_list   = config["CLADE_LIST"],
+        clade_idx    = config["CLADE_IDX"],
+        cfgfile      = str(WEPP_CONFIG),
+        resultsdir   = str(WEPP_RESULTS_DIR),
+        prefix       = lambda wc: wc.acc.split('.')[0],
+        ref_name     = lambda wc: f"{wc.acc}.fa",
+        tag_dir      = lambda wc: tag(wc.acc),
+        tree_name    = lambda wc: os.path.basename(WEPP_TREE(wc.acc)),
+        tree_full    = lambda wc: WEPP_TREE(wc.acc),
+        fasta_name   = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
+        fasta_full   = lambda wc: WEPP_REF(wc.acc),
+        customconfig = lambda wc: ACC2CONFIG.get(wc.acc, ""),
+        cmd_log      = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
+        pathogens_name = lambda wc: dir(wc.acc)
+    conda:
+        "env/wepp.yaml"
+    shell:
+        r"""
+        if [ -n "{params.customconfig}" ] && [ -f "{params.customconfig}" ]; then
+            custom_arg="--customconfig {params.customconfig}"
+        else
+            custom_arg=""
+        fi
+
+        python ./scripts/run_inner.py \
+            --dir        {params.tag_dir} \
+            --prefix     {params.prefix} \
+            --primer_bed {params.primer_bed} \
+            --min_af     {params.min_af} \
+            --min_q      {params.min_q} \
+            --max_reads  {params.max_reads} \
+            --tree       {params.tree_name} \
+            --ref        {params.fasta_name} \
+            --clade_idx  {params.clade_idx} \
+            --snakefile  {params.snakefile} \
+            --workdir    {params.workdir} \
+            --clade_list {params.clade_list} \
+            $custom_arg \
+            --cores      {threads} \
+            --sequencing_type {params.seq_type} \
+            --pathogens_name {params.pathogens_name} \
+            --cmd_log {params.cmd_log} \
+            --dashboard_enabled 
+
+        touch {output.dash_txt}
+        """
+
+
+

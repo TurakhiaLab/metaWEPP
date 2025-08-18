@@ -8,7 +8,7 @@ Split reads classified by Kraken2 into per-accession FASTQs.
     <OUT_ROOT>/other_pathogens/<accession>/<accession>_{R1,R2}.fq.gz
 """
 
-import argparse, gzip, json, os, sys, subprocess, tempfile, shutil
+import argparse, gzip, json, os, sys, subprocess, tempfile, shutil, re
 from pathlib import Path
 
 # ────────────────────────── helpers ──────────────────────────
@@ -55,17 +55,22 @@ def load_ref_accessions(s):
         return {l.strip() for l in p.read_text().splitlines() if l.strip()}
     return {x.strip() for x in s.split(",") if x.strip()}
 
-def out_root_for(acc, base_out, acc2dir, is_ref):
+def out_root_for(acc, base_out, acc2dir, is_ref, acc2taxid, taxid2name):
     if is_ref:
         return Path(base_out) / acc2dir.get(acc, acc)
-    # take the token after the last '|'
+    taxid = acc2taxid.get(acc)
+    if taxid:
+        name = taxid2name.get(taxid)
+        if name:
+            return Path(base_out) / "Other_Pathogens" / sanitize_folder_name(name)
     acc_name = acc.rsplit("|", 1)[-1]
     return Path(base_out) / "Other_Pathogens" / acc_name
 
-def writer_for(acc, mate, ext, out_root, refs, acc2dir, writers, processes, pigz_threads, batch_dir):
+def writer_for(acc, mate, ext, out_root, refs, acc2dir, acc2taxid, taxid2name,
+               writers, processes, pigz_threads, batch_dir):
     if acc in writers:
         return writers[acc]
-    root = out_root_for(acc, out_root, acc2dir, acc in refs)
+    root = out_root_for(acc, out_root, acc2dir, acc in refs, acc2taxid, taxid2name)
     root.mkdir(parents=True, exist_ok=True)
     fn = root / f"{acc.split('.',1)[0]}_{mate}{ext}"
     if batch_dir is not None:
@@ -109,8 +114,38 @@ def batch_compress(writers, pigz_threads):
         if tmp_fn and Path(tmp_fn).exists():
             Path(tmp_fn).unlink()
 
+def sanitize_folder_name(name: str) -> str:
+    # collapse whitespace → "_", strip, and remove path separators
+    s = re.sub(r"\s+", "_", name.strip())
+    return s.replace("/", "_").replace("\\", "_")
+
+def load_taxon_names(kraken_report_path):
+    """
+    Return {taxid: scientific_name} parsed from a Kraken2 report.
+    Works for tab-separated standard Kraken reports; falls back to regex.
+    """
+    taxid2name = {}
+    with open(kraken_report_path, "r") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) >= 6:
+                taxid = parts[4].strip()
+                name  = parts[5].strip()
+                taxid2name[taxid] = name
+            else:
+                # fallback for space-separated display
+                m = re.match(r"\s*\S+\s+\S+\s+\S+\s+\S+\s+(\d+)\s+(.*)$", line)
+                if m:
+                    taxid = m.group(1)
+                    name  = m.group(2).strip()
+                    taxid2name[taxid] = name
+    return taxid2name
+
 # ───────────────────────── splitting ─────────────────────────
-def split_fastq(fq, mate, read2acc, refs, acc2dir, out_root, pigz_threads, batch_dir):
+def split_fastq(fq, mate, read2acc, refs, acc2dir, acc2taxid, taxid2name,
+                out_root, pigz_threads, batch_dir):
     writers = {}
     processes = {}
     get = read2acc.get
@@ -129,7 +164,8 @@ def split_fastq(fq, mate, read2acc, refs, acc2dir, out_root, pigz_threads, batch
             acc = get(read_id(h))
             if not acc:
                 continue
-            w, _, _ = writer_for(acc, mate, ext, out_root, refs, acc2dir, writers, processes, pigz_threads, batch_dir)
+            w, _, _ = writer_for(acc, mate, ext, out_root, refs, acc2dir, acc2taxid, taxid2name,
+                     writers, processes, pigz_threads, batch_dir)
             w.write(h); w.write(s); w.write(p); w.write(q)
     close_writers(writers, processes)
     if batch_dir is not None:
@@ -147,13 +183,16 @@ def parse_args():
     ap.add_argument("--acc2dir", required=True)
     ap.add_argument("--pigz-threads", type=int, default=4)
     ap.add_argument("--batch-compress", action="store_true")
+    ap.add_argument("--kraken-report", required=True)   # ← NEW
     return ap.parse_args()
 
 def main():
     a = parse_args()
     Path(a.out_dir).mkdir(parents=True, exist_ok=True)
     refs = load_ref_accessions(a.ref_accessions)
-    tax2acc = load_taxid_map(a.mapping)
+    tax2acc = load_taxid_map(a.mapping)              # {taxid -> acc}
+    acc2taxid = {acc: taxid for taxid, acc in tax2acc.items()}   # invert
+    taxid2name = load_taxon_names(a.kraken_report)   # {taxid -> name}
     read2acc = load_classifications(a.kraken_out, tax2acc)
     if not read2acc:
         sys.exit("No classified reads matched mapping.")
@@ -165,16 +204,18 @@ def main():
         if a.r2:
             pid = os.fork()
             if pid == 0:
-                split_fastq(a.r2, "R2", read2acc, refs, acc2dir, a.out_dir, a.pigz_threads, batch_dir)
+                split_fastq(a.r2, "R2", read2acc, refs, acc2dir, acc2taxid, taxid2name,
+                            a.out_dir, a.pigz_threads, batch_dir)
                 os._exit(0)
-            split_fastq(a.r1, "R1", read2acc, refs, acc2dir, a.out_dir, a.pigz_threads, batch_dir)
+            split_fastq(a.r1, "R1", read2acc, refs, acc2dir, acc2taxid, taxid2name,
+                        a.out_dir, a.pigz_threads, batch_dir)
             os.waitpid(pid, 0)
         else:
-            split_fastq(a.r1, "R1", read2acc, refs, acc2dir, a.out_dir, a.pigz_threads, batch_dir)
+            split_fastq(a.r1, "R1", read2acc, refs, acc2dir, acc2taxid, taxid2name,
+                        a.out_dir, a.pigz_threads, batch_dir)
     finally:
         if batch_dir and Path(batch_dir).exists():
             shutil.rmtree(batch_dir, ignore_errors=True)
 
 if __name__ == "__main__":
     main()
-
