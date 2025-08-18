@@ -567,17 +567,17 @@ rule kraken:
 # 6.5) Kraken Visualization
 rule kraken_visualization:
     input:
-        report = "kraken_report.txt"
+        report = f"{OUT_ROOT}/kraken_report.txt"
     output:
-        dir = "classification_proportions.png"
+        dir = f"{OUT_ROOT}/classification_proportions.png"
     shell:
         """
-        python scripts/kraken_data_visualization.py {input.report}
+        python scripts/kraken_data_visualization.py {input.report} {output.dir}
         """
 
 checkpoint build_acc2classified_dir:
     input:
-        kraken_out = f"kraken_output.txt",
+        kraken_out = f"{OUT_ROOT}/kraken_output.txt",
         mapping    = TAXID_MAP,
         acc2dir    = ACC2DIR_JSON
     output:
@@ -592,24 +592,33 @@ checkpoint build_acc2classified_dir:
         "-o {output.classified}"
 
 # 7) Split Kraken output into per-taxid FASTQs 
-# --- config / flags ---
+# --- config ---
 ACC2CLASSIFIEDDIR_JSON = "config/acc2classified_dir.json"
 
+# canonical paths used for split_per_accession rule
+KRAKEN_OUT     = f"{OUT_ROOT}/kraken_output.txt"
+KRAKEN_REPORT  = f"{OUT_ROOT}/kraken_report.txt"
+SPLIT_SENTINEL = f"{OUT_ROOT}/.split_done"
 
+SPLIT_INPUTS = {
+    "mapping":       TAXID_MAP,
+    "acc2dir":       ACC2DIR_JSON,
+    "r1":            FQ1,
+    "kraken_out":    KRAKEN_OUT,
+    "kraken_report": KRAKEN_REPORT,
+    "classified":    ACC2CLASSIFIEDDIR_JSON,
+}
+if not IS_SINGLE_END:
+    SPLIT_INPUTS["r2"] = FQ2
 
+    
 # ----------------- CASE 1: ACC2CLASSIFIEDDIR_JSON is EMPTY ------------------
 if CLASSIFIED_EMPTY:
     if IS_SINGLE_END:
         rule split_per_accession:
-            input:
-                mapping    = TAXID_MAP,
-                acc2dir    = ACC2DIR_JSON,
-                r1         = FQ1,
-                kraken_out = "kraken_output.txt",
-                kraken_report = "kraken_report.txt",
-                classified = ACC2CLASSIFIEDDIR_JSON
+            input:  **SPLIT_INPUTS
             output:
-                done = f"{OUT_ROOT}/.split_done"
+                SPLIT_SENTINEL
             params:
                 script  = "scripts/split_read.py",
                 dir_arg = f"--acc2dir {ACC2DIR_JSON}",
@@ -632,16 +641,9 @@ if CLASSIFIED_EMPTY:
                 """
     else:
         rule split_per_accession:
-            input:
-                mapping    = TAXID_MAP,
-                acc2dir    = ACC2DIR_JSON,
-                r1         = FQ1,
-                r2         = FQ2,
-                kraken_out = "kraken_output.txt",
-                kraken_report = "kraken_report.txt",
-                classified = ACC2CLASSIFIEDDIR_JSON
+            input: **SPLIT_INPUTS
             output:
-                done = f"{OUT_ROOT}/.split_done"
+                SPLIT_SENTINEL
             params:
                 script  = "scripts/split_read.py",
                 dir_arg = f"--acc2dir {ACC2DIR_JSON}",
@@ -668,13 +670,7 @@ if CLASSIFIED_EMPTY:
 else:
     if IS_SINGLE_END:
         rule split_per_accession:
-            input:
-                mapping    = TAXID_MAP,
-                acc2dir    = ACC2DIR_JSON,
-                r1         = FQ1,
-                kraken_out = "kraken_output.txt",
-                kraken_report = "kraken_report.txt",
-                classified = ACC2CLASSIFIEDDIR_JSON
+            input: **SPLIT_INPUTS
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
             params:
@@ -700,14 +696,7 @@ else:
                 """
     else:
         rule split_per_accession:
-            input:
-                mapping    = TAXID_MAP,
-                acc2dir    = ACC2DIR_JSON,
-                r1         = FQ1,
-                r2         = FQ2,
-                kraken_out = "kraken_output.txt",
-                kraken_report = "kraken_report.txt",
-                classified = ACC2CLASSIFIEDDIR_JSON
+            input: **SPLIT_INPUTS
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
                 r2_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R2.fq.gz",
@@ -735,25 +724,6 @@ else:
                 """
 
 
-rule move_shared_files:
-    input:
-        acc_reads = expand(f"{OUT_ROOT}/{{dir}}/{{acc}}_R1.fq.gz", zip,
-                           dir=[ACC2CLASSIFIEDDIR[acc] for acc in REF_ACCESSIONS if acc in ACC2CLASSIFIEDDIR],
-                           acc=[acc for acc in REF_ACCESSIONS if acc in ACC2CLASSIFIEDDIR]),
-        kraken_out = "kraken_output.txt",
-        kraken_report = "kraken_report.txt",
-        viz = "classification_proportions.png",
-        classified = ACC2CLASSIFIEDDIR_JSON
-    output:
-        new_kraken_out = f"{OUT_ROOT}/kraken_output.txt",
-        new_kraken_report = f"{OUT_ROOT}/kraken_report.txt",
-        new_classified = f"{OUT_ROOT}/classification_proportions.png"
-    shell:
-        r"""
-        mv {input.kraken_out} {output.new_kraken_out}
-        mv {input.kraken_report} {output.new_kraken_report}
-        mv {input.viz} {output.new_classified}
-        """
 
 
 # 7.5) Prepare wepp input directory
@@ -998,6 +968,5 @@ rule run_wepp_dashboard:
 
         touch {output.dash_txt}
         """
-
 
 
