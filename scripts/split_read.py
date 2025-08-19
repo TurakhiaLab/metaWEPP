@@ -146,12 +146,90 @@ def load_taxon_names(kraken_report_path):
                     taxid2name[taxid] = name
     return taxid2name
 
+def parse_report_tree(report_path):
+    """
+    Build taxonomy tree from Kraken2 report using indent depth of the name field.
+    Returns: (parent: {taxid->parent_taxid or None}, children: {taxid->[child_taxid...]})
+    """
+    parent = {}
+    children = {}
+    stack = []  # [(taxid, indent)]
+    with open(report_path, "r") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 6:
+                continue
+            taxid = parts[4].strip()
+            name_field = parts[5]  # includes leading spaces for depth
+            indent = len(name_field) - len(name_field.lstrip())
+            # maintain stack by indent
+            while stack and stack[-1][1] >= indent:
+                stack.pop()
+            if stack:
+                p = stack[-1][0]
+                parent[taxid] = p
+                children.setdefault(p, []).append(taxid)
+            else:
+                parent[taxid] = None
+            stack.append((taxid, indent))
+    return parent, children
+
+def descendants_of(taxid, children):
+    """All descendants (not including taxid itself)."""
+    out = set()
+    todo = list(children.get(taxid, []))
+    while todo:
+        cur = todo.pop()
+        if cur in out:
+            continue
+        out.add(cur)
+        todo.extend(children.get(cur, []))
+    return out
+
+def build_recipients(acc2dir, acc2taxid, parent, children):
+    """
+    For each panel accession (key in acc2dir), compute taxids it should receive:
+    own taxid + descendants + immediate parent.
+    Returns: {taxid -> set(accessions)}
+    """
+    rec = {}
+    for acc in acc2dir.keys():
+        t = acc2taxid.get(acc)
+        if not t:
+            continue
+        capture = {t}
+        capture |= descendants_of(t, children)
+        p = parent.get(t)
+        if p:
+            capture.add(p)
+        for tv in capture:
+            rec.setdefault(tv, set()).add(acc)
+    return rec
+
+def load_classified_taxids(path):
+    """Return {read_id -> classified_taxid} from Kraken output."""
+    m = {}
+    opn = gzip.open if path.endswith(".gz") else open
+    mode = "rt" if path.endswith(".gz") else "r"
+    with opn(path, mode) as f:
+        for line in f:
+            if line.startswith("C\t"):
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) >= 3:
+                    _, rid, taxid = parts[:3]
+                    m[rid] = taxid
+    return m
+
+
 # ───────────────────────── splitting ─────────────────────────
-def split_fastq(fq, mate, read2acc, refs, acc2dir, acc2taxid, taxid2name,
-                out_root, pigz_threads, batch_dir):
+def split_fastq(
+    fq, mate, read2taxid, refs, acc2dir, acc2taxid, taxid2name,
+    out_root, pigz_threads, batch_dir, recipients_by_taxid, tax2acc
+):
     writers = {}
     processes = {}
-    get = read2acc.get
     ext = ".fq.gz"
     with open_in(fq) as ih:
         it = iter(ih)
@@ -164,15 +242,29 @@ def split_fastq(fq, mate, read2acc, refs, acc2dir, acc2taxid, taxid2name,
             q = next(it, "")
             if not q:
                 break
-            accs = get(read_id(h))
-            if not accs:
+            rid = read_id(h)
+            t = read2taxid.get(rid)
+            if not t:
                 continue
-            if isinstance(accs, str):
-                accs = [accs]
-            for acc in accs:
-                w, _, _ = writer_for(acc, mate, ext, out_root, refs, acc2dir, acc2taxid, taxid2name,
-                                     writers, processes, pigz_threads, batch_dir)
+
+            # Preferred: send to all recipient panel accessions whose capture set contains this taxid
+            acc_targets = list(recipients_by_taxid.get(t, []))
+
+            # Fallback: if no recipient claims it, send to any accession(s) that map directly to this taxid
+            if not acc_targets:
+                acc_targets = tax2acc.get(t, []) or []
+
+            # Nothing to write? skip.
+            if not acc_targets:
+                continue
+
+            for acc in acc_targets:
+                w, _, _ = writer_for(
+                    acc, mate, ext, out_root, refs, acc2dir, acc2taxid, taxid2name,
+                    writers, processes, pigz_threads, batch_dir
+                )
                 w.write(h); w.write(s); w.write(p); w.write(q)
+
     close_writers(writers, processes)
     if batch_dir is not None:
         batch_compress(writers, pigz_threads)
@@ -195,30 +287,42 @@ def parse_args():
 def main():
     a = parse_args()
     Path(a.out_dir).mkdir(parents=True, exist_ok=True)
+
     refs = load_ref_accessions(a.ref_accessions)
-    tax2acc = load_taxid_map(a.mapping)              # {taxid -> acc}
-    acc2taxid = {acc: taxid for taxid, accs in tax2acc.items() for acc in accs}
-    taxid2name = load_taxon_names(a.kraken_report)   # {taxid -> name}
-    read2acc = load_classifications(a.kraken_out, tax2acc)
-    if not read2acc:
-        sys.exit("No classified reads matched mapping.")
     acc2dir = json.load(open(a.acc2dir))
-    batch_dir = None
-    if a.batch_compress:
-        batch_dir = tempfile.mkdtemp(prefix="split_tmp_")
+
+    tax2acc = load_taxid_map(a.mapping)  # {taxid -> [acc, ...]}
+    acc2taxid = {acc: taxid for taxid, accs in tax2acc.items() for acc in accs}
+
+    parent, children = parse_report_tree(a.kraken_report)
+    recipients_by_taxid = build_recipients(acc2dir=acc2dir, acc2taxid=acc2taxid,
+                                           parent=parent, children=children)
+
+    taxid2name = load_taxon_names(a.kraken_report)
+    read2taxid = load_classified_taxids(a.kraken_out)
+    if not read2taxid:
+        sys.exit("No classified reads matched mapping.")
+
+    batch_dir = tempfile.mkdtemp(prefix="split_tmp_") if a.batch_compress else None
     try:
         if a.r2:
             pid = os.fork()
             if pid == 0:
-                split_fastq(a.r2, "R2", read2acc, refs, acc2dir, acc2taxid, taxid2name,
-                            a.out_dir, a.pigz_threads, batch_dir)
+                split_fastq(
+                    a.r2, "R2", read2taxid, refs, acc2dir, acc2taxid, taxid2name,
+                    a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc
+                )
                 os._exit(0)
-            split_fastq(a.r1, "R1", read2acc, refs, acc2dir, acc2taxid, taxid2name,
-                        a.out_dir, a.pigz_threads, batch_dir)
+            split_fastq(
+                a.r1, "R1", read2taxid, refs, acc2dir, acc2taxid, taxid2name,
+                a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc
+            )
             os.waitpid(pid, 0)
         else:
-            split_fastq(a.r1, "R1", read2acc, refs, acc2dir, acc2taxid, taxid2name,
-                        a.out_dir, a.pigz_threads, batch_dir)
+            split_fastq(
+                a.r1, "R1", read2taxid, refs, acc2dir, acc2taxid, taxid2name,
+                a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc
+            )
     finally:
         if batch_dir and Path(batch_dir).exists():
             shutil.rmtree(batch_dir, ignore_errors=True)
