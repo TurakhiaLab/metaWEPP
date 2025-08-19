@@ -29,8 +29,11 @@ def load_taxid_map(path):
         for line in f:
             if line.strip():
                 acc, taxid = line.split(None, 1)
-                d[taxid.strip()] = acc.strip()
+                taxid = taxid.strip()
+                acc = acc.strip()
+                d.setdefault(taxid, []).append(acc)
     return d
+
 
 def load_classifications(path, tax2acc):
     m = {}
@@ -42,10 +45,10 @@ def load_classifications(path, tax2acc):
                 parts = line.rstrip("\n").split("\t")
                 if len(parts) >= 3:
                     _, rid, taxid = parts[:3]
-                    acc = tax2acc.get(taxid)
-                    if acc:
-                        m[rid] = acc
-    return m
+                    accs = tax2acc.get(taxid)
+                    if accs:
+                        m[rid] = accs[:]  
+    return m 
 
 def load_ref_accessions(s):
     if s is None:
@@ -161,12 +164,15 @@ def split_fastq(fq, mate, read2acc, refs, acc2dir, acc2taxid, taxid2name,
             q = next(it, "")
             if not q:
                 break
-            acc = get(read_id(h))
-            if not acc:
+            accs = get(read_id(h))
+            if not accs:
                 continue
-            w, _, _ = writer_for(acc, mate, ext, out_root, refs, acc2dir, acc2taxid, taxid2name,
-                     writers, processes, pigz_threads, batch_dir)
-            w.write(h); w.write(s); w.write(p); w.write(q)
+            if isinstance(accs, str):
+                accs = [accs]
+            for acc in accs:
+                w, _, _ = writer_for(acc, mate, ext, out_root, refs, acc2dir, acc2taxid, taxid2name,
+                                     writers, processes, pigz_threads, batch_dir)
+                w.write(h); w.write(s); w.write(p); w.write(q)
     close_writers(writers, processes)
     if batch_dir is not None:
         batch_compress(writers, pigz_threads)
@@ -191,7 +197,7 @@ def main():
     Path(a.out_dir).mkdir(parents=True, exist_ok=True)
     refs = load_ref_accessions(a.ref_accessions)
     tax2acc = load_taxid_map(a.mapping)              # {taxid -> acc}
-    acc2taxid = {acc: taxid for taxid, acc in tax2acc.items()}   # invert
+    acc2taxid = {acc: taxid for taxid, accs in tax2acc.items() for acc in accs}
     taxid2name = load_taxon_names(a.kraken_report)   # {taxid -> name}
     read2acc = load_classifications(a.kraken_out, tax2acc)
     if not read2acc:
