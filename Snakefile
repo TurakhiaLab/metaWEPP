@@ -240,7 +240,7 @@ def WEPP_REF(acc):
     """
     dir_tag = tag(acc)
     tree_filename = os.path.basename(ACC2FASTA[acc])
-                                                    
+
     return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
 
 # ────────────────────────────────────────────────────────────────
@@ -611,6 +611,25 @@ SPLIT_INPUTS = {
 if not IS_SINGLE_END:
     SPLIT_INPUTS["r2"] = FQ2
 
+SPLIT_PARAMS = {
+    "script":    "scripts/split_read.py",
+    "dir_arg":   f"--acc2dir {ACC2DIR_JSON}",
+    "ref_arg":   "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS),
+    "dir":       OUT_ROOT
+}
+
+SPLIT_SHELL = r"""
+python {params.script} \
+  --kraken-out {input.kraken_out} \
+  --kraken-report {input.kraken_report} \
+  --mapping {input.mapping} \
+  --r1 {input.r1} \
+  {params.ref_arg} \
+  {params.dir_arg} \
+  --out-dir {params.dir} \
+  --pigz-threads {threads} \
+"""
+
     
 # ----------------- CASE 1: ACC2CLASSIFIEDDIR_JSON is EMPTY ------------------
 if CLASSIFIED_EMPTY:
@@ -618,53 +637,20 @@ if CLASSIFIED_EMPTY:
         rule split_per_accession:
             input:  **SPLIT_INPUTS
             output:
-                SPLIT_SENTINEL
-            params:
-                script  = "scripts/split_read.py",
-                dir_arg = f"--acc2dir {ACC2DIR_JSON}",
-                ref_arg = "" if not REF_ACCESSIONS else
-                        "--ref-accessions " + ",".join(REF_ACCESSIONS),
-                dir     = OUT_ROOT
+                done = f"{OUT_ROOT}/.split_done"
+            params: **SPLIT_PARAMS,
             threads: workflow.cores
             shell:
-                r"""
-                python {params.script} \
-                --kraken-out {input.kraken_out} \
-                --kraken-report {input.kraken_report} \
-                --mapping    {input.mapping} \
-                --r1         {input.r1} \
-                {params.ref_arg} \
-                {params.dir_arg} \
-                --out-dir    {params.dir} \
-                --pigz-threads {threads} \
-                && touch {output.done}
-                """
+                SPLIT_SHELL + r" && touch {output.done}"
     else:
         rule split_per_accession:
             input: **SPLIT_INPUTS
             output:
-                SPLIT_SENTINEL
-            params:
-                script  = "scripts/split_read.py",
-                dir_arg = f"--acc2dir {ACC2DIR_JSON}",
-                ref_arg = "" if not REF_ACCESSIONS else
-                        "--ref-accessions " + ",".join(REF_ACCESSIONS),
-                dir     = OUT_ROOT
+                done = f"{OUT_ROOT}/.split_done"
+            params: **SPLIT_PARAMS
             threads: workflow.cores
             shell:
-                r"""
-                python {params.script} \
-                --kraken-out {input.kraken_out} \
-                --kraken-report {input.kraken_report} \
-                --mapping    {input.mapping} \
-                --r1         {input.r1} \
-                --r2         {input.r2} \
-                {params.ref_arg} \
-                {params.dir_arg} \
-                --out-dir    {params.dir} \
-                --pigz-threads {threads} \
-                && touch {output.done}
-                """
+                SPLIT_SHELL + r"--r2 {input.r2}  && touch {output.done}"
 
 # ----------------- CASE 2: ACC2CLASSIFIEDDIR_JSON is NOT EMPTY --------------
 else:
@@ -673,55 +659,24 @@ else:
             input: **SPLIT_INPUTS
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
-            params:
-                script  = "scripts/split_read.py",
-                dir_arg = f"--acc2dir {ACC2DIR_JSON}",
-                ref_arg = "" if not REF_ACCESSIONS else
-                        "--ref-accessions " + ",".join(REF_ACCESSIONS),
-                dir     = OUT_ROOT,
-                done = f"{OUT_ROOT}/.split_done"
+            params: 
+                **SPLIT_PARAMS,
+                done = SPLIT_SENTINEL
             threads: workflow.cores
             shell:
-                r"""
-                python {params.script} \
-                --kraken-out {input.kraken_out} \
-                --kraken-report {input.kraken_report} \
-                --mapping    {input.mapping} \
-                --r1         {input.r1} \
-                {params.ref_arg} \
-                {params.dir_arg} \
-                --out-dir    {params.dir} \
-                --pigz-threads {threads}\
-                && touch {params.done}            
-                """
+                SPLIT_SHELL + r" && touch {params.done}"
     else:
         rule split_per_accession:
             input: **SPLIT_INPUTS
             output:
                 r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
                 r2_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R2.fq.gz",
-            params:
-                script  = "scripts/split_read.py",
-                dir_arg = f"--acc2dir {ACC2DIR_JSON}",
-                ref_arg = "" if not REF_ACCESSIONS else
-                        "--ref-accessions " + ",".join(REF_ACCESSIONS),
-                dir     = OUT_ROOT,
-                done = f"{OUT_ROOT}/.split_done"
+            params: 
+                **SPLIT_PARAMS,
+                done = SPLIT_SENTINEL
             threads: workflow.cores
             shell:
-                r"""
-                python {params.script} \
-                --kraken-out {input.kraken_out} \
-                --kraken-report {input.kraken_report} \
-                --mapping    {input.mapping} \
-                --r1         {input.r1} \
-                --r2         {input.r2} \
-                {params.ref_arg} \
-                {params.dir_arg} \
-                --out-dir    {params.dir} \
-                --pigz-threads {threads}\
-                && touch {params.done}            
-                """
+                SPLIT_SHELL + r" --r2 {input.r2} && touch {params.done}"
 
 
 
@@ -779,7 +734,7 @@ else:
                 f"{wc.acc.split('.')[0]}_R2.fq.gz",
             fasta       = lambda wc: ACC2FASTA[wc.acc],
             pb          = lambda wc: ACC2PB[wc.acc],
-            viz         = f"{OUT_ROOT}/classification_proportions.png",   # ← f-string
+            viz         = f"{OUT_ROOT}/classification_proportions.png",
             classified  = ACC2CLASSIFIEDDIR_JSON,
             kraken_out  = f"{OUT_ROOT}/kraken_output.txt",
             kraken_report = f"{OUT_ROOT}/kraken_report.txt",
@@ -898,14 +853,14 @@ rule run_wepp:
 
 rule emit_dashboard_instructions:
     input:
-        cmd_log = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
         runs    = run_txts_for_all
     output:
         howto   = f"{WEPP_CMD_LOG}/{TAG}_dashboard_howto.txt"
     params:
-        script = "scripts/emit_dashboard_howto.py"
+        script = "scripts/emit_dashboard_howto.py",
+        cmd_log = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt"
     shell:
-        "python scripts/emit_dashboard_howto.py --cmd-log {input.cmd_log} --out {output.howto}"
+        "python scripts/emit_dashboard_howto.py --cmd-log {params.cmd_log} --out {output.howto}"
 
 
 rule run_wepp_dashboard:
