@@ -618,40 +618,43 @@ SPLIT_PARAMS = {
     "dir":       OUT_ROOT
 }
 
-SPLIT_SHELL = r"""
-python {params.script} \
-  --kraken-out {input.kraken_out} \
-  --kraken-report {input.kraken_report} \
-  --mapping {input.mapping} \
-  --r1 {input.r1} \
-  {params.ref_arg} \
-  {params.dir_arg} \
-  --out-dir {params.dir} \
-  --pigz-threads {threads} \
-"""
-
+if IS_SINGLE_END:
+    SPLIT_SHELL = r"""
+    python {params.script} \
+    --kraken-out {input.kraken_out} \
+    --kraken-report {input.kraken_report} \
+    --mapping {input.mapping} \
+    --r1 {input.r1} \
+    {params.ref_arg} \
+    {params.dir_arg} \
+    --out-dir {params.dir} \
+    --pigz-threads {threads} \
+    """
+else: 
+    SPLIT_SHELL = r"""
+    python {params.script} \
+    --kraken-out {input.kraken_out} \
+    --kraken-report {input.kraken_report} \
+    --mapping {input.mapping} \
+    --r1 {input.r1} \
+    --r2 {input.r2} \
+    {params.ref_arg} \
+    {params.dir_arg} \
+    --out-dir {params.dir} \
+    --pigz-threads {threads} \
+    """
     
 # ----------------- CASE 1: ACC2CLASSIFIEDDIR_JSON is EMPTY ------------------
 if CLASSIFIED_EMPTY:
-    if IS_SINGLE_END:
-        rule split_per_accession:
-            input:  **SPLIT_INPUTS
-            output:
-                done = f"{OUT_ROOT}/.split_done"
-            params: **SPLIT_PARAMS,
-            threads: workflow.cores
-            shell:
-                SPLIT_SHELL + r" && touch {output.done}"
-    else:
-        rule split_per_accession:
-            input: **SPLIT_INPUTS
-            output:
-                done = f"{OUT_ROOT}/.split_done"
-            params: **SPLIT_PARAMS
-            threads: workflow.cores
-            shell:
-                SPLIT_SHELL + r"--r2 {input.r2}  && touch {output.done}"
-
+    rule split_per_accession:
+        input:  **SPLIT_INPUTS
+        output:
+            done = f"{OUT_ROOT}/.split_done"
+        params: **SPLIT_PARAMS,
+        threads: workflow.cores
+        shell:
+            SPLIT_SHELL + r" && touch {output.done}"
+            
 # ----------------- CASE 2: ACC2CLASSIFIEDDIR_JSON is NOT EMPTY --------------
 else:
     if IS_SINGLE_END:
