@@ -26,7 +26,6 @@ WEPP_WORKFLOW    = "WEPP/workflow/Snakefile"
 WEPP_RESULTS_DIR = "WEPP/results"
 WEPP_DATA_DIR    = "WEPP/data"
 WEPP_CONFIG      = "WEPP/config/config.yaml"
-WEPP_DATA_PREFIX = f"{WEPP_DATA_DIR}/{DIR}"
 WEPP_CMD_LOG     = "WEPP/cmd_log"
 
 SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
@@ -243,22 +242,55 @@ def WEPP_REF(acc):
 
     return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
 
+MIN_DEPTH = float(config.get("MIN_DEPTH", 0))
+ACC2COVERED_JSON = "config/acc2covered.json"
+def split_fastqs_for_coverage(wc):
+    ckpt = checkpoints.build_acc2classified_dir.get(**wc)
+    classified_json = ckpt.output[0]
+    with open(classified_json) as fh:
+        acc2dir = json.load(fh)
+    r1s = []
+    for acc, out_dir in acc2dir.items():
+        acc_stem = acc.split(".", 1)[0]
+        r1s.append(f"{OUT_ROOT}/{out_dir}/{acc_stem}_R1.fq.gz")
+    return r1s
+
 # ────────────────────────────────────────────────────────────────
 ACC2CLASSIFIEDDIR = {}
 
+# take a txt file with the length of the first read in all the "{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
+# (if single end, just get the fq file), and the number of how many read 
+#  calculate the depth number = the length of the first read*number of how many read/the length of a fa genome file in the same folder
 def final_targets(_wc):
-    ckpt = checkpoints.build_acc2classified_dir.get()  # wait for split
+    # Wait for both JSONs
+    cls_ckpt = checkpoints.build_acc2classified_dir.get()
+    cov_ckpt = checkpoints.coverage_calculate.get()
+    classified_json = cls_ckpt.output[0]
+    covered_json = cov_ckpt.output[0]
+
+    # Load maps (with safe fallbacks)
+    try:
+        with open(classified_json) as f:
+            ACC2CLASSIFIEDDIR = json.load(f)   # {acc: out_dir}
+    except FileNotFoundError:
+        ACC2CLASSIFIEDDIR = {}
+
+    try:
+        with open(covered_json) as f:
+            ACC2COVERED = json.load(f)        # {acc: out_dir} (depth >= MIN_DEPTH)
+    except FileNotFoundError:
+        ACC2COVERED = {}
+
     files = []
-    if Path(ACC2CLASSIFIEDDIR_JSON).exists():
-        with open(ACC2CLASSIFIEDDIR_JSON) as f:
-            ACC2CLASSIFIEDDIR = json.load(f)
-    else:
-        ACC2CLASSIFIEDDIR = {}          # fall-back (empty) so the Snakefile still parses
     for acc in REF_ACCESSIONS:
-        dir_ = ACC2CLASSIFIEDDIR.get(acc)  # use .get() to avoid KeyError
-        if dir_:
-            dir_tag = f"{dir_}_{TAG}"
+        out_dir_cov = ACC2COVERED.get(acc)
+        out_dir_cls = ACC2CLASSIFIEDDIR.get(acc)
+        # Append only if accession is present in BOTH and out_dir matches
+        if out_dir_cov and out_dir_cls and out_dir_cov == out_dir_cls:
+            dir_tag = f"{out_dir_cov}_{TAG}"
             files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
+
+    # Always include raw inputs
     files.append(FQ1)
     if not IS_SINGLE_END:
         files.append(FQ2)
@@ -318,8 +350,8 @@ def final_results_files(wc):
 
 def run_txts_for_all(_wc):
     ckpt = checkpoints.build_acc2classified_dir.get()
-    if Path(ACC2CLASSIFIEDDIR_JSON).exists():
-        with open(ACC2CLASSIFIEDDIR_JSON) as f:
+    if Path(ACC2COVERED_JSON).exists():
+        with open(ACC2COVERED_JSON) as f:
             acc2dir = json.load(f)
     else:
         acc2dir = {}
@@ -618,40 +650,32 @@ SPLIT_PARAMS = {
     "dir":       OUT_ROOT
 }
 
+r2_arg = "--r2 {input.r2} \\" if not IS_SINGLE_END else ""
+
 SPLIT_SHELL = r"""
 python {params.script} \
-  --kraken-out {input.kraken_out} \
-  --kraken-report {input.kraken_report} \
-  --mapping {input.mapping} \
-  --r1 {input.r1} \
-  {params.ref_arg} \
-  {params.dir_arg} \
-  --out-dir {params.dir} \
-  --pigz-threads {threads} \
+--kraken-out {input.kraken_out} \
+--kraken-report {input.kraken_report} \
+--mapping {input.mapping} \
+--r1 {input.r1} \
+""" + r2_arg + r"""
+{params.ref_arg} \
+{params.dir_arg} \
+--out-dir {params.dir} \
+--pigz-threads {threads} \
 """
 
-    
 # ----------------- CASE 1: ACC2CLASSIFIEDDIR_JSON is EMPTY ------------------
 if CLASSIFIED_EMPTY:
-    if IS_SINGLE_END:
-        rule split_per_accession:
-            input:  **SPLIT_INPUTS
-            output:
-                done = f"{OUT_ROOT}/.split_done"
-            params: **SPLIT_PARAMS,
-            threads: workflow.cores
-            shell:
-                SPLIT_SHELL + r" && touch {output.done}"
-    else:
-        rule split_per_accession:
-            input: **SPLIT_INPUTS
-            output:
-                done = f"{OUT_ROOT}/.split_done"
-            params: **SPLIT_PARAMS
-            threads: workflow.cores
-            shell:
-                SPLIT_SHELL + r"--r2 {input.r2}  && touch {output.done}"
-
+    rule split_per_accession:
+        input:  **SPLIT_INPUTS
+        output:
+            done = f"{OUT_ROOT}/.split_done"
+        params: **SPLIT_PARAMS,
+        threads: workflow.cores
+        shell:
+            SPLIT_SHELL + r" && touch {output.done}"
+            
 # ----------------- CASE 2: ACC2CLASSIFIEDDIR_JSON is NOT EMPTY --------------
 else:
     if IS_SINGLE_END:
@@ -678,6 +702,26 @@ else:
             shell:
                 SPLIT_SHELL + r" --r2 {input.r2} && touch {params.done}"
 
+checkpoint coverage_calculate:
+    input:
+        classified = ACC2CLASSIFIEDDIR_JSON, 
+        r1s        = split_fastqs_for_coverage 
+    output:
+        coverage = ACC2COVERED_JSON
+    params:
+        out_root      = OUT_ROOT,
+        pathogen_root = str(PATHOGEN_ROOT),
+        min_depth     = MIN_DEPTH,
+        script        = "scripts/calc_coverage_json.py"
+    shell:
+        r"""
+        python {params.script} \
+          --acc2classified {input.classified} \
+          --out-root {params.out_root} \
+          --pathogen-root {params.pathogen_root} \
+          --min-depth {params.min_depth} \
+          --out-json {output.coverage}
+        """
 
 
 
@@ -703,6 +747,7 @@ if IS_SINGLE_END:
             classified  = ACC2CLASSIFIEDDIR_JSON,
             kraken_out  = f"{OUT_ROOT}/kraken_output.txt", 
             kraken_report = f"{OUT_ROOT}/kraken_report.txt",
+            coverage = ACC2COVERED_JSON
         output:
             new_r1      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
         params:
@@ -738,6 +783,7 @@ else:
             classified  = ACC2CLASSIFIEDDIR_JSON,
             kraken_out  = f"{OUT_ROOT}/kraken_output.txt",
             kraken_report = f"{OUT_ROOT}/kraken_report.txt",
+            coverage = ACC2COVERED_JSON
         output:
             new_r1      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
             new_r2      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",

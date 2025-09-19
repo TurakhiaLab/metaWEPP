@@ -64,9 +64,7 @@ def main():
                 latest[name] = cmd_str
 
     header = (
-        "If you want to run WEPP with dashboard, go to the WEPP main dir:\n"
-        "  cd WEPP\n"
-        "and run the following commands (one per pathogen):\n"
+        "If you want to run WEPP with dashboard, you can use following commands (one per pathogen):\n"
     )
 
     lines_out = [header]
