@@ -1,47 +1,30 @@
 #!/usr/bin/env python3
-import argparse
-import subprocess
-import os
-import re
-import shlex
+import argparse, subprocess, os, re, shlex, sys
 from pathlib import Path
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dir",         required=True)
-parser.add_argument("--prefix",      required=True)
-parser.add_argument("--primer_bed",  required=True)
-parser.add_argument("--min_af",      required=True)
-parser.add_argument("--min_q",       required=True)
-parser.add_argument("--max_reads",   required=True)
-parser.add_argument("--tree",        required=True)
-parser.add_argument("--ref",         required=True)
-parser.add_argument("--clade_idx",   required=True)
-parser.add_argument("--snakefile",   required=True)
-parser.add_argument("--workdir",     required=True)
-parser.add_argument("--customconfig",required=False)
-parser.add_argument("--cores",       default="32")
-parser.add_argument("--sequencing_type", required=True,
-                    help="Value to forward as SEQUENCING_TYPE in the inner config")
-parser.add_argument("--clade_list", required=False, default="")
-parser.add_argument("--cmd_log",     required=True)
+parser.add_argument("--dir", required=True)
+parser.add_argument("--prefix", required=True)
+parser.add_argument("--primer_bed", required=True)
+parser.add_argument("--min_af", required=True)
+parser.add_argument("--min_q", required=True)  
+parser.add_argument("--max_reads", required=True) 
+parser.add_argument("--tree", required=True)
+parser.add_argument("--ref", required=True)
+parser.add_argument("--clade_idx", required=False, default=None) 
+parser.add_argument("--snakefile", required=True)
+parser.add_argument("--workdir", required=True)
+parser.add_argument("--cfgfile", required=True)     
+parser.add_argument("--customconfig", required=False)
+parser.add_argument("--cores", default="32")
+parser.add_argument("--sequencing_type", required=True)
+parser.add_argument("--clade_list", required=False, default=None) 
+parser.add_argument("--min_prop", required=False, default=None)   
+parser.add_argument("--min_len", required=False, default=None)    
+parser.add_argument("--cmd_log", required=True)
 parser.add_argument("--pathogens_name", required=True)
-parser.add_argument("--dashboard_enabled", action="store_true",
-                    help="If set, reuse the logged command for pathogens_name and run it with DASHBOARD_ENABLED=True")
-
+parser.add_argument("--dashboard_enabled", action="store_true")
 args = parser.parse_args()
-
-cmd = [
-    "snakemake",
-    "--snakefile",  args.snakefile,
-    "--directory",  args.workdir,
-    "--cores",      args.cores,
-    "--use-conda",
-    "--config",
-    f"DIR={args.dir}",
-    f"FILE_PREFIX={args.prefix}",
-    f"TREE={args.tree}",
-    f"REF={args.ref}",
-]
 
 def upsert_cmd_log(path, name, cmd_str):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,9 +32,9 @@ def upsert_cmd_log(path, name, cmd_str):
     if path.exists():
         with open(path) as f:
             for line in f:
-                parts = line.rstrip("\n").split(" : ", 1)
-                if len(parts) == 2 and parts[0] == name:
-                    continue  # drop old entry for this name
+                k = line.rstrip("\n").split(" : ", 1)
+                if len(k) == 2 and k[0] == name:
+                    continue
                 lines.append(line.rstrip("\n"))
     lines.append(f"{name} : {cmd_str}")
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -60,76 +43,176 @@ def upsert_cmd_log(path, name, cmd_str):
     os.replace(tmp, path)
 
 def parse_config_file(path):
-    config_dict = {}
+    cfg = {}
     with open(path) as f:
-        for line in f:
-            line = line.strip()
+        for raw in f:
+            line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-            match = re.match(r'^([^:#\s]+)\s*:\s*["\']?(.*?)["\']?\s*$', line)
-            if match:
-                key, value = match.groups()
-                config_dict[key] = value
-            else:
+            m = re.match(r'^([^:#\s]+)\s*:\s*["\']?(.*?)["\']?\s*$', line)
+            if not m:
                 raise ValueError(f"Invalid line in config file: {line}")
-    return config_dict
+            k, v = m.groups()
+            cfg[k] = v
+    return cfg
 
-if args.customconfig:
-    config = parse_config_file(args.customconfig)
-    cmd.append(f"PRIMER_BED={config.get('PRIMER_BED', args.primer_bed)}")
-    cmd.append(f"MIN_AF={config.get('MIN_AF', args.min_af)}")
-    cmd.append(f"MIN_Q={config.get('MIN_Q', args.min_q)}")
-    cmd.append(f"MAX_READS={config.get('MAX_READS', args.max_reads)}")
-    cmd.append(f"CLADE_IDX={config.get('CLADE_IDX', args.clade_idx)}")
-    cmd.append(f"SEQUENCING_TYPE={config.get('SEQUENCING_TYPE', args.sequencing_type)}")
-    if "CLADE_LIST" in config or args.clade_list:
-        cmd.append(f"CLADE_LIST={config.get('CLADE_LIST', args.clade_list)}")
-else:
-    cmd.extend([
-        f"PRIMER_BED={args.primer_bed}",
-        f"MIN_AF={args.min_af}",
-        f"MIN_Q={args.min_q}",
-        f"MAX_READS={args.max_reads}",
-        f"CLADE_IDX={args.clade_idx}",
-        f"SEQUENCING_TYPE={args.sequencing_type}",
-    ])
-    if args.clade_list:
-        cmd.append(f"CLADE_LIST={args.clade_list}")
+def csv_tokens(s: str, keep_empty: bool = False):
+    if s is None:
+        return []
+    parts = [p.strip() for p in str(s).split(",")]
+    if keep_empty:
+        return parts 
+    return [p for p in parts if p != ""]
+
+def to_csv_str(tokens):
+    return ",".join(tokens)
+
+def get_cfg(main_cfg, overlay, key, fallback=None):
+    return (overlay.get(key) if overlay and key in overlay else main_cfg.get(key, fallback))
+
+def replicate_or_align_csv(raw, n, field_name):
+    vals = csv_tokens(raw or "", keep_empty=False)
+    if len(vals) == 1:
+        return vals * n
+    if len(vals) == n:
+        return vals
+    raise SystemExit(
+        f"[config] {field_name}: expected 1 value or {n} values; got {len(vals)}. Raw='{raw}'"
+    )
+
+def resolve_clade_lists_for_pathogens(pathogens, clade_idx_list, clade_list_stream_raw):
+    stream = csv_tokens(clade_list_stream_raw or "", keep_empty=True)
+    pos = 0
+    out = {}
+    for i, name in enumerate(pathogens):
+        try:
+            idx = int(clade_idx_list[i])
+        except ValueError:
+            raise SystemExit(f"[config] CLADE_IDX for '{name}' is not an integer: '{clade_idx_list[i]}'")
+
+        if idx < -1:
+            raise SystemExit(f"[config] CLADE_IDX supports only -1 or >=0; got {idx} for '{name}'")
+
+        if idx == -1:
+            if pos < len(stream) and stream[pos] == "":
+                pos += 1
+            out[name] = ""  
+            continue
+
+        need = idx + 1 
+        if pos + need > len(stream):
+            have = len(stream) - pos
+            raise SystemExit(
+                f"[config] CLADE_LIST ran out of items for pathogen '{name}' (need {need}, have {have}). "
+                f"CLADE_LIST='{clade_list_stream_raw}' CLADE_IDX='{','.join(map(str,clade_idx_list))}'"
+            )
+        group = stream[pos:pos + need]
+        pos += need
+        group = [g for g in group if g != ""]
+        out[name] = to_csv_str(group) if group else ""
+
+    leftover = stream[pos:]
+    if any(tok != "" for tok in leftover):
+        print(f"[warn] CLADE_LIST has {len(leftover)} leftover token(s): {leftover}", file=sys.stderr)
+
+    return out
+
+def choose_for_current(name, mapping, pathogens):
+    if name in mapping:
+        return mapping[name]
+    if "default" in mapping:
+        return mapping["default"]
+    return mapping[pathogens[0]]
+
+main_cfg = parse_config_file(args.cfgfile)
+overlay = parse_config_file(args.customconfig) if args.customconfig else {}
+
+PRIMER_BED      = get_cfg(main_cfg, overlay, "PRIMER_BED", args.primer_bed)
+MIN_AF          = get_cfg(main_cfg, overlay, "MIN_AF", args.min_af)
+MIN_Q           = get_cfg(main_cfg, overlay, "MIN_Q", args.min_q)
+MAX_READS       = get_cfg(main_cfg, overlay, "MAX_READS", args.max_reads)
+SEQUENCING_TYPE = get_cfg(main_cfg, overlay, "SEQUENCING_TYPE", args.sequencing_type)
+
+MIN_PROP = get_cfg(main_cfg, overlay, "MIN_PROP", args.min_prop)
+MIN_LEN  = get_cfg(main_cfg, overlay, "MIN_LEN",  args.min_len)
+
+PATHOGENS_raw = get_cfg(main_cfg, overlay, "PATHOGENS", "")
+PATHOGENS = [p for p in csv_tokens(PATHOGENS_raw, keep_empty=False) if p]
+if not PATHOGENS:
+    raise SystemExit("[config] PATHOGENS must list one or more names, comma-separated (e.g., default,rsva,rsvb).")
+
+current_name = args.pathogens_name
+
+CLADE_IDX_raw_cfg = get_cfg(main_cfg, overlay, "CLADE_IDX", args.clade_idx)
+if CLADE_IDX_raw_cfg is None:
+    raise SystemExit("[config] CLADE_IDX is required (CSV). Example: '1,0,0,-1'")
+CLADE_IDX_list = replicate_or_align_csv(CLADE_IDX_raw_cfg, len(PATHOGENS), "CLADE_IDX")
+
+CLADE_LIST_stream_raw = get_cfg(main_cfg, overlay, "CLADE_LIST", args.clade_list if args.clade_list is not None else "")
+per_pathogen_clade_list = resolve_clade_lists_for_pathogens(PATHOGENS, CLADE_IDX_list, CLADE_LIST_stream_raw)
+
+MIN_DEPTH_raw = get_cfg(main_cfg, overlay, "MIN_DEPTH", "")
+if MIN_DEPTH_raw == "":
+    raise SystemExit("[config] MIN_DEPTH is required (CSV). Example: '10' or '10,20,30'")
+MIN_DEPTH_list = replicate_or_align_csv(MIN_DEPTH_raw, len(PATHOGENS), "MIN_DEPTH")
+per_pathogen_min_depth = {name: MIN_DEPTH_list[i] for i, name in enumerate(PATHOGENS)}
+
+CLADE_LIST_CUR = choose_for_current(current_name, per_pathogen_clade_list, PATHOGENS)
+CLADE_IDX_CUR  = choose_for_current(current_name, {n: CLADE_IDX_list[i] for i, n in enumerate(PATHOGENS)}, PATHOGENS)
+MIN_DEPTH_CUR  = choose_for_current(current_name, per_pathogen_min_depth, PATHOGENS)
+
+cmd = [
+    "snakemake",
+    "--snakefile", args.snakefile,
+    "--directory", args.workdir,
+    "--cores", args.cores,
+    "--use-conda",
+    "--config",
+    f"DIR={args.dir}",
+    f"FILE_PREFIX={args.prefix}",
+    f"TREE={args.tree}",
+    f"REF={args.ref}",
+    f"PRIMER_BED={PRIMER_BED}",
+    f"MIN_AF={MIN_AF}",
+    f"MIN_Q={MIN_Q}",
+    f"MAX_READS={MAX_READS}",
+    f"SEQUENCING_TYPE={SEQUENCING_TYPE}",
+    f"CLADE_LIST={CLADE_LIST_CUR}",         # comma-joined for this pathogen
+    f"CLADE_IDX={CLADE_IDX_CUR}",           # as integer/string
+    f"MIN_DEPTH={MIN_DEPTH_CUR}",
+]
+
+# Optional passthroughs if present
+if MIN_PROP is not None:
+    cmd.append(f"MIN_PROP={MIN_PROP}")
+if MIN_LEN is not None:
+    cmd.append(f"MIN_LEN={MIN_LEN}")
 
 cmd_log_path = Path(args.cmd_log)
 
 if not args.dashboard_enabled:
-    upsert_cmd_log(cmd_log_path, args.pathogens_name, " ".join(cmd))
+    upsert_cmd_log(cmd_log_path, current_name, " ".join(cmd))
     print("Running command:", " ".join(cmd))
     subprocess.run(cmd, check=True)
 else:
     if not cmd_log_path.exists():
-        raise SystemExit(f"cmd_log not found: {cmd_log_path}") # TODO: need to fix later
-
-    matched_command_str = None
-    with open(cmd_log_path, "r") as f:
-        lines = f.readlines()
-    # search last match
-    for line in reversed(lines):
-        line = line.rstrip("\n")
-        parts = line.split(" : ", 1)
-        if len(parts) == 2 and parts[0] == args.pathogens_name:
-            matched_command_str = parts[1]
-            break
-
-    if matched_command_str is None:
-        raise SystemExit(f"No command found in cmd_log for PATHOGENS_FOR_DASHBOARD '{args.pathogens_name}'")
-
-    tokens = shlex.split(matched_command_str)
-
-    # Put DASHBOARD_ENABLED=True into the --config block
+        raise SystemExit(f"cmd_log not found: {cmd_log_path}")
+    matched = None
+    with open(cmd_log_path) as f:
+        for line in reversed(f.readlines()):
+            k = line.rstrip("\n").split(" : ", 1)
+            if len(k) == 2 and k[0] == current_name:
+                matched = k[1]
+                break
+    if matched is None:
+        raise SystemExit(f"No command found in cmd_log for PATHOGENS_FOR_DASHBOARD '{current_name}'")
+    tokens = shlex.split(matched)
     try:
-        idx_config = tokens.index("--config")
-        j = idx_config + 1
+        idx = tokens.index("--config")
+        j = idx + 1
         k = j
         while k < len(tokens) and not tokens[k].startswith("-"):
             k += 1
-        # replace if present
         replaced = False
         for m in range(j, k):
             if tokens[m].startswith("DASHBOARD_ENABLED="):
@@ -141,6 +224,5 @@ else:
     except ValueError:
         tokens.extend(["--config", "DASHBOARD_ENABLED=True"])
     tokens.extend(["--forcerun", "dashboard_serve"])
-
     print("Running command (dashboard enabled):", " ".join(tokens))
     subprocess.run(tokens, check=True)

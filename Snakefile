@@ -28,6 +28,8 @@ WEPP_DATA_DIR    = "WEPP/data"
 WEPP_CONFIG      = "WEPP/config/config.yaml"
 WEPP_CMD_LOG     = "WEPP/cmd_log"
 
+CONFIG      = "config/config.yaml"
+
 SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
 
 # Dashboard variable from config
@@ -117,7 +119,7 @@ if not FASTAS:
 
 # build:  accession list,  accession to fasta,  accession to pb ----
 
-ACC2FASTA, ACC2PB, ACC2DIR, ACC2CONFIG = {}, {}, {}, {}
+ACC2FASTA, ACC2PB, ACC2DIR = {}, {}, {}
 
 for fa in FASTAS:                    #   data/pathogens_for_wepp/<dir>/<accession>.fa
     with open(fa) as fh:
@@ -135,9 +137,6 @@ for fa in FASTAS:                    #   data/pathogens_for_wepp/<dir>/<accessio
         raise ValueError(f"No *.pb.gz / *.pb next to {fa}")
     ACC2PB[acc] = str(pb_file.resolve())
 
-    # Find config.yaml for each pathogen
-    config_file = path_dir / "config.yaml"
-    ACC2CONFIG[acc] = str(config_file.resolve())
 
 # Generate acc2dirname.json
 for fasta in FASTAS:
@@ -403,6 +402,7 @@ elif DASHBOARD_ENABLED:
         final_results_files,
         [
             ACC2CLASSIFIEDDIR_JSON,
+            ACC2COVERED_JSON,
             f"{OUT_ROOT}/kraken_output.txt",
             f"{OUT_ROOT}/kraken_report.txt",
             f"{OUT_ROOT}/classification_proportions.png"
@@ -414,6 +414,7 @@ else:
         final_results_files,
         [
             ACC2CLASSIFIEDDIR_JSON,
+            ACC2COVERED_JSON,
             f"{OUT_ROOT}/kraken_output.txt",
             f"{OUT_ROOT}/kraken_report.txt",
             f"{OUT_ROOT}/classification_proportions.png",
@@ -833,7 +834,9 @@ rule run_wepp:
         max_reads   = config["MAX_READS"],
         clade_list  = config["CLADE_LIST"],
         clade_idx   = config["CLADE_IDX"],
-        cfgfile     = str(WEPP_CONFIG),
+        min_prop    = config["MIN_PROP"],
+        min_len    = config["MIN_LEN"],
+        cfgfile     = str(CONFIG),
         resultsdir  = str(WEPP_RESULTS_DIR),
         prefix      = lambda wc: wc.acc.split('.')[0],
         ref_name    = lambda wc: f"{wc.acc}.fa",
@@ -842,7 +845,6 @@ rule run_wepp:
         tree_full   = lambda wc: WEPP_TREE(wc.acc),
         fasta_name  = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
         fasta_full  = lambda wc: WEPP_REF(wc.acc),
-        customconfig = lambda wc: ACC2CONFIG.get(wc.acc, ""),
         cmd_log     = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
         pathogens_name = lambda wc: dir(wc.acc)
     conda:
@@ -866,12 +868,6 @@ rule run_wepp:
             exit 0
         fi
 
-        if [ -n "{params.customconfig}" ] && [ -f "{params.customconfig}" ]; then
-            custom_arg="--customconfig {params.customconfig}"
-        else
-            custom_arg=""
-        fi
-
         mkdir -p {WEPP_CMD_LOG}
         [ -f {params.cmd_log} ] || touch {params.cmd_log}
 
@@ -884,11 +880,9 @@ rule run_wepp:
             --max_reads  {params.max_reads} \
             --tree       {params.tree_name} \
             --ref        {params.fasta_name} \
-            --clade_idx  {params.clade_idx} \
             --snakefile  {params.snakefile} \
             --workdir    {params.workdir} \
-            --clade_list {params.clade_list} \
-            $custom_arg \
+            --cfgfile    {params.cfgfile} \
             --cores      {threads} \
             --sequencing_type {params.seq_type} \
             --pathogens_name {params.pathogens_name} \
@@ -925,7 +919,7 @@ rule run_wepp_dashboard:
         max_reads    = config["MAX_READS"],
         clade_list   = config["CLADE_LIST"],
         clade_idx    = config["CLADE_IDX"],
-        cfgfile      = str(WEPP_CONFIG),
+        cfgfile      = str(CONFIG),
         resultsdir   = str(WEPP_RESULTS_DIR),
         prefix       = lambda wc: wc.acc.split('.')[0],
         ref_name     = lambda wc: f"{wc.acc}.fa",
@@ -934,18 +928,12 @@ rule run_wepp_dashboard:
         tree_full    = lambda wc: WEPP_TREE(wc.acc),
         fasta_name   = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
         fasta_full   = lambda wc: WEPP_REF(wc.acc),
-        customconfig = lambda wc: ACC2CONFIG.get(wc.acc, ""),
         cmd_log      = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
         pathogens_name = lambda wc: dir(wc.acc)
     conda:
         "env/wepp.yaml"
     shell:
         r"""
-        if [ -n "{params.customconfig}" ] && [ -f "{params.customconfig}" ]; then
-            custom_arg="--customconfig {params.customconfig}"
-        else
-            custom_arg=""
-        fi
 
         python ./scripts/run_inner.py \
             --dir        {params.tag_dir} \
@@ -956,18 +944,13 @@ rule run_wepp_dashboard:
             --max_reads  {params.max_reads} \
             --tree       {params.tree_name} \
             --ref        {params.fasta_name} \
-            --clade_idx  {params.clade_idx} \
             --snakefile  {params.snakefile} \
             --workdir    {params.workdir} \
-            --clade_list {params.clade_list} \
-            $custom_arg \
+            --cfgfile    {params.cfgfile} \
             --cores      {threads} \
             --sequencing_type {params.seq_type} \
             --pathogens_name {params.pathogens_name} \
-            --cmd_log {params.cmd_log} \
-            --dashboard_enabled 
+            --cmd_log {params.cmd_log}
 
         touch {output.dash_txt}
         """
-
-
