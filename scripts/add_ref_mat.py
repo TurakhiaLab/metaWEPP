@@ -51,7 +51,7 @@ def sanitize_folder_name(name):
     return re.sub(r"[^A-Za-z0-9._-]", "", name)
 
 def default_species_folder(species_name):
-    return sanitize_folder_name(species_name.replace(" ", ""))
+    return sanitize_folder_name(species_name.replace(" ", "_"))
 
 def ensure_folder(path):
     os.makedirs(path, exist_ok=True)
@@ -68,10 +68,34 @@ def add_file_to_kraken(db_dir, fasta_path):
     print("[CMD]", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
-def copy_mat(src, dst_dir):
-    dst = os.path.join(dst_dir, os.path.basename(src))
-    shutil.copy2(src, dst)
-    return dst
+# REPLACED WITH OTHER COPY FUNCTION (copy_viz_and_jsonl)
+# def copy_mat(src, dst_dir):
+#     dst = os.path.join(dst_dir, os.path.basename(src))
+#     shutil.copy2(src, dst)
+#     return dst
+
+def copy_viz_and_jsonl(workdir, pathogen_dir):
+    os.makedirs(pathogen_dir, exist_ok=True)
+
+    # Copy viz.pb.gz
+    viz_src = os.path.join(workdir, "viz.pb.gz")
+    if os.path.isfile(viz_src):
+        dst = os.path.join(pathogen_dir, "viz.pb.gz")
+        shutil.copy2(viz_src, dst)
+        print(f"[OK] viz.pb.gz copied → {dst}")
+    else:
+        print("[WARN] viz.pb.gz not found in workdir")
+
+    # Copy all *.jsonl or *.jsonl.gz files
+    jsonls = glob.glob(os.path.join(workdir, "*.jsonl")) + glob.glob(os.path.join(workdir, "*.jsonl.gz"))
+    if jsonls:
+        for src in jsonls:
+            dst = os.path.join(pathogen_dir, os.path.basename(src))
+            shutil.copy2(src, dst)
+        print(f"[OK] Copied {len(jsonls)} JSONL files → {pathogen_dir}")
+    else:
+        print("[INFO] No JSONL files found in workdir")
+
 
 def refseq_seems_in_db(db_dir, refseq_id):
     lib = os.path.join(db_dir, "library", "added")
@@ -184,35 +208,41 @@ def yes_no(prompt, default_yes=True):
         print("Please answer yes or no.")
 
 def run_viral_usher(species, refseq_id, workdir):
+    """
+    Run viral_usher in the given workdir. This version does NOT search for
+    mat.pb.gz/optimized.pb.gz. It just runs init+build and, for convenience,
+    returns the path to viz.pb.gz if present; otherwise returns None.
+    """
+    os.makedirs(workdir, exist_ok=True)
     config_path = os.path.join(workdir, f"viral_usher_config_{refseq_id}.toml")
+
     cmd_init = [
         "viral_usher", "init",
         "--refseq", refseq_id,
         "--workdir", workdir,
-        "--config", config_path
+        "--config", config_path,
     ]
     cmd_build = ["viral_usher", "build", "--config", config_path]
 
     print("[CMD]", " ".join(cmd_init))
     subprocess.run(cmd_init, check=True)
+
     print("[CMD]", " ".join(cmd_build))
     subprocess.run(cmd_build, check=True)
 
-    candidates = [
-        os.path.join(workdir, "mat.pb.gz"),
-        os.path.join(workdir, "optimized.pb.gz"),
-    ]
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    print(f"[INFO] MAT will be located at:\n  {os.path.join(species_dir, 'mat.pb.gz')}")
-    return None
+    viz_path = os.path.join(workdir, "viz.pb.gz")
+    if os.path.isfile(viz_path):
+        print(f"[OK] Found viz.pb.gz → {viz_path}")
+        return viz_path
+    else:
+        print("[WARN] viz.pb.gz not found after build")
+        return None
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     ap = argparse.ArgumentParser(
-        description="Use viral_usher's exact lookup; then download FASTA, add to Kraken2, and handle MAT."
+        description="Use viral_usher's lookup; then download FASTA, auto-add to Kraken2, and copy viz/jsonl outputs."
     )
     ap.add_argument("--db", required=True, help="Path to Kraken2 DB directory.")
     ap.add_argument("--skip-existing-files", action="store_true",
@@ -231,6 +261,7 @@ def main():
         species_dir = ensure_folder(os.path.join(ROOT_PATHOGENS_DIR, user_folder))
         print(f"[INFO] Working directory: {species_dir}")
 
+        # --- Fetch/save FASTA ---
         fasta_path = os.path.join(species_dir, f"{refseq_id}.fna")
         if args.skip_existing_files and os.path.isfile(fasta_path):
             print(f"[SKIP] FASTA exists: {fasta_path}")
@@ -240,48 +271,36 @@ def main():
             fasta_path = save_fasta(species_dir, refseq_id, fasta)
             print(f"[OK] FASTA saved: {fasta_path}")
 
+        # --- Auto-add FASTA to Kraken2 DB if not already there ---
         if os.path.isfile(fasta_path):
             if refseq_seems_in_db(args.db, refseq_id):
                 print(f"[INFO] {refseq_id} already present in DB library. Skipping add-to-library.")
             else:
-                if yes_no("Add this FASTA to the Kraken2 DB now?", default_yes=True):
-                    add_file_to_kraken(args.db, fasta_path)
-                    if refseq_seems_in_db(args.db, refseq_id):
-                        print(f"[INFO] Added to Kraken2 DB: {refseq_id} (confirmed)")
-                    else:
-                        print(f"[INFO] Added to Kraken2 DB: {refseq_id}")
+                print(f"[INFO] This pathogen is absent. Adding FASTA to the Kraken2 DB: {refseq_id} ...")
+                add_file_to_kraken(args.db, fasta_path)
+                if refseq_seems_in_db(args.db, refseq_id):
+                    print(f"[INFO] Added to Kraken2 DB: {refseq_id} (confirmed)")
                 else:
-                    print("[INFO] Skipped adding to Kraken2 DB.")
+                    print(f"[INFO] Added to Kraken2 DB: {refseq_id}")
         else:
             print("[WARN] FASTA missing; cannot add to Kraken2 DB.")
 
-        print("\n(Optional) Provide path to an existing MAT (Mutation-Annotated Tree).")
-        print("If omitted, a MAT will be built with viral_usher. Ensure the MAT reference matches the RefSeq.")
-        mat_path_in = (get_input("Path to MAT (or press Enter to build): ") or "").strip()
+        # --- Build with viral_usher and copy viz/jsonl outputs ---
+        print("[INFO] Running viral_usher (init → build)…")
+        try:
+            viz_path = run_viral_usher(species, refseq_id, species_dir)
+            # Copy only viz.pb.gz and JSONL outputs into the pathogen folder
+            copy_viz_and_jsonl(species_dir, species_dir)
 
-        if mat_path_in:
-            if not os.path.isfile(mat_path_in):
-                print(f"[WARN] MAT not found: {mat_path_in}")
+            if viz_path:
+                print(f"[INFO] Final viz.pb.gz available at: {viz_path}")
             else:
-                copied = copy_mat(mat_path_in, species_dir)
-                print(f"[OK] MAT copied: {copied}")
-        else:
-            print("[INFO] Building MAT via viral_usher (init → build)…")
-            print(f"[INFO] MAT will be at:\n  {os.path.join(species_dir, 'mat.pb.gz')}")
-            try:
-                built_mat = run_viral_usher(species, refseq_id, species_dir)
-                if built_mat:
-                    final_mat = copy_mat(built_mat, species_dir) if os.path.dirname(built_mat) != species_dir else built_mat
-                    print(f"[OK] MAT ready: {final_mat}")
-                else:
-                    print("[WARN] viral_usher finished but MAT file not found. Check logs/outputs.")
-            except FileNotFoundError:
-                print("[ERROR] 'viral_usher' executable not found on PATH.")
-            except subprocess.CalledProcessError as e:
-                print(f"[ERROR] viral_usher failed with exit code {e.returncode}.")
+                print("[WARN] viz.pb.gz not found after viral_usher build.")
 
-        if not yes_no("\nProcess another virus?", default_yes=False):
-            break
+        except FileNotFoundError:
+            print("[ERROR] 'viral_usher' executable not found on PATH.")
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] viral_usher failed with exit code {e.returncode}.")
 
 if __name__ == "__main__":
     main()
