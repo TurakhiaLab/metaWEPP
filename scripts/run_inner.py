@@ -137,6 +137,7 @@ SEQUENCING_TYPE = get_cfg(main_cfg, overlay, "SEQUENCING_TYPE", args.sequencing_
 MIN_PROP = get_cfg(main_cfg, overlay, "MIN_PROP", args.min_prop)
 MIN_LEN  = get_cfg(main_cfg, overlay, "MIN_LEN",  args.min_len)
 
+
 PATHOGENS_raw = get_cfg(main_cfg, overlay, "PATHOGENS", "")
 PATHOGENS = [p for p in csv_tokens(PATHOGENS_raw, keep_empty=False) if p]
 if not PATHOGENS:
@@ -146,21 +147,40 @@ current_name = args.pathogens_name
 
 CLADE_IDX_raw_cfg = get_cfg(main_cfg, overlay, "CLADE_IDX", args.clade_idx)
 if CLADE_IDX_raw_cfg is None:
-    raise SystemExit("[config] CLADE_IDX is required (CSV). Example: '1,0,0,-1'")
+    raise SystemExit("[config] CLADE_IDX is required (CSV). Example: '1,0,0'")
 CLADE_IDX_list = replicate_or_align_csv(CLADE_IDX_raw_cfg, len(PATHOGENS), "CLADE_IDX")
 
-CLADE_LIST_stream_raw = get_cfg(main_cfg, overlay, "CLADE_LIST", args.clade_list if args.clade_list is not None else "")
-per_pathogen_clade_list = resolve_clade_lists_for_pathogens(PATHOGENS, CLADE_IDX_list, CLADE_LIST_stream_raw)
+CLADE_LIST_raw_cfg = get_cfg(main_cfg, overlay, "CLADE_LIST", args.clade_list if args.clade_list is not None else "")
+CLADE_LIST_tokens = replicate_or_align_csv(CLADE_LIST_raw_cfg, len(PATHOGENS), "CLADE_LIST")
 
-MIN_DEPTH_raw = get_cfg(main_cfg, overlay, "MIN_DEPTH", "")
+per_pathogen_clade_list = {}
+for i, name in enumerate(PATHOGENS):
+    tok = CLADE_LIST_tokens[i] or ""
+    sources = [t for t in tok.split(":") if t != ""]
+    per_pathogen_clade_list[name] = ",".join(sources) 
+
+CLADE_LIST_CUR = (
+    per_pathogen_clade_list[current_name]
+    if current_name in per_pathogen_clade_list
+    else (per_pathogen_clade_list.get("default") or per_pathogen_clade_list[PATHOGENS[0]])
+)
+CLADE_IDX_CUR  = (
+    CLADE_IDX_list[PATHOGENS.index(current_name)]
+    if current_name in PATHOGENS
+    else CLADE_IDX_list[0]
+)
+
+MIN_DEPTH_raw = get_cfg(main_cfg, overlay, "MIN_DEPTH_FOR_WEPP", "")
 if MIN_DEPTH_raw == "":
-    raise SystemExit("[config] MIN_DEPTH is required (CSV). Example: '10' or '10,20,30'")
-MIN_DEPTH_list = replicate_or_align_csv(MIN_DEPTH_raw, len(PATHOGENS), "MIN_DEPTH")
+    raise SystemExit("[config] MIN_DEPTH_FOR_WEPP is required (CSV). Example: '10' or '10,20,30'")
+MIN_DEPTH_list = replicate_or_align_csv(MIN_DEPTH_raw, len(PATHOGENS), "MIN_DEPTH_FOR_WEPP")
 per_pathogen_min_depth = {name: MIN_DEPTH_list[i] for i, name in enumerate(PATHOGENS)}
+MIN_DEPTH_CUR = (
+    per_pathogen_min_depth[current_name]
+    if current_name in per_pathogen_min_depth
+    else (per_pathogen_min_depth.get("default") or per_pathogen_min_depth[PATHOGENS[0]])
+)
 
-CLADE_LIST_CUR = choose_for_current(current_name, per_pathogen_clade_list, PATHOGENS)
-CLADE_IDX_CUR  = choose_for_current(current_name, {n: CLADE_IDX_list[i] for i, n in enumerate(PATHOGENS)}, PATHOGENS)
-MIN_DEPTH_CUR  = choose_for_current(current_name, per_pathogen_min_depth, PATHOGENS)
 
 cmd = [
     "snakemake",
