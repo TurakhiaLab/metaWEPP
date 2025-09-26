@@ -2,46 +2,56 @@ import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import textwrap
+import os
 
-# Get file path from command-line argument
+# Usage:
+# python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> [comma_separated_taxids_to_exclude]
 if len(sys.argv) < 3:
-    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file>")
+    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> [taxid1,taxid2,...]")
     sys.exit(1)
 
 report_path = sys.argv[1]
 fig_path = sys.argv[2]
+exclude_ids = set()
+if len(sys.argv) >= 4 and sys.argv[3].strip():
+    exclude_ids = set(int(x) for x in sys.argv[3].split(",") if x.strip())
 
 # Load the report file
-df = pd.read_csv(report_path, sep='\t', header=None,
-                 names=['Percent', 'Reads', 'Direct_Assigned', 'Rank', 'TaxID', 'Name'])
+df = pd.read_csv(
+    report_path,
+    sep='\t',
+    header=None,
+    names=['Percent', 'Reads', 'Direct_Assigned', 'Rank', 'TaxID', 'Name']
+)
 
-# Keep Unclassified, Family, genus, and Species
+# Normalize types
+df['Percent'] = pd.to_numeric(df['Percent'], errors='coerce')
+df['TaxID'] = pd.to_numeric(df['TaxID'], errors='coerce').fillna(-1).astype(int)
+
+# Keep Unclassified, Family, Genus, Species
 df = df[df['Rank'].str.startswith(('U', 'F', 'G', 'S'))]
 
-# Convert Percent to numeric
-df['Percent'] = pd.to_numeric(df['Percent'], errors='coerce')
-
-# Filter only leaf nodes with actual classified reads
+# Keep leaf nodes with actual classified reads
 leaves = df[df['Direct_Assigned'] > 0].copy()
 
-# Remove duplicates
+# Remove duplicates by TaxID
 leaves = leaves.drop_duplicates(subset='TaxID')
 
-# Recalculate percentages using Direct_Assigned column
+# Recalculate percentages using Direct_Assigned
 total_assigned = leaves['Direct_Assigned'].sum()
+if total_assigned == 0:
+    print("No directly assigned reads found.")
+    sys.exit(0)
+
 leaves['Percent'] = 100.0 * leaves['Direct_Assigned'] / total_assigned
 
 # Drop leaf nodes with recalculated Percent < 1%
 leaves = leaves[leaves['Percent'] >= 1]
 
-# Calculate the leftover percentage
-retained_pct = leaves['Percent'].sum()
-other_pct = 100.0 - retained_pct
-
-# Add 'Other' if needed
+# Calculate remainder and add 'Others' if needed
 percent_sum = leaves['Percent'].sum()
 remainder = 100.0 - percent_sum
-if remainder > 0.01: 
+if remainder > 0.01:
     other_row = {
         'Percent': remainder,
         'Reads': 0,
@@ -52,12 +62,69 @@ if remainder > 0.01:
     }
     leaves = pd.concat([leaves, pd.DataFrame([other_row])], ignore_index=True)
 
-# Clean up whitespace from pathogen names
+# Clean names
 leaves['Name'] = leaves['Name'].str.lstrip()
 leaves['Name'] = leaves['Name'].replace('unclassified', 'Unclassified')
 
 # Sort by percent
 leaves.sort_values(by='Percent', ascending=False, inplace=True)
+
+# Map each taxid under species to its species-level anchor taxid (the row with Rank == 'S')
+species_anchor_for_taxid = {}
+species_anchor = None
+for _, row in df.iterrows():
+    r = str(row['Rank'])
+    tx = int(row['TaxID'])
+    if r == 'S':  # species line (the anchor)
+        species_anchor = tx
+        species_anchor_for_taxid[tx] = tx
+    elif r.startswith('S'):  # S1, S2, S3... belong to the current species anchor
+        if species_anchor is not None:
+            species_anchor_for_taxid[tx] = species_anchor
+    else:
+        # leaving the species block (e.g., back to G/F/U or other ranks)
+        species_anchor = None
+
+
+# print top 10 species >=1% not in exclude_ids or in the same species as any exclude_id
+species_candidates = leaves[leaves['Rank'].str.startswith('S')].copy()
+
+# figure out which species anchors should be excluded
+excluded_species_anchors = {
+    species_anchor_for_taxid.get(int(e), int(e)) for e in exclude_ids
+}
+
+# add each row's species anchor (default to itself if not found)
+species_candidates['species_anchor'] = species_candidates['TaxID'].map(
+    lambda t: species_anchor_for_taxid.get(int(t), int(t))
+)
+
+# drop rows whose species anchor is excluded
+species_candidates = species_candidates[
+    ~species_candidates['species_anchor'].isin(excluded_species_anchors)
+]
+
+species_top10 = species_candidates.sort_values(by='Percent', ascending=False).head(10)
+
+if not species_top10.empty:
+    header = (
+        "NOTE:\n"
+        "The following other pathogens have >=1% of directly assigned reads:"
+    )
+    lines = [
+        f"{i}) {name} (TaxID {tx}; {pct:.2f}%)"
+        for i, (name, tx, pct) in enumerate(
+            zip(species_top10['Name'], species_top10['TaxID'], species_top10['Percent']),
+            start=1
+        )
+    ]
+    print(header + "\n" + "\n".join(lines))
+else:
+    print(
+        "NOTE:\n"
+        "No other pathogens have >=1% of directly assigned reads after exclusions."
+    )
+
 
 fig, ax = plt.subplots(figsize=(10, 8))
 ax.set_position([0.05, 0.1, 0.5, 0.8])  # [left, bottom, width, height]
@@ -98,4 +165,6 @@ fig.legend(
 
 ax.axis('equal')
 fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center', y=0.85)
-plt.savefig(f"{fig_path}", dpi=300, bbox_inches='tight')
+
+os.makedirs(os.path.dirname(fig_path), exist_ok=True)
+plt.savefig(fig_path, dpi=300, bbox_inches='tight')

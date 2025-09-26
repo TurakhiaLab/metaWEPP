@@ -115,19 +115,42 @@ PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
 FASTAS = sorted(PATHOGEN_ROOT.glob("*/*.[fF][aAn]*"))
 
 if not FASTAS:
-    print("\nWARNING: No pathogens given for variant analysis with WEPP!\n")
+    print("\nWARNING: No pathogens given for variant analysis with WEPP!\n", file=sys.stderr)
 
-# build:  accession list,  accession to fasta,  accession to pb ----
+# Build accession -> taxid from Kraken seqid2taxid.map
+ACC2TAXID = {}
+with open(original_map) as f:
+    for line in f:
+        if not line.strip():
+            continue
+        parts = line.strip().split()
+        if len(parts) < 2:
+            continue
+        full_id, taxid = parts[0], parts[1]
+        accession = full_id.split("|")[-1]  # handles formats like gi|...|ref|NC_XXXX| or plain
+        ACC2TAXID[accession] = taxid
 
-ACC2FASTA, ACC2PB, ACC2DIR = {}, {}, {}
+# build: accession list, accession -> fasta, accession -> pb
+ACC2FASTA, ACC2PB, ACC2JSONL, ACC2DIR = {}, {}, {}, {}
+HEADERS = []            # list of full headers (without '>')
+HEADER2TAXID = {}       # header string -> taxid
 
-for fa in FASTAS:                    #   data/pathogens_for_wepp/<dir>/<accession>.fa
+for fa in FASTAS: 
     with open(fa) as fh:
-        header = fh.readline().strip()
-    path_dir = fa.parent 
-    acc = header[1:].split()[0] 
-    dir_name = fa.parent.name 
-    ACC2FASTA[acc] = str(fa.resolve())  # Path to pathogen fa file 
+        header_line = fh.readline().strip()
+
+    header = header_line[1:] if header_line.startswith(">") else header_line
+    acc = header.split()[0]
+    dir_name = fa.parent.name
+
+    ACC2FASTA[acc] = str(fa.resolve())  
+    HEADERS.append(header)
+
+    taxid = ACC2TAXID.get(acc)
+    if taxid is not None:
+        HEADER2TAXID[header] = taxid
+    else:
+        print(f"WARNING: no taxid for accession {acc} (header '{header}') in {original_map}", file=sys.stderr)
 
     pb_file = next(itertools.chain(
         fa.parent.glob("*.pb.gz"),
@@ -137,6 +160,17 @@ for fa in FASTAS:                    #   data/pathogens_for_wepp/<dir>/<accessio
         raise ValueError(f"No *.pb.gz / *.pb next to {fa}")
     ACC2PB[acc] = str(pb_file.resolve())
 
+    jsonl_file = next(itertools.chain(
+        fa.parent.glob("*.jsonl.gz"),
+        fa.parent.glob("*.jsonl")
+    ), None)
+    if jsonl_file:
+        ACC2JSONL[acc] = str(jsonl_file.resolve())
+
+EXCLUDE_TAXIDS_STR = ",".join(
+    sorted({str(int(t)) for t in HEADER2TAXID.values() if str(t).strip().isdigit()}, key=int)
+)
+EXCLUDE_TAXIDS_STR = re.sub(r"[^0-9,]", "", EXCLUDE_TAXIDS_STR)
 
 # Generate acc2dirname.json
 for fasta in FASTAS:
@@ -234,14 +268,22 @@ def WEPP_TREE(acc):
 def WEPP_REF(acc):
     """
     Return full path to the genome file for a given accession.
-    Uses the output name in the form of WEPP/data/<dir_tag>/<filename>.pb.gz
+    Uses the output name in the form of WEPP/data/<dir_tag>/<filename>.fa
     """
     dir_tag = tag(acc)
     tree_filename = os.path.basename(ACC2FASTA[acc])
 
     return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
 
-MIN_DEPTH = float(config.get("MIN_DEPTH", 0))
+def WEPP_JSONL(acc):
+    src = ACC2JSONL.get(acc)
+    if not src:
+        return ""  # no JSONL 
+    dir_tag = tag(acc)
+    return f"{WEPP_DATA_DIR}/{dir_tag}/{os.path.basename(src)}"
+
+
+MIN_DEPTH = float(config.get("MIN_DEPTH_FOR_WEPP", 0))
 ACC2COVERED_JSON = "config/acc2covered.json"
 def split_fastqs_for_coverage(wc):
     ckpt = checkpoints.build_acc2classified_dir.get(**wc)
@@ -602,10 +644,13 @@ rule kraken_visualization:
     input:
         report = f"{OUT_ROOT}/kraken_report.txt"
     output:
-        dir = f"{OUT_ROOT}/classification_proportions.png"
+        png = f"{OUT_ROOT}/classification_proportions.png"
+    params:
+        exclude = EXCLUDE_TAXIDS_STR
     shell:
-        """
-        python scripts/kraken_data_visualization.py {input.report} {output.dir}
+        r"""
+        python scripts/kraken_data_visualization.py \
+            {input.report} {output.png} "{params.exclude}"
         """
 
 checkpoint build_acc2classified_dir:
@@ -755,6 +800,8 @@ if IS_SINGLE_END:
             data_dir    = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
             tree_dest   = lambda wc: WEPP_TREE(wc.acc),
             fasta_dest  = lambda wc: WEPP_REF(wc.acc),
+            jsonl_src   = lambda wc: ACC2JSONL.get(wc.acc, ""),
+            jsonl_dest  = lambda wc: WEPP_JSONL(wc.acc)
         shell:
             r"""
             mkdir -p {params.data_dir}
@@ -765,6 +812,10 @@ if IS_SINGLE_END:
                 cp {input.r1} {output.new_r1}
             else
                 echo | gzip -c > {output.new_r1}
+            fi
+
+            if [ -n "{params.jsonl_src}" ]; then
+                cp "{params.jsonl_src}" "{params.jsonl_dest}"
             fi
             """
 
@@ -792,6 +843,8 @@ else:
             data_dir    = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
             tree_dest   = lambda wc: WEPP_TREE(wc.acc),
             fasta_dest  = lambda wc: WEPP_REF(wc.acc),
+            jsonl_src   = lambda wc: ACC2JSONL.get(wc.acc, ""),
+            jsonl_dest  = lambda wc: WEPP_JSONL(wc.acc)
         shell:
             r"""
             mkdir -p {params.data_dir}
@@ -808,6 +861,10 @@ else:
                 cp {input.r2} {output.new_r2}
             else
                 echo | gzip -c > {output.new_r2}
+            fi
+
+            if [ -n "{params.jsonl_src}" ]; then
+                cp "{params.jsonl_src}" "{params.jsonl_dest}"
             fi
             """
 
@@ -929,11 +986,17 @@ rule run_wepp_dashboard:
         fasta_name   = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
         fasta_full   = lambda wc: WEPP_REF(wc.acc),
         cmd_log      = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
-        pathogens_name = lambda wc: dir(wc.acc)
+        pathogens_name = lambda wc: dir(wc.acc),
+        taxonium_file  = lambda wc: (WEPP_JSONL(wc.acc) if ACC2JSONL.get(wc.acc) else "")
     conda:
         "env/wepp.yaml"
     shell:
         r"""
+        if [ -n "{params.taxonium_file}" ]; then
+            tax_arg="--taxonium_file {params.taxonium_file}"
+        else
+            tax_arg=""
+        fi
 
         python ./scripts/run_inner.py \
             --dir        {params.tag_dir} \
@@ -951,6 +1014,9 @@ rule run_wepp_dashboard:
             --sequencing_type {params.seq_type} \
             --pathogens_name {params.pathogens_name} \
             --cmd_log {params.cmd_log}
+            $tax_arg
 
         touch {output.dash_txt}
         """
+
+

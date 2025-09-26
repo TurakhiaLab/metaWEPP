@@ -5,11 +5,9 @@ SEQUENCING_TYPE: d
 # Bed file should be present in 'WEPP/primers'
 PRIMER_BED: "none.bed"
 
-# Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
+# Allele frequency threshold based masking to accomodate sequencing errors: 
+# Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 MIN_AF: "0.005"
-
-# Mask any site with depth below this threshold
-MIN_DEPTH: "10"
 
 # Mask any allele with base quality score below this threshold
 MIN_Q: "20"
@@ -17,20 +15,28 @@ MIN_Q: "20"
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"
 
-# List the clade naming systems present in the MAT
-CLADE_LIST: "nextstrain,pango"
-
-# Clade index for inferring lineages from MAT:
-# '1' for using Pango naming for SARS-CoV-2 and '0' for using Nextstrain
-# '0' for other pathogen as they use a single lineage naming systems
-# '-1' in case of NO lineage annotations 
-# Lineage Annotations could be checked by running: "matUtils summary -i {TREE} -C {FILENAME}" -> Use '0' for annotation_1 and '1' for annotation_2
-CLADE_IDX: "1"
-
 # Simulation Settings:
 #    * Set to "MESS" to simulate
-#    * Set to "none" or blank to skip simulation. But, you must provide your own real reads in fq1 and fq2.
+#    * Set to "none" or blank to skip simulation. 
+# But, you must provide your own real reads in fq1 and fq2.
 SIMULATION_TOOL: "" 
 
 # MESS's genomic coverage 
 COVERAGE: 20
+
+DASHBOARD_ENABLED: False
+PATHOGENS_FOR_DASHBOARD: ""
+
+# Arguments for WEPP
+MIN_PROP: "0.5"
+
+MIN_LEN: "80"
+
+# Arguments for WEPP that can be customized by pathogens
+PATHOGENS: "default,sars"
+
+CLADE_LIST: "pango,nextstrain,pango"
+
+CLADE_IDX: "0,1"
+
+MIN_DEPTH_FOR_WEPP: "10"

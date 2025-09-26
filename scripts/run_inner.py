@@ -24,6 +24,7 @@ parser.add_argument("--min_len", required=False, default=None)
 parser.add_argument("--cmd_log", required=True)
 parser.add_argument("--pathogens_name", required=True)
 parser.add_argument("--dashboard_enabled", action="store_true")
+parser.add_argument("--taxonium_file", required=False, default="")
 args = parser.parse_args()
 
 def upsert_cmd_log(path, name, cmd_str):
@@ -188,6 +189,10 @@ if MIN_PROP is not None:
 if MIN_LEN is not None:
     cmd.append(f"MIN_LEN={MIN_LEN}")
 
+# pass TAXONIUM_FILE only if provided
+if args.taxonium_file:
+    cmd.append(f"TAXONIUM_FILE={args.taxonium_file}")
+
 cmd_log_path = Path(args.cmd_log)
 
 if not args.dashboard_enabled:
@@ -221,6 +226,15 @@ else:
                 break
         if not replaced:
             tokens.insert(k, "DASHBOARD_ENABLED=True")
+        if args.taxonium_file:
+            found = False
+            for m in range(j, k):
+                if tokens[m].startswith("TAXONIUM_FILE="):
+                    tokens[m] = f"TAXONIUM_FILE={args.taxonium_file}"
+                    found = True
+                    break
+            if not found:
+                tokens.insert(k, f"TAXONIUM_FILE={args.taxonium_file}")
     except ValueError:
         tokens.extend(["--config", "DASHBOARD_ENABLED=True"])
     tokens.extend(["--forcerun", "dashboard_serve"])
