@@ -108,8 +108,8 @@ species_top10 = species_candidates.sort_values(by='Percent', ascending=False).he
 
 if not species_top10.empty:
     header = (
-        "NOTE:\n"
-        "The following other pathogens have >=1% of directly assigned reads:"
+        "\n\n\nNOTE:\n"
+        "The following pathogens have >1% assigned reads but were NOT included for detailed analysis with WEPP:"
     )
     lines = [
         f"{i}) {name} (TaxID {tx}; {pct:.2f}%)"
@@ -119,9 +119,10 @@ if not species_top10.empty:
         )
     ]
     print(header + "\n" + "\n".join(lines))
+    print("\n\n")
 else:
     print(
-        "NOTE:\n"
+        "\n\nNOTE:\n"
         "No other pathogens have >=1% of directly assigned reads after exclusions."
     )
 
