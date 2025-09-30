@@ -669,6 +669,25 @@ checkpoint build_acc2classified_dir:
         "--acc2dir {input.acc2dir} "
         "-o {output.classified}"
 
+
+ADD_REF_SENTINEL = f"{OUT_ROOT}/.add_ref_mat.done"
+
+# Rule to add references.
+rule add_ref_mat:
+    input:
+        report = f"{OUT_ROOT}/kraken_report.txt"   
+    output:
+        done = ADD_REF_SENTINEL
+    params:
+        script = "scripts/add_ref_mat.py",
+        db     = KRAKEN_DB
+    shell:
+        r"""
+        # runs interactively (script prompts the user)
+        python {params.script} --db {params.db}
+        touch {output.done}
+        """
+
 # 7) Split Kraken output into per-taxid FASTQs 
 # --- config ---
 ACC2CLASSIFIEDDIR_JSON = "config/acc2classified_dir.json"
@@ -685,6 +704,7 @@ SPLIT_INPUTS = {
     "kraken_out":    KRAKEN_OUT,
     "kraken_report": KRAKEN_REPORT,
     "classified":    ACC2CLASSIFIEDDIR_JSON,
+    "ref_mat_ready": ADD_REF_SENTINEL,
 }
 if not IS_SINGLE_END:
     SPLIT_INPUTS["r2"] = FQ2
