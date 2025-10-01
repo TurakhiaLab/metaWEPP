@@ -74,6 +74,11 @@ def add_file_to_kraken(db_dir, fasta_path):
 #     shutil.copy2(src, dst)
 #     return dst
 
+def build_kraken_db(db_dir, threads=8):
+    cmd = ["k2", "build", "--db", db_dir, f"--threads={threads}"]
+    print("[CMD]", " ".join(cmd))
+    subprocess.run(cmd, check=True)
+
 def copy_viz_and_jsonl(workdir, pathogen_dir):
     os.makedirs(pathogen_dir, exist_ok=True)
 
@@ -280,6 +285,7 @@ def main():
                 add_file_to_kraken(args.db, fasta_path)
                 if refseq_seems_in_db(args.db, refseq_id):
                     print(f"[INFO] Added to Kraken2 DB: {refseq_id} (confirmed)")
+                    build_kraken_db(args.db, threads=8)
                 else:
                     print(f"[INFO] Added to Kraken2 DB: {refseq_id}")
         else:
