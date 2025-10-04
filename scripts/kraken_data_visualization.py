@@ -28,8 +28,8 @@ df = pd.read_csv(
 df['Percent'] = pd.to_numeric(df['Percent'], errors='coerce')
 df['TaxID'] = pd.to_numeric(df['TaxID'], errors='coerce').fillna(-1).astype(int)
 
-# Keep Unclassified, Family, Genus, Species
-df = df[df['Rank'].str.startswith(('U', 'F', 'G', 'S'))]
+# Keep Unclassified and Species
+df = df[df['Rank'].str.startswith(('U','S'))]
 
 # Keep leaf nodes with actual classified reads
 leaves = df[df['Direct_Assigned'] > 0].copy()
@@ -165,7 +165,7 @@ fig.legend(
 )
 
 ax.axis('equal')
-fig.suptitle('Classification Proportions by Pathogen', fontsize=20, fontweight='bold', ha='center', y=0.85)
+fig.suptitle('Pathogen Proportions', fontsize=20, fontweight='bold', ha='center', y=0.85)
 
 os.makedirs(os.path.dirname(fig_path), exist_ok=True)
 plt.savefig(fig_path, dpi=300, bbox_inches='tight')
