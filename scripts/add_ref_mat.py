@@ -13,6 +13,7 @@ import shutil
 import time
 import argparse
 import requests
+import glob
 
 # Require viral_usher so we reuse its HTTP/helper behavior exactly.
 try:
@@ -212,6 +213,47 @@ def yes_no(prompt, default_yes=True):
         if ans in ("n", "no"):  return False
         print("Please answer yes or no.")
 
+
+def maybe_copy_existing_mat(species_dir: str) -> str:
+    """Optionally copy a user-provided MAT into the species directory."""
+
+    if not yes_no("Do you already have a MAT (.pb or .pb.gz) to use?", default_yes=False):
+        return ""
+
+    while True:
+        mat_path = get_input("Path to MAT file: ").strip()
+        if not mat_path:
+            print("Please provide a path or press Ctrl+C to cancel.")
+            continue
+        if not os.path.isfile(mat_path):
+            print("File not found; try again.")
+            continue
+        if not (mat_path.endswith(".pb") or mat_path.endswith(".pb.gz")):
+            print("MAT file must end with .pb or .pb.gz; try again.")
+            continue
+
+        dest = os.path.join(species_dir, os.path.basename(mat_path))
+        if os.path.abspath(mat_path) == os.path.abspath(dest):
+            print("[INFO] MAT already present in species directory; using existing file.")
+            return dest
+
+def mat_present(directory: str) -> bool:
+    """Check whether the directory contains a MAT (.pb or .pb.gz)."""
+    for pattern in ("*.pb", "*.pb.gz"):
+        if glob.glob(os.path.join(directory, pattern)):
+            return True
+    return False
+
+
+def any_mat_available(root: str) -> bool:
+    """Return True if any pathogen directory under root has a MAT."""
+    if not os.path.isdir(root):
+        return False
+    for entry in os.scandir(root):
+        if entry.is_dir() and mat_present(entry.path):
+            return True
+    return False
+
 def run_viral_usher(species, refseq_id, workdir):
     """
     Run viral_usher in the given workdir. This version does NOT search for
@@ -252,9 +294,40 @@ def main():
     ap.add_argument("--db", required=True, help="Path to Kraken2 DB directory.")
     ap.add_argument("--skip-existing-files", action="store_true",
                     help="Skip FASTA download if the output file already exists.")
+    ap.add_argument(
+        "--species-summary",
+        help="Optional path to a Kraken species summary to display before prompts.",
+    )
     args = ap.parse_args()
 
     ensure_folder(ROOT_PATHOGENS_DIR)
+
+    summary_path = args.species_summary
+
+    def show_species_summary():
+        if not summary_path:
+            return
+        print("\n" + "=" * 72)
+        print("Kraken species summary (> threshold)")
+        print("=" * 72)
+        try:
+            with open(summary_path) as fh:
+                for line in fh:
+                    print(line.rstrip())
+        except FileNotFoundError:
+            print(f"[WARN] Species summary not found: {summary_path}")
+        print("=" * 72 + "\n")
+
+    show_species_summary()
+    if not yes_no("Would you like to add another pathogen?", default_yes=False):
+        if not any_mat_available(ROOT_PATHOGENS_DIR):
+            print(
+                "[ERROR] No MAT (.pb/.pb.gz) found in data/pathogens_for_wepp. "
+                "Please add at least one pathogen before continuing."
+            )
+            sys.exit(1)
+        print("[INFO] No additional pathogens requested via add_ref_mat.py")
+        return
 
     while True:
         ncbi = vu_ncbi_helper.NcbiHelper()
@@ -276,6 +349,8 @@ def main():
             fasta_path = save_fasta(species_dir, refseq_id, fasta)
             print(f"[OK] FASTA saved: {fasta_path}")
 
+        existing_mat = maybe_copy_existing_mat(species_dir)
+
         # --- Auto-add FASTA to Kraken2 DB if not already there ---
         if os.path.isfile(fasta_path):
             if refseq_seems_in_db(args.db, refseq_id):
@@ -292,21 +367,54 @@ def main():
             print("[WARN] FASTA missing; cannot add to Kraken2 DB.")
 
         # --- Build with viral_usher and copy viz/jsonl outputs ---
-        print("[INFO] Running viral_usher (init → build)…")
-        try:
-            viz_path = run_viral_usher(species, refseq_id, species_dir)
-            # Copy only viz.pb.gz and JSONL outputs into the pathogen folder
-            copy_viz_and_jsonl(species_dir, species_dir)
+        if existing_mat:
+            print(f"[INFO] Using provided MAT: {existing_mat}")
+        else:
+            print("[INFO] Running viral_usher (init → build)…")
+            try:
+                build_dir = os.path.join(species_dir, "_build")
+                viz_path = run_viral_usher(species, refseq_id, build_dir)
+                # Copy only viz.pb.gz and JSONL outputs into the pathogen folder
+                copy_viz_and_jsonl(build_dir, species_dir)
 
-            if viz_path:
-                print(f"[INFO] Final viz.pb.gz available at: {viz_path}")
-            else:
-                print("[WARN] viz.pb.gz not found after viral_usher build.")
+                if viz_path:
+                    print(f"[INFO] Final viz.pb.gz available at: {viz_path}")
+                else:
+                    print("[WARN] viz.pb.gz not found after viral_usher build.")
 
-        except FileNotFoundError:
-            print("[ERROR] 'viral_usher' executable not found on PATH.")
-        except subprocess.CalledProcessError as e:
-            print(f"[ERROR] viral_usher failed with exit code {e.returncode}.")
+                try:
+                    shutil.rmtree(build_dir)
+                    print(f"[INFO] Cleaned build dir: {build_dir}")
+                except Exception as cleanup_err:
+                    print(f"[WARN] Could not remove build dir {build_dir}: {cleanup_err}")
+
+            except FileNotFoundError:
+                print("[ERROR] 'viral_usher' executable not found on PATH.")
+            except subprocess.CalledProcessError as e:
+                print(f"[ERROR] viral_usher failed with exit code {e.returncode}.")
+
+        if not mat_present(species_dir):
+            print(
+                "[ERROR] No MAT (.pb/.pb.gz) found in this pathogen folder. "
+                "Please provide a MAT before continuing."
+            )
+            continue
+
+        show_species_summary()
+
+        add_more = yes_no("Would you like to add another pathogen?", default_yes=False)
+        print()
+        print(f"[PROMPT] Would you like to add another pathogen? -> {'yes' if add_more else 'no'}")
+
+        if not add_more:
+            if not any_mat_available(ROOT_PATHOGENS_DIR):
+                print(
+                    "[ERROR] No MAT (.pb/.pb.gz) found in data/pathogens_for_wepp. "
+                    "Please add one before exiting."
+                )
+                continue
+            print("[INFO] Finished adding pathogens via add_ref_mat.py")
+            break
 
 if __name__ == "__main__":
     main()
