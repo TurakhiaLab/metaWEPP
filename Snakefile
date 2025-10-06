@@ -89,15 +89,7 @@ def dashboard_howto_path(wc):
 # ---------------------------------------------------------------------------
 # Determine rule all inputs based on presence of classification output
 # ---------------------------------------------------------------------------
-if ctx.classified_json_empty():
-    ALL_INPUTS = [
-        str(ctx.acc2classifieddir_json_path),
-        str(ctx.kraken_out),
-        str(ctx.kraken_report),
-        str(ctx.split_sentinel),
-        str(ctx.visualization),
-    ]
-elif ctx.dashboard_enabled:
+if ctx.dashboard_enabled:
     ALL_INPUTS = (
         final_targets_dashboard,
         final_results_files,

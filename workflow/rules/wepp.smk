@@ -97,7 +97,11 @@ else:
 
 rule run_wepp:
     input:
-        r1 = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}/{wc.acc}.fastq.gz",
+        r1 = lambda wc: (
+            f"{WEPP_DATA_DIR}/{wc.dir_tag}/{wc.acc}.fastq.gz"
+            if IS_SINGLE_END
+            else f"{WEPP_DATA_DIR}/{wc.dir_tag}/{wc.acc}_R1.fastq.gz"
+        ),
         r2 = lambda wc: "" if IS_SINGLE_END else f"{WEPP_DATA_DIR}/{wc.dir_tag}/{wc.acc}_R2.fastq.gz",
     output:
         run_txt = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_run.txt"
@@ -121,9 +125,11 @@ rule run_wepp:
         fasta_name = lambda wc: os.path.basename(ctx.wepp_ref(wc.acc)),
         fasta_full = lambda wc: ctx.wepp_ref(wc.acc),
         cmd_log    = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
-        pathogens_name = lambda wc: ctx.dir_for_acc(wc.acc)
+        pathogens_name = lambda wc: ctx.dir_for_acc(wc.acc),
+        clade_list = config.get("CLADE_LIST", ""),
+        clade_idx  = config.get("CLADE_IDX", "")
     conda:
-        "env/wepp.yaml"
+        "../../env/wepp.yaml"
     resources:
         serial = 1
     shell:
@@ -162,6 +168,8 @@ rule run_wepp:
             --cores      {threads} \
             --sequencing_type {params.seq_type} \
             --pathogens_name {params.pathogens_name} \
+            --clade_list {params.clade_list} \
+            --clade_idx {params.clade_idx} \
             --cmd_log {params.cmd_log}
 
         touch {output.run_txt}
@@ -211,7 +219,7 @@ rule run_wepp_dashboard:
         pathogens_name = lambda wc: ctx.dir_for_acc(wc.acc),
         taxonium_file  = lambda wc: ctx.wepp_jsonl(wc.acc)
     conda:
-        "env/wepp.yaml"
+        "../../env/wepp.yaml"
     resources:
         serial = 1
     shell:
@@ -237,6 +245,8 @@ rule run_wepp_dashboard:
             --cores      {threads} \
             --sequencing_type {params.seq_type} \
             --pathogens_name {params.pathogens_name} \
+            --clade_list {params.clade_list} \
+            --clade_idx {params.clade_idx} \
             --cmd_log {params.cmd_log}
             $tax_arg
 

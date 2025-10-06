@@ -18,7 +18,7 @@ def total_bases_fastq(fq_path: Path) -> int:
                     total += len(line.rstrip("\n\r"))
     except Exception:
         return 0
-    return total``
+    return total
 
 def genome_length(fa_dir: Path) -> int:
     candidates = []

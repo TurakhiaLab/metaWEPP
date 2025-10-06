@@ -69,7 +69,11 @@ def to_csv_str(tokens):
     return ",".join(tokens)
 
 def get_cfg(main_cfg, overlay, key, fallback=None):
-    return (overlay.get(key) if overlay and key in overlay else main_cfg.get(key, fallback))
+    if overlay and key in overlay:
+        return overlay[key]
+    if fallback is not None:
+        return fallback
+    return main_cfg.get(key, fallback)
 
 def replicate_or_align_csv(raw, n, field_name):
     vals = csv_tokens(raw or "", keep_empty=False)
@@ -138,10 +142,13 @@ MIN_PROP = get_cfg(main_cfg, overlay, "MIN_PROP", args.min_prop)
 MIN_LEN  = get_cfg(main_cfg, overlay, "MIN_LEN",  args.min_len)
 
 
-PATHOGENS_raw = get_cfg(main_cfg, overlay, "PATHOGENS", "")
-PATHOGENS = [p for p in csv_tokens(PATHOGENS_raw, keep_empty=False) if p]
-if not PATHOGENS:
-    raise SystemExit("[config] PATHOGENS must list one or more names, comma-separated (e.g., default,rsva,rsvb).")
+if args.pathogens_name:
+    PATHOGENS = [args.pathogens_name]
+else:
+    PATHOGENS_raw = get_cfg(main_cfg, overlay, "PATHOGENS", "")
+    PATHOGENS = [p for p in csv_tokens(PATHOGENS_raw, keep_empty=False) if p]
+    if not PATHOGENS:
+        raise SystemExit("[config] PATHOGENS must list one or more names, comma-separated (e.g., default,rsva,rsvb).")
 
 current_name = args.pathogens_name
 
@@ -150,14 +157,24 @@ if CLADE_IDX_raw_cfg is None:
     raise SystemExit("[config] CLADE_IDX is required (CSV). Example: '1,0,0'")
 CLADE_IDX_list = replicate_or_align_csv(CLADE_IDX_raw_cfg, len(PATHOGENS), "CLADE_IDX")
 
-CLADE_LIST_raw_cfg = get_cfg(main_cfg, overlay, "CLADE_LIST", args.clade_list if args.clade_list is not None else "")
-CLADE_LIST_tokens = replicate_or_align_csv(CLADE_LIST_raw_cfg, len(PATHOGENS), "CLADE_LIST")
+if args.clade_list:
+    CLADE_LIST_raw_cfg = args.clade_list
+else:
+    CLADE_LIST_raw_cfg = get_cfg(main_cfg, overlay, "CLADE_LIST", "")
 
-per_pathogen_clade_list = {}
-for i, name in enumerate(PATHOGENS):
-    tok = CLADE_LIST_tokens[i] or ""
-    sources = [t for t in tok.split(":") if t != ""]
-    per_pathogen_clade_list[name] = ",".join(sources) 
+if len(PATHOGENS) == 1:
+    raw_tok = CLADE_LIST_raw_cfg or ""
+    if raw_tok:
+        parts = [p for p in re.split(r"[:,]", raw_tok) if p]
+        per_pathogen_clade_list = {PATHOGENS[0]: ",".join(parts)}
+    else:
+        per_pathogen_clade_list = {PATHOGENS[0]: ""}
+else:
+    per_pathogen_clade_list = resolve_clade_lists_for_pathogens(
+        PATHOGENS,
+        CLADE_IDX_list,
+        CLADE_LIST_raw_cfg,
+    )
 
 CLADE_LIST_CUR = (
     per_pathogen_clade_list[current_name]
@@ -172,7 +189,8 @@ CLADE_IDX_CUR  = (
 
 MIN_DEPTH_raw = get_cfg(main_cfg, overlay, "MIN_DEPTH_FOR_WEPP", "")
 if MIN_DEPTH_raw == "":
-    raise SystemExit("[config] MIN_DEPTH_FOR_WEPP is required (CSV). Example: '10' or '10,20,30'")
+    fallback_depth = main_cfg.get("MIN_DEPTH", "10")
+    MIN_DEPTH_raw = str(fallback_depth)
 MIN_DEPTH_list = replicate_or_align_csv(MIN_DEPTH_raw, len(PATHOGENS), "MIN_DEPTH_FOR_WEPP")
 per_pathogen_min_depth = {name: MIN_DEPTH_list[i] for i, name in enumerate(PATHOGENS)}
 MIN_DEPTH_CUR = (
@@ -198,6 +216,7 @@ cmd = [
     f"MIN_Q={MIN_Q}",
     f"MAX_READS={MAX_READS}",
     f"SEQUENCING_TYPE={SEQUENCING_TYPE}",
+    f"PATHOGENS={current_name}",
     f"CLADE_LIST={CLADE_LIST_CUR}",         # comma-joined for this pathogen
     f"CLADE_IDX={CLADE_IDX_CUR}",           # as integer/string
     f"MIN_DEPTH={MIN_DEPTH_CUR}",
