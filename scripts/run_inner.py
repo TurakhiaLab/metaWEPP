@@ -7,20 +7,20 @@ parser.add_argument("--dir", required=True)
 parser.add_argument("--prefix", required=True)
 parser.add_argument("--primer_bed", required=True)
 parser.add_argument("--min_af", required=True)
-parser.add_argument("--min_q", required=True)  
-parser.add_argument("--max_reads", required=True) 
+parser.add_argument("--min_q", required=True)
+parser.add_argument("--max_reads", required=True)
 parser.add_argument("--tree", required=True)
 parser.add_argument("--ref", required=True)
-parser.add_argument("--clade_idx", required=False, default=None) 
+parser.add_argument("--clade_idx", nargs="?", required=False, default=None)
 parser.add_argument("--snakefile", required=True)
 parser.add_argument("--workdir", required=True)
-parser.add_argument("--cfgfile", required=True)     
+parser.add_argument("--cfgfile", required=True)
 parser.add_argument("--customconfig", required=False)
 parser.add_argument("--cores", default="32")
 parser.add_argument("--sequencing_type", required=True)
-parser.add_argument("--clade_list", required=False, default=None) 
-parser.add_argument("--min_prop", required=False, default=None)   
-parser.add_argument("--min_len", required=False, default=None)    
+parser.add_argument("--clade_list", nargs="?", required=False, default=None)
+parser.add_argument("--min_prop", required=False, default=None)
+parser.add_argument("--min_len", required=False, default=None)
 parser.add_argument("--cmd_log", required=True)
 parser.add_argument("--pathogens_name", required=True)
 parser.add_argument("--dashboard_enabled", action="store_true")
@@ -62,7 +62,7 @@ def csv_tokens(s: str, keep_empty: bool = False):
         return []
     parts = [p.strip() for p in str(s).split(",")]
     if keep_empty:
-        return parts 
+        return parts
     return [p for p in parts if p != ""]
 
 def to_csv_str(tokens):
@@ -101,10 +101,10 @@ def resolve_clade_lists_for_pathogens(pathogens, clade_idx_list, clade_list_stre
         if idx == -1:
             if pos < len(stream) and stream[pos] == "":
                 pos += 1
-            out[name] = ""  
+            out[name] = ""
             continue
 
-        need = idx + 1 
+        need = idx + 1
         if pos + need > len(stream):
             have = len(stream) - pos
             raise SystemExit(
@@ -129,82 +129,106 @@ def choose_for_current(name, mapping, pathogens):
         return mapping["default"]
     return mapping[pathogens[0]]
 
+def index_for_current(name, pathogens):
+    if name in pathogens:
+        return pathogens.index(name)
+    if "default" in pathogens:
+        return pathogens.index("default")
+    raise SystemExit(
+        f"[config] PATHOGENS must list '{name}' or include a 'default' entry."
+    )
+
+def _normalize_clade_token(token):
+    if not token:
+        return ""
+    parts = [p for p in re.split(r":", token) if p]
+    return ",".join(parts)
+
+def per_pathogen_clade_mapping(pathogens, raw):
+    tokens_with_empty = [t.strip() for t in str(raw or "").split(",")]
+
+    if len(pathogens) == 1:
+        return {pathogens[0]: _normalize_clade_token(tokens_with_empty[0] if tokens_with_empty else "")}
+
+    if len(tokens_with_empty) == len(pathogens):
+        return {
+            name: _normalize_clade_token(tok)
+            for name, tok in zip(pathogens, tokens_with_empty)
+        }
+
+    nonempty_tokens = [tok for tok in tokens_with_empty if tok]
+    if not nonempty_tokens:
+        return {name: "" for name in pathogens}
+
+    if len(nonempty_tokens) == 1 and len(tokens_with_empty) >= 1:
+        normalized = _normalize_clade_token(nonempty_tokens[0])
+        return {name: normalized for name in pathogens}
+
+    return None
+
 main_cfg = parse_config_file(args.cfgfile)
 overlay = parse_config_file(args.customconfig) if args.customconfig else {}
 
-PRIMER_BED      = get_cfg(main_cfg, overlay, "PRIMER_BED", args.primer_bed)
-MIN_AF          = get_cfg(main_cfg, overlay, "MIN_AF", args.min_af)
-MIN_Q           = get_cfg(main_cfg, overlay, "MIN_Q", args.min_q)
-MAX_READS       = get_cfg(main_cfg, overlay, "MAX_READS", args.max_reads)
+PRIMER_BED = get_cfg(main_cfg, overlay, "PRIMER_BED", args.primer_bed)
+MIN_AF = get_cfg(main_cfg, overlay, "MIN_AF", args.min_af)
+MIN_Q = get_cfg(main_cfg, overlay, "MIN_Q", args.min_q)
+MAX_READS = get_cfg(main_cfg, overlay, "MAX_READS", args.max_reads)
 SEQUENCING_TYPE = get_cfg(main_cfg, overlay, "SEQUENCING_TYPE", args.sequencing_type)
 
 MIN_PROP = get_cfg(main_cfg, overlay, "MIN_PROP", args.min_prop)
-MIN_LEN  = get_cfg(main_cfg, overlay, "MIN_LEN",  args.min_len)
+MIN_LEN = get_cfg(main_cfg, overlay, "MIN_LEN", args.min_len)
 
-
-if args.pathogens_name:
-    PATHOGENS = [args.pathogens_name]
-else:
-    PATHOGENS_raw = get_cfg(main_cfg, overlay, "PATHOGENS", "")
-    PATHOGENS = [p for p in csv_tokens(PATHOGENS_raw, keep_empty=False) if p]
-    if not PATHOGENS:
-        raise SystemExit("[config] PATHOGENS must list one or more names, comma-separated (e.g., default,rsva,rsvb).")
+# Require explicit PATHOGENS roster so per-pathogen settings resolve deterministically.
+PATHOGENS_raw = get_cfg(main_cfg, overlay, "PATHOGENS", None)
+if PATHOGENS_raw is None:
+    raise SystemExit("[config] PATHOGENS must list one or more pathogen names (comma-separated).")
+PATHOGENS = [p for p in csv_tokens(PATHOGENS_raw, keep_empty=False) if p]
+if not PATHOGENS:
+    raise SystemExit("[config] PATHOGENS must list one or more pathogen names (comma-separated).")
 
 current_name = args.pathogens_name
+if current_name not in PATHOGENS and "default" not in PATHOGENS:
+    raise SystemExit(
+        f"[config] PATHOGENS does not include '{current_name}' and no 'default' fallback is defined."
+    )
+
+pathogen_index = index_for_current(current_name, PATHOGENS)
 
 CLADE_IDX_raw_cfg = get_cfg(main_cfg, overlay, "CLADE_IDX", args.clade_idx)
 if CLADE_IDX_raw_cfg is None:
     raise SystemExit("[config] CLADE_IDX is required (CSV). Example: '1,0,0'")
 CLADE_IDX_list = replicate_or_align_csv(CLADE_IDX_raw_cfg, len(PATHOGENS), "CLADE_IDX")
+CLADE_IDX_CUR = CLADE_IDX_list[pathogen_index]
 
 if args.clade_list:
     CLADE_LIST_raw_cfg = args.clade_list
 else:
     CLADE_LIST_raw_cfg = get_cfg(main_cfg, overlay, "CLADE_LIST", "")
 
-if len(PATHOGENS) == 1:
-    raw_tok = CLADE_LIST_raw_cfg or ""
-    if raw_tok:
-        parts = [p for p in re.split(r"[:,]", raw_tok) if p]
-        per_pathogen_clade_list = {PATHOGENS[0]: ",".join(parts)}
-    else:
-        per_pathogen_clade_list = {PATHOGENS[0]: ""}
-else:
+per_pathogen_clade_list = per_pathogen_clade_mapping(PATHOGENS, CLADE_LIST_raw_cfg)
+if per_pathogen_clade_list is None:
     per_pathogen_clade_list = resolve_clade_lists_for_pathogens(
         PATHOGENS,
         CLADE_IDX_list,
         CLADE_LIST_raw_cfg,
     )
-
-CLADE_LIST_CUR = (
-    per_pathogen_clade_list[current_name]
-    if current_name in per_pathogen_clade_list
-    else (per_pathogen_clade_list.get("default") or per_pathogen_clade_list[PATHOGENS[0]])
-)
-CLADE_IDX_CUR  = (
-    CLADE_IDX_list[PATHOGENS.index(current_name)]
-    if current_name in PATHOGENS
-    else CLADE_IDX_list[0]
-)
+CLADE_LIST_CUR = choose_for_current(current_name, per_pathogen_clade_list, PATHOGENS)
 
 MIN_DEPTH_raw = get_cfg(main_cfg, overlay, "MIN_DEPTH_FOR_WEPP", "")
 if MIN_DEPTH_raw == "":
     fallback_depth = main_cfg.get("MIN_DEPTH", "10")
     MIN_DEPTH_raw = str(fallback_depth)
 MIN_DEPTH_list = replicate_or_align_csv(MIN_DEPTH_raw, len(PATHOGENS), "MIN_DEPTH_FOR_WEPP")
-per_pathogen_min_depth = {name: MIN_DEPTH_list[i] for i, name in enumerate(PATHOGENS)}
-MIN_DEPTH_CUR = (
-    per_pathogen_min_depth[current_name]
-    if current_name in per_pathogen_min_depth
-    else (per_pathogen_min_depth.get("default") or per_pathogen_min_depth[PATHOGENS[0]])
-)
-
+MIN_DEPTH_CUR = MIN_DEPTH_list[pathogen_index]
 
 cmd = [
     "snakemake",
-    "--snakefile", args.snakefile,
-    "--directory", args.workdir,
-    "--cores", args.cores,
+    "--snakefile",
+    args.snakefile,
+    "--directory",
+    args.workdir,
+    "--cores",
+    args.cores,
     "--use-conda",
     "--config",
     f"DIR={args.dir}",
@@ -217,18 +241,16 @@ cmd = [
     f"MAX_READS={MAX_READS}",
     f"SEQUENCING_TYPE={SEQUENCING_TYPE}",
     f"PATHOGENS={current_name}",
-    f"CLADE_LIST={CLADE_LIST_CUR}",         # comma-joined for this pathogen
-    f"CLADE_IDX={CLADE_IDX_CUR}",           # as integer/string
+    f"CLADE_LIST={CLADE_LIST_CUR}",
+    f"CLADE_IDX={CLADE_IDX_CUR}",
     f"MIN_DEPTH={MIN_DEPTH_CUR}",
 ]
 
-# Optional passthroughs if present
 if MIN_PROP is not None:
     cmd.append(f"MIN_PROP={MIN_PROP}")
 if MIN_LEN is not None:
     cmd.append(f"MIN_LEN={MIN_LEN}")
 
-# pass TAXONIUM_FILE only if provided
 if args.taxonium_file:
     cmd.append(f"TAXONIUM_FILE={args.taxonium_file}")
 

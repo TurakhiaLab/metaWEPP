@@ -127,7 +127,8 @@ rule run_wepp:
         cmd_log    = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
         pathogens_name = lambda wc: ctx.dir_for_acc(wc.acc),
         clade_list = config.get("CLADE_LIST", ""),
-        clade_idx  = config.get("CLADE_IDX", "")
+        clade_idx  = config.get("CLADE_IDX", ""),
+        custom_cfg = "config/config.yaml"
     conda:
         "../../env/wepp.yaml"
     resources:
@@ -153,6 +154,14 @@ rule run_wepp:
         mkdir -p {WEPP_CMD_LOG}
         [ -f {params.cmd_log} ] || touch {params.cmd_log}
 
+        extra_args=""
+        if [ -n "{params.clade_list}" ]; then
+            extra_args="$extra_args --clade_list='{params.clade_list}'"
+        fi
+        if [ -n "{params.clade_idx}" ]; then
+            extra_args="$extra_args --clade_idx='{params.clade_idx}'"
+        fi
+
         python ./scripts/run_inner.py \
             --dir        {params.tag_dir} \
             --prefix     {params.prefix} \
@@ -168,9 +177,9 @@ rule run_wepp:
             --cores      {threads} \
             --sequencing_type {params.seq_type} \
             --pathogens_name {params.pathogens_name} \
-            --clade_list {params.clade_list} \
-            --clade_idx {params.clade_idx} \
-            --cmd_log {params.cmd_log}
+            --cmd_log {params.cmd_log} \
+            --customconfig {params.custom_cfg} \
+            $extra_args
 
         touch {output.run_txt}
         """
@@ -204,9 +213,10 @@ rule run_wepp_dashboard:
         min_af       = config["MIN_AF"],
         min_q        = config["MIN_Q"],
         max_reads    = config["MAX_READS"],
-        clade_list   = config["CLADE_LIST"],
-        clade_idx    = config["CLADE_IDX"],
+        clade_list   = config.get("CLADE_LIST", ""),
+        clade_idx    = config.get("CLADE_IDX", ""),
         cfgfile      = WEPP_CONFIG,
+        custom_cfg   = "config/config.yaml",
         resultsdir   = WEPP_RESULTS_DIR,
         prefix       = lambda wc: wc.acc.split('.')[0],
         ref_name     = lambda wc: f"{wc.acc}.fa",
@@ -224,10 +234,15 @@ rule run_wepp_dashboard:
         serial = 1
     shell:
         r"""
+        extra_args=""
+        if [ -n "{params.clade_list}" ]; then
+            extra_args="$extra_args --clade_list='{params.clade_list}'"
+        fi
+        if [ -n "{params.clade_idx}" ]; then
+            extra_args="$extra_args --clade_idx='{params.clade_idx}'"
+        fi
         if [ -n "{params.taxonium_file}" ]; then
-            tax_arg="--taxonium_file {params.taxonium_file}"
-        else
-            tax_arg=""
+            extra_args="$extra_args --taxonium_file '{params.taxonium_file}'"
         fi
 
         python ./scripts/run_inner.py \
@@ -245,10 +260,9 @@ rule run_wepp_dashboard:
             --cores      {threads} \
             --sequencing_type {params.seq_type} \
             --pathogens_name {params.pathogens_name} \
-            --clade_list {params.clade_list} \
-            --clade_idx {params.clade_idx} \
-            --cmd_log {params.cmd_log}
-            $tax_arg
+            --cmd_log {params.cmd_log} \
+            --customconfig {params.custom_cfg} \
+            $extra_args
 
         touch {output.dash_txt}
         """
