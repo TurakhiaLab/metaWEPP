@@ -2,7 +2,6 @@
 
 configfile: "config/config.yaml"
 
-import subprocess
 import sys
 
 from workflow.context import build_context, ContextError
@@ -21,19 +20,6 @@ if "test" not in requested_rules:
         raise ValueError(
             "Missing required config entries: " + ", ".join(missing_keys)
         )
-
-    if not is_dry_run:
-        print("\nLaunching pathogen selection via add_ref_mat.py...", file=sys.stderr)
-        subprocess.run(
-            [
-                "python",
-                "scripts/add_ref_mat.py",
-                "--db",
-                str(config["KRAKEN_DB"]),
-            ],
-            check=True,
-        )
-
 
 # ---------------------------------------------------------------------------
 # Build shared workflow context and expose it to rule modules
@@ -99,6 +85,7 @@ if ctx.dashboard_enabled:
             str(ctx.kraken_out),
             str(ctx.kraken_report),
             str(ctx.visualization),
+            str(ctx.out_root / ".kraken_db_rebuilt"),
         ],
     )
 else:
@@ -112,6 +99,7 @@ else:
             str(ctx.kraken_report),
             str(ctx.visualization),
             dashboard_howto_path,
+            str(ctx.out_root / ".kraken_db_rebuilt"),
         ],
     )
 

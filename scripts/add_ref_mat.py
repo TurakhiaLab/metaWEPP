@@ -14,6 +14,7 @@ import time
 import argparse
 import requests
 import glob
+from pathlib import Path
 
 # Require viral_usher so we reuse its HTTP/helper behavior exactly.
 try:
@@ -298,6 +299,10 @@ def main():
         "--species-summary",
         help="Optional path to a Kraken species summary to display before prompts.",
     )
+    ap.add_argument(
+        "--rebuild-sentinel",
+        help="Optional path to a file to touch if new references were added to the Kraken DB (signals rebuild).",
+    )
     args = ap.parse_args()
 
     ensure_folder(ROOT_PATHOGENS_DIR)
@@ -328,6 +333,8 @@ def main():
             sys.exit(1)
         print("[INFO] No additional pathogens requested via add_ref_mat.py")
         return
+
+    rebuild_required = False
 
     while True:
         ncbi = vu_ncbi_helper.NcbiHelper()
@@ -360,9 +367,9 @@ def main():
                 add_file_to_kraken(args.db, fasta_path)
                 if refseq_seems_in_db(args.db, refseq_id):
                     print(f"[INFO] Added to Kraken2 DB: {refseq_id} (confirmed)")
-                    build_kraken_db(args.db, threads=8)
                 else:
                     print(f"[INFO] Added to Kraken2 DB: {refseq_id}")
+                rebuild_required = True
         else:
             print("[WARN] FASTA missing; cannot add to Kraken2 DB.")
 
@@ -415,6 +422,32 @@ def main():
                 continue
             print("[INFO] Finished adding pathogens via add_ref_mat.py")
             break
+
+    sentinel_path = args.rebuild_sentinel
+    if sentinel_path:
+        sp = Path(sentinel_path)
+        try:
+            sp.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        if rebuild_required:
+            try:
+                sp.touch()
+                print(f"[INFO] Marked rebuild required: {sp}")
+            except Exception as e:
+                print(f"[WARN] Could not write rebuild sentinel {sp}: {e}")
+        else:
+            try:
+                if sp.exists():
+                    sp.unlink()
+                    print(f"[INFO] Cleared rebuild sentinel: {sp}")
+            except Exception as e:
+                print(f"[WARN] Could not clear rebuild sentinel {sp}: {e}")
+
+    if rebuild_required:
+        print("[INFO] Newly added pathogens detected; Kraken2 DB rebuild will be handled by the workflow.")
+    else:
+        print("[INFO] No new pathogens added via add_ref_mat.py")
 
 if __name__ == "__main__":
     main()

@@ -63,6 +63,7 @@ class MetaWEPPContext:
         self.acc2dir_json_path = self.config_dir / "acc2dirname.json"
         self.acc2classifieddir_json_path = self.config_dir / "acc2classified_dir.json"
         self.acc2covered_json_path = self.config_dir / "acc2covered.json"
+        self.add_ref_initial_sentinel = self.out_root / ".add_ref_mat.initial"
         self.add_ref_sentinel = self.out_root / ".add_ref_mat.done"
         self.split_sentinel = self.out_root / ".split_done"
         self.kraken_out = self.out_root / "kraken_output.txt"

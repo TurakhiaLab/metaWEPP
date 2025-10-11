@@ -23,20 +23,17 @@ if IS_SINGLE_END:
             kraken_report = str(ctx.kraken_report),
             coverage = str(ctx.acc2covered_json_path)
         output:
-            new_r1 = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
+            new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
         params:
             data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
-            tree_dest = lambda wc: ctx.wepp_tree(wc.acc),
-            fasta_dest = lambda wc: ctx.wepp_ref(wc.acc),
-            jsonl_src = lambda wc: ctx.jsonl_for(wc.acc),
-            jsonl_dest = lambda wc: ctx.wepp_jsonl(wc.acc)
+            jsonl_src = lambda wc: ctx.jsonl_for(wc.acc)
         resources:
             serial = 1
         shell:
             r"""
             mkdir -p {params.data_dir}
-            cp {input.fasta} {params.fasta_dest}
-            cp {input.pb}    {params.tree_dest}
+            cp {input.fasta} {params.data_dir}/$(basename {input.fasta})
+            cp {input.pb}    {params.data_dir}/$(basename {input.pb})
 
             if [ -f "{input.r1}" ]; then
                 cp {input.r1} {output.new_r1}
@@ -45,7 +42,8 @@ if IS_SINGLE_END:
             fi
 
             if [ -n "{params.jsonl_src}" ]; then
-                cp "{params.jsonl_src}" "{params.jsonl_dest}"
+                jsonl_basename=$(basename "{params.jsonl_src}")
+                cp "{params.jsonl_src}" "{params.data_dir}/$jsonl_basename"
             fi
             """
 else:
@@ -61,21 +59,18 @@ else:
             kraken_report = str(ctx.kraken_report),
             coverage = str(ctx.acc2covered_json_path)
         output:
-            new_r1 = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
-            new_r2 = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
+            new_r1    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
+            new_r2    = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
         params:
             data_dir = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
-            tree_dest = lambda wc: ctx.wepp_tree(wc.acc),
-            fasta_dest = lambda wc: ctx.wepp_ref(wc.acc),
-            jsonl_src = lambda wc: ctx.jsonl_for(wc.acc),
-            jsonl_dest = lambda wc: ctx.wepp_jsonl(wc.acc)
+            jsonl_src = lambda wc: ctx.jsonl_for(wc.acc)
         resources:
             serial = 1
         shell:
             r"""
             mkdir -p {params.data_dir}
-            cp {input.fasta} {params.fasta_dest}
-            cp {input.pb}    {params.tree_dest}
+            cp {input.fasta} {params.data_dir}/$(basename {input.fasta})
+            cp {input.pb}    {params.data_dir}/$(basename {input.pb})
 
             if [ -f "{input.r1}" ]; then
                 cp {input.r1} {output.new_r1}
@@ -90,7 +85,8 @@ else:
             fi
 
             if [ -n "{params.jsonl_src}" ]; then
-                cp "{params.jsonl_src}" "{params.jsonl_dest}"
+                jsonl_basename=$(basename "{params.jsonl_src}")
+                cp "{params.jsonl_src}" "{params.data_dir}/$jsonl_basename"
             fi
             """
 
@@ -103,6 +99,9 @@ rule run_wepp:
             else f"{WEPP_DATA_DIR}/{wc.dir_tag}/{wc.acc}_R1.fastq.gz"
         ),
         r2 = lambda wc: "" if IS_SINGLE_END else f"{WEPP_DATA_DIR}/{wc.dir_tag}/{wc.acc}_R2.fastq.gz",
+        classified = str(ctx.acc2classifieddir_json_path),
+        coverage = str(ctx.acc2covered_json_path),
+        report = str(ctx.kraken_report),
     output:
         run_txt = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_run.txt"
     threads: workflow.cores
@@ -119,11 +118,11 @@ rule run_wepp:
         resultsdir = WEPP_RESULTS_DIR,
         prefix     = lambda wc: wc.acc.split('.')[0],
         ref_name   = lambda wc: f"{wc.acc}.fa",
-        tag_dir    = lambda wc: ctx.tag(wc.acc),
-        tree_name  = lambda wc: os.path.basename(ctx.wepp_tree(wc.acc)),
-        tree_full  = lambda wc: ctx.wepp_tree(wc.acc),
-        fasta_name = lambda wc: os.path.basename(ctx.wepp_ref(wc.acc)),
-        fasta_full = lambda wc: ctx.wepp_ref(wc.acc),
+        tag_dir    = lambda wc: wc.dir_tag,
+        tree_name  = lambda wc: os.path.basename(ctx.pb_for(wc.acc)),
+        tree_full  = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}/{os.path.basename(ctx.pb_for(wc.acc))}",
+        fasta_name = lambda wc: os.path.basename(ctx.fasta_for(wc.acc)),
+        fasta_full = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}/{os.path.basename(ctx.fasta_for(wc.acc))}",
         cmd_log    = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
         pathogens_name = lambda wc: ctx.dir_for_acc(wc.acc),
         clade_list = config.get("CLADE_LIST", ""),
@@ -156,10 +155,10 @@ rule run_wepp:
 
         extra_args=""
         if [ -n "{params.clade_list}" ]; then
-            extra_args="$extra_args --clade_list='{params.clade_list}'"
+            extra_args="$extra_args --clade_list={params.clade_list}"
         fi
         if [ -n "{params.clade_idx}" ]; then
-            extra_args="$extra_args --clade_idx='{params.clade_idx}'"
+            extra_args="$extra_args --clade_idx={params.clade_idx}"
         fi
 
         python ./scripts/run_inner.py \
@@ -220,14 +219,18 @@ rule run_wepp_dashboard:
         resultsdir   = WEPP_RESULTS_DIR,
         prefix       = lambda wc: wc.acc.split('.')[0],
         ref_name     = lambda wc: f"{wc.acc}.fa",
-        tag_dir      = lambda wc: ctx.tag(wc.acc),
-        tree_name    = lambda wc: os.path.basename(ctx.wepp_tree(wc.acc)),
-        tree_full    = lambda wc: ctx.wepp_tree(wc.acc),
-        fasta_name   = lambda wc: os.path.basename(ctx.wepp_ref(wc.acc)),
-        fasta_full   = lambda wc: ctx.wepp_ref(wc.acc),
+        tag_dir      = lambda wc: wc.dir_tag,
+        tree_name    = lambda wc: os.path.basename(ctx.pb_for(wc.acc)),
+        tree_full    = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}/{os.path.basename(ctx.pb_for(wc.acc))}",
+        fasta_name   = lambda wc: os.path.basename(ctx.fasta_for(wc.acc)),
+        fasta_full   = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}/{os.path.basename(ctx.fasta_for(wc.acc))}",
         cmd_log      = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
         pathogens_name = lambda wc: ctx.dir_for_acc(wc.acc),
-        taxonium_file  = lambda wc: ctx.wepp_jsonl(wc.acc)
+        taxonium_file  = lambda wc: (
+            ""
+            if not ctx.jsonl_for(wc.acc)
+            else f"{WEPP_DATA_DIR}/{wc.dir_tag}/{os.path.basename(ctx.jsonl_for(wc.acc))}"
+        )
     conda:
         "../../env/wepp.yaml"
     resources:
@@ -236,13 +239,13 @@ rule run_wepp_dashboard:
         r"""
         extra_args=""
         if [ -n "{params.clade_list}" ]; then
-            extra_args="$extra_args --clade_list='{params.clade_list}'"
+            extra_args="$extra_args --clade_list={params.clade_list}"
         fi
         if [ -n "{params.clade_idx}" ]; then
-            extra_args="$extra_args --clade_idx='{params.clade_idx}'"
+            extra_args="$extra_args --clade_idx={params.clade_idx}"
         fi
         if [ -n "{params.taxonium_file}" ]; then
-            extra_args="$extra_args --taxonium_file '{params.taxonium_file}'"
+            extra_args="$extra_args --taxonium_file={params.taxonium_file}"
         fi
 
         python ./scripts/run_inner.py \

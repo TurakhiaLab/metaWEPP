@@ -18,12 +18,30 @@ EXCLUDE_TAXIDS_STR = ctx.exclude_taxids_str
 PATHOGEN_ROOT = str(ctx.pathogen_root)
 MIN_DEPTH = ctx.min_depth
 SPECIES_REPORT = f"{OUT_ROOT}/species_over_1pct.txt"
+REBUILD_SENTINEL = f"{OUT_ROOT}/.kraken_db_rebuilt"
+REBUILD_REQUIRED = f"{OUT_ROOT}/.kraken_db_rebuild_required"
+ADD_REF_INITIAL_SENTINEL = str(ctx.add_ref_initial_sentinel)
+
+rule add_ref_mat_initial:
+    output:
+        done = temp(ADD_REF_INITIAL_SENTINEL)
+    params:
+        script = "scripts/add_ref_mat.py",
+        db = KRAKEN_DB
+    resources:
+        serial = 1
+    shell:
+        r"""
+        python {params.script} --db {params.db} --rebuild-sentinel {REBUILD_REQUIRED}
+        touch {output.done}
+        """
 
 # 6) Kraken2 classification
 rule kraken:
     input:
         r1 = FQ1,
         r2 = FQ2,
+        prep = ADD_REF_INITIAL_SENTINEL,
     output:
         report     = f"{OUT_ROOT}/kraken_report.txt",
         kraken_out = f"{OUT_ROOT}/kraken_output.txt",
@@ -103,7 +121,7 @@ rule add_ref_mat:
         serial = 1
     shell:
         r"""
-        python {params.script} --db {params.db} --species-summary {input.species}
+        python {params.script} --db {params.db} --species-summary {input.species} --rebuild-sentinel {REBUILD_REQUIRED}
         touch {output.done}
         """
 
@@ -115,6 +133,7 @@ SPLIT_INPUTS = {
     "kraken_report": KRAKEN_REPORT,
     "classified":    ACC2CLASSIFIEDDIR_JSON,
     "ref_mat_ready": ADD_REF_SENTINEL,
+    "db_rebuilt":    REBUILD_SENTINEL,
 }
 if not IS_SINGLE_END:
     SPLIT_INPUTS["r2"] = str(ctx.fq2)
@@ -140,6 +159,26 @@ SPLIT_SHELL_BASE = (
     "--pigz-threads {threads}"
     "{params.ref_arg}"
 )
+
+
+rule rebuild_kraken_db:
+    input:
+        ref_mat_ready = ADD_REF_SENTINEL
+    output:
+        stamp = REBUILD_SENTINEL
+    params:
+        db = KRAKEN_DB,
+        flag = REBUILD_REQUIRED
+    threads: workflow.cores
+    resources:
+        serial = 1
+    shell:
+        r"""
+        if [ -f {params.flag} ]; then
+            cd {params.db} && k2 build --db . --threads {threads} && rm -f {params.flag}
+        fi
+        touch {output.stamp}
+        """
 
 if ctx.classified_json_empty():
     rule split_per_accession:
