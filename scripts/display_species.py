@@ -20,8 +20,15 @@ def parse_report(report_path: Path, threshold: float) -> List[Tuple[float, str, 
                 percent = float(fields[0])
             except ValueError:
                 continue
+            try:
+                direct = int(fields[2])
+            except ValueError:
+                direct = 0
             rank = fields[3].strip()
-            if rank.upper() != "S":
+            code = rank.upper()
+            if not code.startswith("S"):
+                continue
+            if code == "S" and direct <= 0:
                 continue
             if percent < threshold:
                 continue
