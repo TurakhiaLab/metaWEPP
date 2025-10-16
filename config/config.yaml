@@ -15,12 +15,6 @@ MIN_Q: "20"
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"
 
-# Simulation Settings:
-#    * Set to "MESS" to simulate
-#    * Set to "none" or blank to skip simulation. 
-# But, you must provide your own real reads in fq1 and fq2.
-SIMULATION_TOOL: "" 
-
 # MESS's genomic coverage 
 COVERAGE: 20
 
