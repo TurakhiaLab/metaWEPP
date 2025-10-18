@@ -194,11 +194,20 @@ def get_refseq(ncbi, species_term, tax_entries, taxid, refseq_entries):
     else:
         refseq_id = refseq_entries[choice-1]["accession"]
         print(f"Looking up NCBI Assembly accession for selected RefSeq '{refseq_id}'...")
-        assembly_id = ncbi.get_assembly_acc_for_refseq_acc(refseq_id)
+        assembly_id = None
+        try:
+            assembly_id = ncbi.get_assembly_acc_for_refseq_acc(refseq_id)
+        except Exception as assembly_err:
+            logging.warning(
+                "Assembly lookup failed for RefSeq %s (%s); continuing with RefSeq only.",
+                refseq_id,
+                assembly_err,
+            )
         if not assembly_id:
-            print(f"Could not find assembly ID for RefSeq ID {refseq_id} -- can't download RefSeq.")
-            print("Try choosing a different RefSeq.")
-            return get_refseq(ncbi, species_term, tax_entries, taxid, refseq_entries)
+            logging.warning(
+                "Assembly ID unavailable for RefSeq %s; continuing with RefSeq only.",
+                refseq_id,
+            )
         return species_term, taxid, refseq_id, assembly_id
 
 # --- local workflow ---
@@ -236,6 +245,13 @@ def maybe_copy_existing_mat(species_dir: str) -> str:
         if os.path.abspath(mat_path) == os.path.abspath(dest):
             print("[INFO] MAT already present in species directory; using existing file.")
             return dest
+        try:
+            shutil.copy2(mat_path, dest)
+            print(f"[OK] Copied MAT -> {dest}")
+            return dest
+        except Exception as copy_err:
+            print(f"[ERROR] Failed to copy MAT to {dest}: {copy_err}")
+            continue
 
 def mat_present(directory: str) -> bool:
     """Check whether the directory contains a MAT (.pb or .pb.gz)."""

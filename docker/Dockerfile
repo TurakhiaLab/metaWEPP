@@ -47,6 +47,9 @@ RUN npm install -g yarn
 # Install Snakemake, taxoniumtools, and matplotlib using pip
 RUN pip install snakemake taxoniumtools matplotlib
 
+# Install viral-usher
+RUN pip install --no-cache-dir viral-usher
+
 # Create workspace directory
 RUN mkdir -p /workspace
 
