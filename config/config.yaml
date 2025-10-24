@@ -28,14 +28,14 @@ DASHBOARD_ENABLED: False
 PATHOGENS_FOR_DASHBOARD: ""
 
 # Arguments for WEPP
-MIN_PROP: "0.5"
+MIN_PROP: "0.05"
 
 MIN_LEN: "80"
 
 # Arguments for WEPP that can be customized by pathogens
-PATHOGENS: "default,sars"
+PATHOGENS: "default,sars_cov_2"
 
-CLADE_LIST: "pango,nextstrain,pango"
+CLADE_LIST: "pango,nextstrain:pango"
 
 CLADE_IDX: "0,1"
 
