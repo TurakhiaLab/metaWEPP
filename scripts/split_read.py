@@ -164,7 +164,7 @@ def load_taxon_names(kraken_report_path):
     return taxid2name
 
 def parse_report_tree(report_path):
-    parent, children, stack = {}, {}, []
+    parent, children, stack, rank_by_taxid = {}, {}, [], {}
     with open(report_path, "r") as f:
         for line in f:
             if not line.strip():
@@ -172,9 +172,11 @@ def parse_report_tree(report_path):
             parts = line.rstrip("\n").split("\t")
             if len(parts) < 6:
                 continue
+            rcode = parts[3].strip() 
             taxid = parts[4].strip()
             name_field = parts[5]
             indent = len(name_field) - len(name_field.lstrip())
+            rank_by_taxid[taxid] = rcode
             while stack and stack[-1][1] >= indent:
                 stack.pop()
             if stack:
@@ -184,7 +186,8 @@ def parse_report_tree(report_path):
             else:
                 parent[taxid] = None
             stack.append((taxid, indent))
-    return parent, children
+    return parent, children, rank_by_taxid
+
 
 def descendants_of(taxid, children):
     out, todo = set(), list(children.get(taxid, []))
@@ -196,18 +199,18 @@ def descendants_of(taxid, children):
         todo.extend(children.get(cur, []))
     return out
 
-def build_recipients(acc2dir, acc2taxid, parent, children):
-    # taxid -> set(panel accessions that should receive reads for this taxid)
+def build_recipients(acc2dir, acc2taxid, parent, children, rank_by_taxid):
     rec = {}
     for acc in acc2dir.keys():
         t = acc2taxid.get(acc)
         if not t:
             continue
         capture = {t}
-        capture |= descendants_of(t, children)      # include S3, S4, ...
-        p = parent.get(t)
-        if p:
-            capture.add(p)                          # include immediate parent (S1 <-> S2)
+        capture |= descendants_of(t, children)
+        for a in ancestors_of(t, parent):
+            capture.add(a)
+            if rank_by_taxid.get(a) == "G":
+                break
         for tv in capture:
             rec.setdefault(tv, set()).add(acc)
     return rec
@@ -271,6 +274,14 @@ def split_fastq(fq, mate, read2taxid, refs, acc2dir, acc2taxid, taxid2name,
     if batch_dir is not None:
         batch_compress(writers, pigz_threads)
 
+def ancestors_of(taxid, parent):
+    out = []
+    cur = parent.get(taxid)
+    while cur:
+        out.append(cur)
+        cur = parent.get(cur)
+    return out
+
 
 # ─────────────────────────── CLI ────────────────────────────
 def parse_args():
@@ -300,8 +311,8 @@ def main():
     acc2dir = json.load(open(a.acc2dir))
 
     # Build taxonomy tree and recipient routing for panel accessions
-    parent, children = parse_report_tree(a.kraken_report)
-    recipients_by_taxid = build_recipients(acc2dir, acc2taxid, parent, children)
+    parent, children, rank_by_taxid = parse_report_tree(a.kraken_report)
+    recipients_by_taxid = build_recipients(acc2dir, acc2taxid, parent, children, rank_by_taxid)
 
     # Per-read classified taxid from Kraken output
     read2taxid = load_classified_taxids(a.kraken_out)
