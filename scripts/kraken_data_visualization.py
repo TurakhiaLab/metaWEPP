@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import textwrap
 import os
 import math
+import subprocess
 
 # Usage:
 # python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> 
@@ -184,3 +185,9 @@ fig.suptitle('Pathogen Proportions', fontsize=20, fontweight='bold', ha='center'
 
 os.makedirs(os.path.dirname(fig_path), exist_ok=True)
 plt.savefig(fig_path, dpi=300, bbox_inches='tight')
+
+# Call add_ref_mat.py to update the database
+subprocess.run(
+            ["python", "scripts/add_ref_mat.py"],
+            check=True
+        )
