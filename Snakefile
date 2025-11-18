@@ -24,7 +24,7 @@ if "DIR" not in config:
 
 rule all:
     input:
-        f"results/{DIR}/kraken_report.txt",
+        f"results/{DIR}/classification_proportions.png",
         f"results/{DIR}/kraken_output.txt"
 
 KRAKEN_DB = config.get("KRAKEN_DB")
@@ -123,7 +123,7 @@ haplotype_pathogens = []
 
 rule add_pathogen:
     output:
-        "results/{DIR}/.add_pathogen.done"
+        f"results/{DIR}/.add_pathogen.done"
     params:
         db=KRAKEN_DB
     threads: workflow.cores
@@ -154,401 +154,14 @@ rule add_pathogen:
         Path(output[0]).parent.mkdir(parents=True, exist_ok=True)
         Path(output[0]).touch()
 
-## Build accession -> taxid from Kraken seqid2taxid.map
-#ACC2TAXID = {}
-#with open(NCBI_TAXID_MAP) as f:
-#    for line in f:
-#        if not line.strip():
-#            continue
-#        parts = line.strip().split()
-#        if len(parts) < 2:
-#            continue
-#        full_id, taxid = parts[0], parts[1]
-#        accession = full_id.split("|")[-1]  # handles formats like gi|...|ref|NC_XXXX| or plain
-#        ACC2TAXID[accession] = taxid
-
-## build: accession list, accession -> fasta, accession -> pb
-#ACC2FASTA, ACC2PB, ACC2JSONL, ACC2DIR = {}, {}, {}, {}
-#HEADERS = []            # list of full headers (without '>')
-#HEADER2TAXID = {}       # header string -> taxid
-#
-#for fa in FASTAS: 
-#    with open(fa) as fh:
-#        header_line = fh.readline().strip()
-#
-#    header = header_line[1:] if header_line.startswith(">") else header_line
-#    acc = header.split()[0]
-#    dir_name = fa.parent.name
-#
-#    ACC2FASTA[acc] = str(fa.resolve())  
-#    HEADERS.append(header)
-#
-#    taxid = ACC2TAXID.get(acc)
-#    if taxid is not None:
-#        HEADER2TAXID[header] = taxid
-#    else:
-#        print(f"WARNING: no taxid for accession {acc} (header '{header}') in {NCBI_TAXID_MAP}", file=sys.stderr)
-#
-#    pb_file = next(itertools.chain(
-#        fa.parent.glob("*.pb.gz"),
-#        fa.parent.glob("*.pb")
-#    ), None)
-#    if pb_file is None:
-#        raise ValueError(f"No *.pb.gz / *.pb next to {fa}")
-#    ACC2PB[acc] = str(pb_file.resolve())
-#
-#    jsonl_file = next(itertools.chain(
-#        fa.parent.glob("*.jsonl.gz"),
-#        fa.parent.glob("*.jsonl")
-#    ), None)
-#    if jsonl_file:
-#        ACC2JSONL[acc] = str(jsonl_file.resolve())
-#
-#EXCLUDE_TAXIDS_STR = ",".join(
-#    sorted({str(int(t)) for t in HEADER2TAXID.values() if str(t).strip().isdigit()}, key=int)
-#)
-#EXCLUDE_TAXIDS_STR = re.sub(r"[^0-9,]", "", EXCLUDE_TAXIDS_STR)
-
-## Generate acc2dirname.json
-#for fasta in FASTAS:
-#    dir_name = fasta.parent.name
-#    with open(fasta) as f:
-#        header = f.readline().strip()
-#        if not header.startswith(">"):
-#            raise ValueError(f"{fasta} does not start with a FASTA header")
-#        acc = header[1:].split()[0]
-#        ACC2DIR[acc] = dir_name
-#
-## write JSON for use in split_read.py
-#Path("config").mkdir(exist_ok=True)
-#ACC2DIR_JSON = "config/acc2dirname.json"
-#with open(ACC2DIR_JSON, "w") as f:
-#    json.dump(ACC2DIR, f, indent=2)
-#
-## Extract accession IDs from .fa files' headers
-#REF_ACCESSIONS = []
-#for fasta in FASTAS:
-#    with open(fasta) as f:
-#        header = f.readline().strip()
-#        if not header.startswith(">"):
-#            raise ValueError(f"{fasta} does not start with a FASTA header")
-#        acc = header[1:].split()[0]
-#        REF_ACCESSIONS.append(acc)
-#
-#print("Headers of reference fa file:", ", ".join(REF_ACCESSIONS))
-#print("Found accession → folder mappings:")
-#for acc, dirname in ACC2DIR.items():
-#    print(f"  {acc} -> {dirname}")
-#print(f"IS_SINGLE_END = {IS_SINGLE_END}", file=sys.stderr)
-#
-## ACC2CLASSIFIEDDIR
-#ACC2CLASSIFIEDDIR_JSON = "config/acc2classified_dir.json"
-#
-#
-## dump mapping so split_read.py can use it
-#Path("config").mkdir(exist_ok=True)
-#ACC2DIR_JSON = "config/acc2dirname.json"
-#with open(ACC2DIR_JSON, "w") as fh:
-#    json.dump(ACC2DIR, fh, indent=2)
-#
-## ────────────────────────────────────────────────────────────────
-## Helper function for splitting reads
-#def detect_out_root(fq1):
-#    sample = os.path.basename(os.path.dirname(fq1)) # e.g. data/sample_1/…
-#    return f"results/{sample}"
-#
-#OUT_ROOT = detect_out_root(FQ1)
-#
-#
-## ────────────────────────────────────────────────────────────────
-## Helper function to find .pb.gz to each reference pathogen
-#ACC2PB = {}
-#for acc, fasta_path in ACC2FASTA.items():
-#    pdir = Path(fasta_path).parent
-#    # allow either *.pb.gz or *.pb – first match wins
-#    pb_candidates = list(itertools.chain(
-#        pdir.glob("*.pb.gz"),
-#        pdir.glob("*.pb")         
-#    ))
-#    if not pb_candidates:
-#        raise ValueError(f"No PB/MAT file found next to {fasta_path}")
-#    ACC2PB[acc] = str(pb_candidates[0])
-#
-## ────────────────────────────────────────────────────────────────
-## Helper function for prepare wepp
-#def optional_file(path):
-#    """
-#    Return the path as a string if it exists,
-#    otherwise return an empty list 
-#    """
-#    return path if os.path.exists(path) else []
-#
-#SAMPLE_TAG   = config["DIR"]        
-#def tag(acc):  
-#    return f"{ACC2DIR[acc]}_{SAMPLE_TAG}"
-#def dir(acc):  
-#    return f"{ACC2DIR[acc]}"
-#
-#
-# ────────────────────────────────────────────────────────────────
-## Helper function to get the path of tree file and genome file in WEPP/data
-#def WEPP_TREE(acc):
-#    """
-#    Return full path to the tree file for a given accession.
-#    Uses the output name in the form of WEPP/data/<dir_tag>/<tree_filename>.pb.gz
-#    """
-#    dir_tag = tag(acc)
-#    tree_filename = os.path.basename(ACC2PB[acc])  
-#    return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
-#
-#
-#def WEPP_REF(acc):
-#    """
-#    Return full path to the genome file for a given accession.
-#    Uses the output name in the form of WEPP/data/<dir_tag>/<filename>.fa
-#    """
-#    dir_tag = tag(acc)
-#    tree_filename = os.path.basename(ACC2FASTA[acc])
-#
-#    return f"{WEPP_DATA_DIR}/{dir_tag}/{tree_filename}"
-#
-#def WEPP_JSONL(acc):
-#    src = ACC2JSONL.get(acc)
-#    if not src:
-#        return ""  # no JSONL 
-#    dir_tag = tag(acc)
-#    return f"{WEPP_DATA_DIR}/{dir_tag}/{os.path.basename(src)}"
-#
-#
-#ACC2COVERED_JSON = "config/acc2covered.json"
-#def split_fastqs_for_coverage(wc):
-#    ckpt = checkpoints.build_acc2classified_dir.get(**wc)
-#    classified_json = ckpt.output[0]
-#    with open(classified_json) as fh:
-#        acc2dir = json.load(fh)
-#    r1s = []
-#    for acc, out_dir in acc2dir.items():
-#        acc_stem = acc.split(".", 1)[0]
-#        r1s.append(f"{OUT_ROOT}/{out_dir}/{acc_stem}_R1.fq.gz")
-#    return r1s
-#
-## ────────────────────────────────────────────────────────────────
-#ACC2CLASSIFIEDDIR = {}
-#
-## take a txt file with the length of the first read in all the "{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
-## (if single end, just get the fq file), and the number of how many read 
-##  calculate the depth number = the length of the first read*number of how many read/the length of a fa genome file in the same folder
-#def final_targets(_wc):
-#    # Wait for both JSONs
-#    cls_ckpt = checkpoints.build_acc2classified_dir.get()
-#    cov_ckpt = checkpoints.coverage_calculate.get()
-#    classified_json = cls_ckpt.output[0]
-#    covered_json = cov_ckpt.output[0]
-#
-#    # Load maps (with safe fallbacks)
-#    try:
-#        with open(classified_json) as f:
-#            ACC2CLASSIFIEDDIR = json.load(f)   # {acc: out_dir}
-#    except FileNotFoundError:
-#        ACC2CLASSIFIEDDIR = {}
-#
-#    try:
-#        with open(covered_json) as f:
-#            ACC2COVERED = json.load(f)        # {acc: out_dir} (depth >= MIN_DEPTH)
-#    except FileNotFoundError:
-#        ACC2COVERED = {}
-#
-#    files = []
-#    for acc in REF_ACCESSIONS:
-#        out_dir_cov = ACC2COVERED.get(acc)
-#        out_dir_cls = ACC2CLASSIFIEDDIR.get(acc)
-#        # Append only if accession is present in BOTH and out_dir matches
-#        if out_dir_cov and out_dir_cls and out_dir_cov == out_dir_cls:
-#            dir_tag = f"{out_dir_cov}_{TAG}"
-#            files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
-#
-#    # Always include raw inputs
-#    files.append(FQ1)
-#    if not IS_SINGLE_END:
-#        files.append(FQ2)
-#    return files
-#
-#def final_targets_enabled_dashboard(_wc):
-#    ckpt = checkpoints.build_acc2classified_dir.get()  # wait for split
-#    files = []
-#    wanted = []
-#
-#    if Path(ACC2CLASSIFIEDDIR_JSON).exists():
-#        with open(ACC2CLASSIFIEDDIR_JSON) as f:
-#            ACC2CLASSIFIEDDIR = json.load(f)
-#    else:
-#        ACC2CLASSIFIEDDIR = {}  # fallback (empty) so the Snakefile still parses
-#
-#    # Make sure PATHOGENS_FOR_DASHBOARD is defined
-#    dashboard_set = set(PATHOGENS_FOR_DASHBOARD)  # assumes PATHOGENS_FOR_DASHBOARD is a list
-#
-#    for acc in REF_ACCESSIONS:
-#        dir_ = ACC2CLASSIFIEDDIR.get(acc)
-#        dashboard_ = ACC2CLASSIFIEDDIR.get(acc)
-#        if dir_:
-#            dir_tag = f"{dir_}_{TAG}"
-#            #files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
-#            if dashboard_:
-#                wanted.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_dashboard_run.txt") 
-#
-#    files.append(FQ1)
-#    if not IS_SINGLE_END:
-#        files.append(FQ2)
-#
-#    return files + wanted
-#
-#
-#
-#def final_results_files(wc):
-#    # ── wait until the checkpoint that builds acc2classified_dir.json is done ──
-#    ckpt = checkpoints.build_acc2classified_dir.get(**wc)   # ← blocks until file exists
-#    classified_json = ckpt.output[0]                        # same as ckpt.output.classified
-#    with open(classified_json) as fh:
-#        acc2dir = json.load(fh)                             # {acc : "NC_045512" …}
-#
-#    wanted = []
-#
-#    # one job per accession → per-accession FASTQs produced by split_per_accession
-#    for acc in REF_ACCESSIONS:
-#        out_dir = acc2dir.get(acc)          # directory name chosen by split_read.py
-#        if not out_dir:                     # accession not present → skip
-#            continue
-#
-#        # R1 (and, if paired-end, R2) produced by split_per_accession
-#        wanted.append(f"{OUT_ROOT}/{out_dir}/{acc.split('.')[0]}_R1.fq.gz")
-#        if not IS_SINGLE_END:
-#            wanted.append(f"{OUT_ROOT}/{out_dir}/{acc.split('.')[0]}_R2.fq.gz")
-#    return wanted
-#
-#def run_txts_for_all(_wc):
-#    ckpt = checkpoints.build_acc2classified_dir.get()
-#    if Path(ACC2COVERED_JSON).exists():
-#        with open(ACC2COVERED_JSON) as f:
-#            acc2dir = json.load(f)
-#    else:
-#        acc2dir = {}
-#    files = []
-#    for acc in REF_ACCESSIONS:
-#        d = acc2dir.get(acc)
-#        if d:
-#            dir_tag = f"{d}_{TAG}"
-#            files.append(f"{WEPP_RESULTS_DIR}/{dir_tag}/{acc}_run.txt")
-#    return files
-#
-#def dashboard_howto_path(_wc):
-#    return f"{WEPP_CMD_LOG}/{TAG}_dashboard_howto.txt"
-#
-## ────────────────────────────────────────────────────────────────
-## Helper function for run wepp
-#def has_reads(fq):
-#    """
-#    Return shell code that exits 0 (true) when the FASTQ has ≥ 1 read.
-#    Works for .gz and plain fastq. 4 lines = 1 read.
-#    """
-#    return f'( (gzip -cd {fq} 2>/dev/null || cat {fq}) | head -4 | wc -l ) -ge 4'
-#
-#def _classified_empty(p):
-#    """Return True only if file exists and its JSON is exactly {} (or file missing)."""
-#    try:
-#        with open(p) as fh:
-#            # Fast path: avoid loading huge JSON accidentally
-#            txt = fh.read().strip()
-#            return txt == "{}"
-#    except FileNotFoundError:
-#        return True
-#
-#
-#CLASSIFIED_EMPTY = _classified_empty(ACC2CLASSIFIEDDIR_JSON)
-#
-## Determine input list for rule all
-#if CLASSIFIED_EMPTY:
-#    all_inputs = [
-#        ACC2CLASSIFIEDDIR_JSON,
-#        f"{OUT_ROOT}/kraken_output.txt",
-#        f"{OUT_ROOT}/kraken_report.txt",
-#        f"{OUT_ROOT}/.split_done",
-#        f"{OUT_ROOT}/classification_proportions.png"
-#    ]
-#elif DASHBOARD_ENABLED:
-#    all_inputs = (
-#        final_targets_enabled_dashboard,
-#        final_results_files,
-#        [
-#            ACC2CLASSIFIEDDIR_JSON,
-#            ACC2COVERED_JSON,
-#            f"{OUT_ROOT}/kraken_output.txt",
-#            f"{OUT_ROOT}/kraken_report.txt",
-#            f"{OUT_ROOT}/classification_proportions.png"
-#        ]
-#    )
-#else:
-#    all_inputs = (
-#        final_targets,
-#        final_results_files,
-#        [
-#            ACC2CLASSIFIEDDIR_JSON,
-#            ACC2COVERED_JSON,
-#            f"{OUT_ROOT}/kraken_output.txt",
-#            f"{OUT_ROOT}/kraken_report.txt",
-#            f"{OUT_ROOT}/classification_proportions.png",
-#            dashboard_howto_path
-#        ]
-#    )
-#
-## Single rule all
-#rule all:
-#    input:
-#        all_inputs
-#
-#
-## ─── helper function for names ──────────────────────────────────────────
-#FQ1_GZ = FQ1 if str(FQ1).endswith(".gz") else str(FQ1) + ".gz"
-#FQ2_GZ = (
-#    "" if IS_SINGLE_END
-#    else (FQ2 if str(FQ2).endswith(".gz") else str(FQ2) + ".gz")
-#)
-#
-## Make sure everything is compressed (Compresses fq files, turns them into fastq.gz files, 
-### removes fq files because WEPP expects a specific length of fq files)
-#if IS_SINGLE_END:
-#    rule compress_fastqs_for_wepp_se:
-#        input:
-#            r1 = FQ1
-#        output:
-#            r1_gz = FQ1_GZ
-#        shell:
-#            """
-#            mkdir -p $(dirname {output.r1_gz})
-#            if [ ! -f {output.r1_gz} ]; then gzip -c {input.r1} > {output.r1_gz}; fi
-#            """
-#else:
-#    rule compress_fastqs_for_wepp_pe:
-#        input:
-#            r1 = FQ1,
-#            r2 = FQ2
-#        output:
-#            r1_gz = FQ1_GZ,
-#            r2_gz = FQ2_GZ
-#        shell:
-#            """
-#            mkdir -p $(dirname {output.r1_gz})
-#            if [ ! -f {output.r1_gz} ]; then gzip -c {input.r1} > {output.r1_gz}; fi
-#            if [ ! -f {output.r2_gz} ]; then gzip -c {input.r2} > {output.r2_gz}; fi
-#            """
-#
 rule kraken:
     input:
         r1 = FQ1,
         r2 = lambda wc: [] if IS_SINGLE_END else [FQ2],
         add_pathogen_done = rules.add_pathogen.output,
     output:
-        report     = "results/{DIR}/kraken_report.txt",
-        kraken_out = "results/{DIR}/kraken_output.txt",
+        kraken_report = f"results/{DIR}/kraken_report.txt",
+        kraken_out    = f"results/{DIR}/kraken_output.txt",
     threads: workflow.cores
     params:
         db        = KRAKEN_DB,
@@ -557,23 +170,42 @@ rule kraken:
         r"""
         kraken2 --db {params.db} --threads {threads} {params.mode_flag} \
                 {input.r1} {input.r2} \
-                --report {output.report} \
+                --report {output.kraken_report} \
                 --output {output.kraken_out}
         """
 
-## 6.5) Kraken Visualization
-#rule kraken_visualization:
+rule kraken_visualization:
+    input:
+        kraken_report = rules.kraken.output.kraken_report,
+    output:
+        png = f"results/{DIR}/classification_proportions.png"
+    shell:
+        r"""
+        python scripts/kraken_data_visualization.py \
+            {input.kraken_report} {output.png} 
+        """
+#
+#rule split_reads:
 #    input:
-#        report = f"{OUT_ROOT}/kraken_report.txt"
+#        kraken_out = rules.kraken.output.kraken_out,
+#        kraken_report = rules.kraken.output.kraken_report,
+#        png = rules.kraken_visualization.output.png,
+#        r1 = FQ1,
+#        r2 = lambda wc: [] if IS_SINGLE_END else [FQ2],
 #    output:
-#        png = f"{OUT_ROOT}/classification_proportions.png"
+#        "results/{DIR}/.split_reads.done"
 #    params:
-#        exclude = EXCLUDE_TAXIDS_STR
-#    shell:
-#        r"""
-#        python scripts/kraken_data_visualization.py \
-#            {input.report} {output.png} "{params.exclude}"
-#        """
+#        script = "scripts/split_reads.py",
+#    threads: workflow.cores
+#    run:
+#        subprocess.run(
+#            ["python", params.script, "-k", input.kraken_out, "-r", input.kraken_out, "--r1", input.r1, "--r2", input.r2, "-o results/{DIR}", "-t", threads],
+#            check=True
+#        )
+#        Path(output[0]).touch()
+
+
+## 6.5) Kraken Visualization
 #
 #checkpoint build_acc2classified_dir:
 #    input:
