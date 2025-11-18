@@ -332,7 +332,7 @@ kraken2-build --download-taxonomy --db $DBNAME
 
 **Step 2:** Add sequences to the database's genome library.
 ```
-kraken2-build --add-to-library <reference_genomes.fa> --db $DBNAME
+k2 add-to-library --db $DBNAME --file <reference_genomes.fa> 
 ```
 
 **Step 3:** Build the database. 

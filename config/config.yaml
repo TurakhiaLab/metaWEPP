@@ -1,36 +1,26 @@
-# Sequencing read type match to WEPP
-# (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
-SEQUENCING_TYPE: d
+# Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
+SEQUENCING_TYPE: "d"
 
-# Bed file should be present in 'WEPP/primers'
+# Bed file should be present in 'primers'
 PRIMER_BED: "none.bed"
 
-# Allele frequency threshold based masking to accomodate sequencing errors: 
-# Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
+# Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 MIN_AF: "0.005"
 
 # Mask any allele with base quality score below this threshold
 MIN_Q: "20"
 
+# Min proportion for haplotype detection: Wastewater: 0.5%, Clinical Data: 5%
+MIN_PROP: "0.005"
+
+# Min read Length after ivar trimming: DEFAULT: 80
+MIN_LEN: "80"
+
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"
 
-# Simulation Settings:
-#    * Set to "MESS" to simulate
-#    * Set to "none" or blank to skip simulation. 
-# But, you must provide your own real reads in fq1 and fq2.
-SIMULATION_TOOL: "" 
-
-# MESS's genomic coverage 
-COVERAGE: 20
-
-DASHBOARD_ENABLED: False
-PATHOGENS_FOR_DASHBOARD: ""
-
-# Arguments for WEPP
-MIN_PROP: "0.05"
-
-MIN_LEN: "80"
+# True to view WEPP results on dashboard, otherwise False. 
+DASHBOARD_ENABLED: False 
 
 # Arguments for WEPP that can be customized by pathogens
 PATHOGENS: "default,sars_cov_2"

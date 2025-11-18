@@ -84,12 +84,30 @@ def save_fasta(path, accession, fasta_text):
     return file_path
 
 def add_file_to_kraken(db_dir, fasta_path):
-    cmd = ["kraken2", "add-to-library", "--db", db_dir, "--file", fasta_path]
+    cmd = ["k2", "add-to-library", "--file", fasta_path, "--db", db_dir]
     print("[CMD]", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
 def build_kraken_db(db_dir, threads=8):
-    cmd = ["kraken2", "build", "--db", db_dir, f"--threads={threads}"]
+    # Files to remove to force a full DB rebuild
+    files_to_remove = [
+        "hash.k2d",
+        "opts.k2d",
+        "taxo.k2d",
+        "seqid2taxid.map"
+    ]
+
+    for f in files_to_remove:
+        path = os.path.join(db_dir, f)
+        if os.path.isfile(path):
+            try:
+                os.remove(path)
+                print(f"[INFO] Removed stale DB file '{path}' to force rebuild.")
+            except OSError as e:
+                print(f"[ERROR] Could not remove '{path}': {e}")
+                # sys.exit(1) # Optionally exit if a file can't be removed
+
+    cmd = ["kraken2-build", "--build", "--fast-build", "--db", db_dir, f"--threads={threads}"]
     print("[CMD]", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
@@ -101,7 +119,7 @@ def copy_viz_and_jsonl(workdir, pathogen_dir):
     if os.path.isfile(viz_src):
         dst = os.path.join(pathogen_dir, "viz.pb.gz")
         shutil.copy2(viz_src, dst)
-        print(f"[INFO] viz.pb.gz copied → {dst}")
+        print(f"\n[INFO] MAT available → {dst}\n")
     else:
         print("\n[WARN] viz.pb.gz not found in workdir\n")
 
@@ -111,44 +129,42 @@ def copy_viz_and_jsonl(workdir, pathogen_dir):
         for src in jsonls:
             dst = os.path.join(pathogen_dir, os.path.basename(src))
             shutil.copy2(src, dst)
-        print(f"[INFO] Copied {len(jsonls)} JSONL files → {pathogen_dir}")
+            print(f"[INFO] JSONL available → {dst}\n")
     else:
         print("\n[WARN] No JSONL files found in workdir\n")
 
 
 def refseq_seems_in_db(db_dir, refseq_id):
     """
-    Checks if a RefSeq ID appears to be in the Kraken2 database.
-    It does this by fetching the taxonomy ID for the RefSeq accession,
-    and then checking if that taxid is mapped to any sequence in the Kraken2 DB's
-    seqid2taxid.map file. This indicates that the taxon is present in the database.
-    As a fallback, it also checks for the refseq in the 'library/added' folder.
+    Checks if a RefSeq ID is in the Kraken2 database by checking for its taxid
+    in the 'seqid2taxid.map' file using grep.
     """
     taxid = get_taxid_for_accession(refseq_id)
     if not taxid:
         print(f"\n[WARN] Could not determine taxid for {refseq_id}. Assuming it's not in the DB to be safe.")
         return False
 
-    # 1. Check if the taxon is in the built database by checking seqid2taxid.map
     seqid2taxid_path = os.path.join(db_dir, "seqid2taxid.map")
-    if os.path.isfile(seqid2taxid_path):
-        # Use grep for a much faster check on potentially huge map files
-        cmd = ["grep", "-q", "-m", "1", f"\t{taxid}$\", seqid2taxid_path"]
-        result = subprocess.run(cmd)
-        if result.returncode == 0:
-            print(f"[INFO] Found taxid {taxid} (for {refseq_id}) in the Kraken2 DB.")
-            return True
+    if not os.path.isfile(seqid2taxid_path):
+        print(f"[INFO] Kraken2 DB file not found: '{seqid2taxid_path}'.")
+        return False
 
-    # 2. Fallback: check library/added for files that have been added but not yet built
-    lib_added_dir = os.path.join(db_dir, "library", "added")
-    if os.path.isdir(lib_added_dir):
-        for fname in os.listdir(lib_added_dir):
-            if refseq_id in fname:
-                print(f"[INFO] Found {refseq_id} in the 'added' library (may not be built into DB yet).")
-                return True
-    
-    print(f"[INFO] Neither taxid {taxid} nor RefSeq {refseq_id} found in Kraken DB '{db_dir}'.")
-    return False
+    # Use grep to quickly search for the taxid.
+    # We search for `\t<taxid>` at the end of a line.
+    cmd = ["grep", "-q", f"\t{taxid}$", seqid2taxid_path]
+    result = subprocess.run(cmd, capture_output=True)
+
+    if result.returncode == 0:
+        print(f"[INFO] Found taxid {taxid} (for {refseq_id}) in '{seqid2taxid_path}'.")
+        return True
+    elif result.returncode == 1:
+        # Grep returns 1 if no lines are selected
+        print(f"[INFO] Taxid {taxid} (for {refseq_id}) not found in '{seqid2taxid_path}'.")
+        return False
+    else:
+        # Grep returns >1 for other errors
+        print(f"[ERROR] Failed to run grep on '{seqid2taxid_path}': {result.stderr.decode()}")
+        return False
 
 
 # --- viral_usher lookup functions (verbatim control flow) ---
@@ -267,7 +283,7 @@ def get_mat_interactively(species_dir: str) -> str:
     If user presses Enter, return empty string to signal `viral_usher` build.
     """
     while True:
-        mat_path = get_input("Path to MAT file (or press Enter to build with viral_usher): ").strip()
+        mat_path = get_input("\nPath to MAT file (or press Enter to build with viral_usher): ").strip()
         if not mat_path:
             return ""  # User wants to build
 
@@ -280,11 +296,11 @@ def get_mat_interactively(species_dir: str) -> str:
 
         dest = os.path.join(species_dir, os.path.basename(mat_path))
         if os.path.abspath(mat_path) == os.path.abspath(dest):
-            print("[INFO] MAT already present in species directory; using existing file.")
+            #print("[INFO] MAT already present in species directory, using existing file.")
             return dest
         try:
             shutil.copy2(mat_path, dest)
-            print(f"[INFO] Copied MAT → {dest}")
+            #print(f"[INFO] Copied MAT → {dest}")
             return dest
         except Exception as copy_err:
             print(f"[ERROR] Failed to copy MAT to {dest}: {copy_err}")
@@ -314,9 +330,15 @@ def run_viral_usher_interactive(species, refseq_id, workdir):
     os.makedirs(workdir, exist_ok=True)
     config_path = os.path.join(workdir, f"viral_usher_config_{refseq_id}.toml")
 
-    print("\n--- viral_usher setup ---")
-    print("Running 'viral_usher init' interactively.")
-    print(f"\n\n!!![IMPORTANT] When prompted for a 'workdir' to download and build the MAT, please enter the following path to ensure outputs are saved correctly:")
+    parent_dir = os.path.dirname(workdir)
+    pb_files = glob.glob(os.path.join(parent_dir, "*.pb")) + glob.glob(os.path.join(parent_dir, "*.pb.gz"))
+    if pb_files:
+        print(f"\n[WARN] A protobuf file already exists in {parent_dir}.")
+        if not yes_no("Do you want to overwrite it?"):
+            print("[INFO] Skipping build to avoid overwriting existing file.")
+            return pb_files
+
+    print(f"\n\n!!![IMPORTANT] When prompted for a directory to download the sequences and build the tree, please enter the following path to ensure outputs are saved correctly:")
     print(f"  {workdir}\n")
 
 
@@ -335,7 +357,8 @@ def run_viral_usher_interactive(species, refseq_id, workdir):
 
     viz_path = os.path.join(workdir, "viz.pb.gz")
     if os.path.isfile(viz_path):
-        print(f"[INFO] Found viz.pb.gz → {viz_path}")
+        # Copy viz.pb.gz and JSONL outputs into the pathogen folder
+        copy_viz_and_jsonl(workdir, parent_dir)
         return viz_path
     else:
         print("\n[WARN] viz.pb.gz not found after build")
@@ -349,6 +372,7 @@ def add_pathogens_workflow(args):
         print(f"Import error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    db_needs_rebuild = False
     while True:
         ncbi = vu_ncbi_helper.NcbiHelper()
         species, taxid, refseq_id, assembly_id = get_species_taxonomy_refseq(ncbi)
@@ -374,23 +398,15 @@ def add_pathogens_workflow(args):
         if args.db:
             if os.path.isfile(fasta_path):
                 if refseq_seems_in_db(args.db, refseq_id):
-                    print(f"[INFO] {refseq_id} or its taxon already present in DB. Skipping add-and-build.")
+                    print(f"[INFO] {refseq_id} or its taxon already present in DB. Skipping add.")
                 else:
                     print(f"[INFO] Pathogen {refseq_id} is absent. Adding FASTA to the Kraken2 DB...")
                     add_file_to_kraken(args.db, fasta_path)
-                    print(f"[INFO] Building Kraken2 DB to incorporate {refseq_id}...")
-                    build_kraken_db(args.db, threads=8)
-                    # Confirm after build
-                    if refseq_seems_in_db(args.db, refseq_id):
-                        print(f"[INFO] Successfully added and built DB with {refseq_id} (confirmed).")
-                    else:
-                        print(f"\n[WARN] Added {refseq_id} and rebuilt DB, but confirmation check failed. Please inspect the DB manually.\n")
+                    db_needs_rebuild = True
             else:
                 print("\n[WARN] FASTA missing; cannot add to Kraken2 DB.\n")
 
         existing_mat = get_mat_interactively(species_dir)
-
-        # --- Build with viral_usher and copy viz/jsonl outputs ---
         if existing_mat:
             print(f"[INFO] Using provided MAT: {existing_mat}")
         else:
@@ -398,13 +414,6 @@ def add_pathogens_workflow(args):
             try:
                 build_dir = os.path.join(species_dir, "viral_usher_build")
                 viz_path = run_viral_usher_interactive(species, refseq_id, build_dir)
-                # Copy only viz.pb.gz and JSONL outputs into the pathogen folder
-                copy_viz_and_jsonl(build_dir, species_dir)
-
-                if viz_path:
-                    print(f"[INFO] Final viz.pb.gz available at: {viz_path}")
-                else:
-                    print("\n[WARN] viz.pb.gz not found after viral_usher build.\n")
 
                 try:
                     shutil.rmtree(build_dir)
@@ -427,6 +436,11 @@ def add_pathogens_workflow(args):
         if not yes_no("Would you like to add another pathogen?"):
             print("[INFO] Finished adding pathogens.")
             break
+
+    if db_needs_rebuild:
+        print(f"[INFO] Building Kraken2 DB to incorporate new references...")
+        build_kraken_db(args.db, threads=8)
+        print(f"[INFO] Successfully built DB.")
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

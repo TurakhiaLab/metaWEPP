@@ -25,12 +25,9 @@ WEPP_ROOT        = "WEPP"
 WEPP_WORKFLOW    = "WEPP/workflow/Snakefile"
 WEPP_RESULTS_DIR = "WEPP/results"
 WEPP_DATA_DIR    = "WEPP/data"
-WEPP_CONFIG      = "WEPP/config/config.yaml"
 WEPP_CMD_LOG     = "WEPP/cmd_log"
 
 CONFIG      = "config/config.yaml"
-
-SIM_TOOL         = config.get("SIMULATION_TOOL", "none").upper() 
 
 # Dashboard variable from config
 DASHBOARD_ENABLED = config.get("DASHBOARD_ENABLED", False)
@@ -69,39 +66,32 @@ with open(original_map) as infile, open(TAXID_MAP, "w") as outfile:
 
 IS_SINGLE_END = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
-# Get FQ1 and FQ2
-if SIM_TOOL == "MESS":
-    FQ1 = Path("data") / config["DIR"] / "merged_R1.fq.gz"
-    FQ2 = Path("data") / config["DIR"] / "merged_R2.fq.gz"
-    #"simulated_reads/fastq/merged_R1.fq.gz"
+fq_dir = Path("data") / config["DIR"]
+if not fq_dir.exists():
+    raise FileNotFoundError(f"Input folder {DIR} does not exist")
 
+# always look for R1
+r1_files = sorted(fq_dir.glob("*.fastq*"))
+if len(r1_files) < 0:
+    raise RuntimeError(
+        f"{fq_dir} must contain exactly one *.fastq* file "
+        f"(found {len(r1_files)})."
+    )
+
+# look for R2 only when paired-end
+if IS_SINGLE_END:
+    r2_files = []
+    FQ2 = ""
 else:
-    fq_dir = Path("data") / config["DIR"]
-    if not fq_dir.exists():
-        raise FileNotFoundError(f"Input folder {DIR} does not exist")
-
-    # always look for R1
-    r1_files = sorted(fq_dir.glob("*.fastq*"))
-    if len(r1_files) < 0:
+    r2_files = sorted(fq_dir.glob("*_R2.fastq*"))
+    if len(r2_files) != 1:
         raise RuntimeError(
-            f"{fq_dir} must contain exactly one *.fastq* file "
-            f"(found {len(r1_files)})."
+            f"{fq_dir} must contain exactly one *_R2.fastq* file "
+            f"(found {len(r2_files)})."
         )
+    FQ2 = str(r2_files[0])
 
-    # look for R2 only when paired-end
-    if IS_SINGLE_END:
-        r2_files = []
-        FQ2 = ""
-    else:
-        r2_files = sorted(fq_dir.glob("*_R2.fastq*"))
-        if len(r2_files) != 1:
-            raise RuntimeError(
-                f"{fq_dir} must contain exactly one *_R2.fastq* file "
-                f"(found {len(r2_files)})."
-            )
-        FQ2 = str(r2_files[0])
-
-    FQ1 = str(r1_files[0])
+FQ1 = str(r1_files[0])
 
 print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
 
@@ -470,116 +460,6 @@ rule all:
         all_inputs
 
 
-if SIM_TOOL == "MESS":
-
-    # Find the genomes file use for simulation
-    genome_dir = Path("data") / config["DIR"]
-    fasta_candidates = sorted(genome_dir.glob("*.fa"))
-
-    if not fasta_candidates:
-        sys.exit(
-            f"No *.fa files found in {genome_dir}\n"
-            "Place at least one multi-FASTA there or fix the DIR setting."
-        )
-
-    # use the first one that was found
-    GENOMES_FASTA = str(fasta_candidates[0])
-
-    print(f"Using genome FASTA for MeSS: {GENOMES_FASTA}", file=sys.stderr)
-
-    # 4) Split genomes to individual fasta files to input to MeSS (their multi genome doesn't work for some reason)
-    checkpoint split_genomes:
-        input:
-            fasta = lambda wc: GENOMES_FASTA
-        output:
-            directory("individual_genomes")
-        shell:
-            """
-            mkdir -p {output}
-            awk '/^>/{{split($1, id, ">"); fname="{output}/"id[2]".fa"; print > fname; next}} {{print >> fname}}' {input.fasta}
-            """
-            
-    def get_genomes_from_checkpoint(wc):
-        ckpt = checkpoints.split_genomes.get(**wc)
-        genomes, = glob_wildcards(os.path.join(ckpt.output[0], "{genome}.fa"))
-        return genomes
-
-    # 5) Optional MeSS simulation
-
-    # Generate TSVs for MeSS:
-    rule generate_mess_tsv:
-        input:
-            fasta = "individual_genomes/{genome}.fa"
-        output:
-            tsv = "individual_genomes_tsvs/{genome}.tsv"
-        params:
-            script = "scripts/generate_mess_tsv.py",
-            coverage = config["COVERAGE"]
-        shell:
-            """
-            python {params.script} {output.tsv} {input.fasta} {params.coverage}
-            """
-
-    rule simulate_reads_mess:
-        input:
-            tsv = "individual_genomes_tsvs/{genome}.tsv"
-        output:
-            r1 = "simulated_reads/fastq/{genome}_R1.fq.gz", 
-            r2 = "simulated_reads/fastq/{genome}_R2.fq.gz", 
-        params:
-            genome_base = lambda wildcards: wildcards.genome.split(".")[0]
-        resources:
-            mess_slots=1
-        shell:
-            """
-            source $(conda info --base)/etc/profile.d/conda.sh
-            conda activate mess
-
-            mess simulate \
-                --input {input.tsv} \
-                --tech illumina \
-                --output simulated_reads/ \
-                --fasta individual_genomes
-
-            mv simulated_reads/fastq/{params.genome_base}_R1.fq.gz {output.r1}
-            mv simulated_reads/fastq/{params.genome_base}_R2.fq.gz {output.r2}
-            """
-
-    def sim_reads_R1(wc):
-        ckpt = checkpoints.split_genomes.get(**wc)           # wait for checkpoint
-        genomes, = glob_wildcards(os.path.join(ckpt.output[0], "{genome}.fa"))
-        return expand("simulated_reads/fastq/{genome}_R1.fq.gz", genome=genomes)
-
-    def sim_reads_R2(wc):
-        if IS_SINGLE_END:
-            return []                                        # no second read file
-        ckpt = checkpoints.split_genomes.get(**wc)
-        genomes, = glob_wildcards(os.path.join(ckpt.output[0], "{genome}.fa"))
-        return expand("simulated_reads/fastq/{genome}_R2.fq.gz", genome=genomes)
-
-
-    rule merge_reads:
-        input:
-            sim_reads_1 = lambda wc: expand("simulated_reads/fastq/{genome}_R1.fq.gz", genome=get_genomes_from_checkpoint(wc)),
-            sim_reads_2 = lambda wc: expand("simulated_reads/fastq/{genome}_R2.fq.gz", genome=get_genomes_from_checkpoint(wc))
-        output:
-            R1 = FQ1,
-            R2 = FQ2
-        params:
-            FQ1_sim = "simulated_reads/fastq/merged_R1.fq.gz",
-            FQ2_sim = "simulated_reads/fastq/merged_R2.fq.gz",
-        shell:
-            """
-            zcat simulated_reads/fastq/*_R1.fq.gz | gzip > {params.FQ1_sim}
-            zcat simulated_reads/fastq/*_R2.fq.gz | gzip > {params.FQ2_sim}
-            
-            mv {params.FQ1_sim} {output.R1}
-            mv {params.FQ2_sim} {output.R2}
-
-            rm -rf simulated_reads
-            """
-
-
 # ─── helper function for names ──────────────────────────────────────────
 FQ1_GZ = FQ1 if str(FQ1).endswith(".gz") else str(FQ1) + ".gz"
 FQ2_GZ = (
@@ -589,33 +469,31 @@ FQ2_GZ = (
 
 # Make sure everything is compressed (Compresses fq files, turns them into fastq.gz files, 
 # removes fq files because WEPP expects a specific length of fq files)
-if SIM_TOOL != "MESS":
-
-    if IS_SINGLE_END:
-        rule compress_fastqs_for_wepp_se:
-            input:
-                r1 = FQ1
-            output:
-                r1_gz = FQ1_GZ
-            shell:
-                """
-                mkdir -p $(dirname {output.r1_gz})
-                if [ ! -f {output.r1_gz} ]; then gzip -c {input.r1} > {output.r1_gz}; fi
-                """
-    else:
-        rule compress_fastqs_for_wepp_pe:
-            input:
-                r1 = FQ1,
-                r2 = FQ2
-            output:
-                r1_gz = FQ1_GZ,
-                r2_gz = FQ2_GZ
-            shell:
-                """
-                mkdir -p $(dirname {output.r1_gz})
-                if [ ! -f {output.r1_gz} ]; then gzip -c {input.r1} > {output.r1_gz}; fi
-                if [ ! -f {output.r2_gz} ]; then gzip -c {input.r2} > {output.r2_gz}; fi
-                """
+if IS_SINGLE_END:
+    rule compress_fastqs_for_wepp_se:
+        input:
+            r1 = FQ1
+        output:
+            r1_gz = FQ1_GZ
+        shell:
+            """
+            mkdir -p $(dirname {output.r1_gz})
+            if [ ! -f {output.r1_gz} ]; then gzip -c {input.r1} > {output.r1_gz}; fi
+            """
+else:
+    rule compress_fastqs_for_wepp_pe:
+        input:
+            r1 = FQ1,
+            r2 = FQ2
+        output:
+            r1_gz = FQ1_GZ,
+            r2_gz = FQ2_GZ
+        shell:
+            """
+            mkdir -p $(dirname {output.r1_gz})
+            if [ ! -f {output.r1_gz} ]; then gzip -c {input.r1} > {output.r1_gz}; fi
+            if [ ! -f {output.r2_gz} ]; then gzip -c {input.r2} > {output.r2_gz}; fi
+            """
 
 # 6) Kraken2 classification 
 rule kraken:
