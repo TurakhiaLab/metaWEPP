@@ -439,7 +439,7 @@ def add_pathogens_workflow(args):
 
     if db_needs_rebuild:
         print(f"[INFO] Building Kraken2 DB to incorporate new references...")
-        build_kraken_db(args.db, threads=8)
+        build_kraken_db(args.db, threads=args.threads)
         print(f"[INFO] Successfully built DB.")
 
 def main():
@@ -449,6 +449,7 @@ def main():
         description="Use viral_usher's lookup; then download FASTA, auto-add to Kraken2, and copy viz/jsonl outputs."
     )
     ap.add_argument("--db", help="Path to Kraken2 DB directory.")
+    ap.add_argument("--threads", type=int, default=8, help="Number of threads for Kraken2 build.")
     args = ap.parse_args()
 
     ensure_folder(ROOT_PATHOGENS_DIR)
