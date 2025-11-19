@@ -57,7 +57,6 @@ def split_fastq(fq, mate, read2taxid, refs, acc2dir, acc2taxid, taxid2name,
 
 def get_read_classified_species(kraken_out, kraken_report):
     taxons_wepp_pathogens = get_taxid_of_pathogens_for_wepp()
-    wepp_species_taxon_name_mapping = {}
     
     # 1. Get taxid→names from kraken_report
     taxid_to_names = {}
@@ -90,9 +89,8 @@ def get_read_classified_species(kraken_out, kraken_report):
             
             wepp_species = []
             for sp_taxid, sp_name in species_under_genus:
-                if sp_taxid in taxons_wepp_pathogens.keys():
-                    wepp_species.append(sp_name)
-                    wepp_species_taxon_name_mapping[sp_name] = sp_taxid
+                if sp_taxid in taxons_wepp_pathogens:
+                    wepp_species.append(taxons_wepp_pathogens[sp_taxid])
 
             if wepp_species:
                 wepp_species_names = set(wepp_species)
@@ -127,17 +125,17 @@ def get_read_classified_species(kraken_out, kraken_report):
                             names = taxid_to_names[taxid]
                             if len(names) > 1:
                                 # In case of wepp species, prefer all those names
-                                wepp_names = set(wepp_species_taxon_name_mapping.keys())
-                                wepp_intersection = names.intersection(wepp_names)
+                                wepp_names = set(taxons_wepp_pathogens.values())
+                                wepp_intersection = names & wepp_names
                                 if wepp_intersection:
                                     read_to_name[rid] = list(wepp_intersection)
                                 else:
                                     # If no intersection, pick a random name
-                                    read_to_name[rid] = [random.choice(list(names))]
+                                    read_to_name[rid] = [random.choice(tuple(names))]
                             else:
                                 read_to_name[rid] = list(names)
 
-    return read_to_name, wepp_species_taxon_name_mapping
+    return read_to_name
 
 def get_taxid_of_pathogens_for_wepp():
     added_taxons_path = "data/pathogens_for_wepp/added_taxons.tsv"
@@ -175,7 +173,7 @@ def main():
 
     if a.r2:
         p = Process(
-            target=run_split,
+            target=split_fastq,
             args=(
                 a.r2, "R2", read2species, refs, acc2dir, acc2taxid, taxid2name,
                 a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc, a.canonical_policy
@@ -184,7 +182,7 @@ def main():
         p.start()
 
     # Always process R1 in this process
-    run_split(
+    split_fastq(
         a.r1, "R1", read2species, refs, acc2dir, acc2taxid, taxid2name,
         a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc, a.canonical_policy
     )
