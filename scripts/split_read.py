@@ -8,229 +8,10 @@ Split reads classified by Kraken2 into per-accession FASTQs.
     <OUT_ROOT>/other_pathogens/<accession>/<accession>_{R1,R2}.fq.gz
 """
 
-import argparse, gzip, json, os, sys, subprocess, tempfile, shutil, re
+import argparse, gzip, json, sys, subprocess, tempfile, shutil, re, multiprocessing, os, random
+from multiprocessing import Process
 from pathlib import Path
 
-# ────────────────────────── helpers ──────────────────────────
-def open_in(fn):
-    if fn.endswith(".gz"):
-        return subprocess.Popen(["pigz", "-dc", fn], stdout=subprocess.PIPE, text=True).stdout
-    return open(fn, "r")
-
-def read_id(h):
-    rid = h[1:].split()[0]
-    if rid.endswith("/1") or rid.endswith("/2"):
-        rid = rid[:-2]
-    return rid
-
-def load_taxid_map(path):
-    d = {}
-    with open(path) as f:
-        for line in f:
-            if line.strip():
-                acc, taxid = line.split(None, 1)
-                taxid = taxid.strip()
-                acc = acc.strip()
-                d.setdefault(taxid, []).append(acc)
-    return d
-
-def load_classifications(path, tax2acc, acc2dir, refs, canonical_policy="last"):
-    """
-    Map read_id to a list of acc
-    Build {read_id: acc or [acc,...]}:
-      - If any accessions for the read's taxid are in the panel (acc2dir or refs),
-        return the list of those panel accessions (-> duplicate outputs).
-      - Else return a single canonical accession (first/last) to match V1 behavior.
-    """
-    m = {}
-    opn = gzip.open if path.endswith(".gz") else open
-    mode = "rt" if path.endswith(".gz") else "r"
-    with opn(path, mode) as f:
-        for line in f:
-            if not line.startswith("C\t"):
-                continue
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 3:
-                continue
-            _, rid, taxid = parts[:3]
-            accs = tax2acc.get(taxid)
-            if not accs:
-                continue
-            # panel = in acc2dir or explicitly listed in refs
-            panel_accs = [a for a in accs if (a in acc2dir) or (a in refs)]
-            if panel_accs:
-                m[rid] = panel_accs[:]  # duplicate to all panel accessions
-            else:
-                if canonical_policy == "first":
-                    m[rid] = accs[0]
-                else:  # "last" (matches your original V1 behavior)
-                    m[rid] = accs[-1]
-    return m
-
-def load_ref_accessions(s):
-    if s is None:
-        return set()
-    p = Path(s)
-    if p.exists():
-        return {l.strip() for l in p.read_text().splitlines() if l.strip()}
-    return {x.strip() for x in s.split(",") if x.strip()}
-
-def out_root_for(acc, base_out, acc2dir, is_ref, acc2taxid, taxid2name):
-    if is_ref:
-        return Path(base_out) / acc2dir.get(acc, acc)
-    taxid = acc2taxid.get(acc)
-    if taxid:
-        name = taxid2name.get(taxid)
-        if name:
-            return Path(base_out) / "Other_Pathogens" / sanitize_folder_name(name)
-    acc_name = acc.rsplit("|", 1)[-1]
-    return Path(base_out) / "Other_Pathogens" / acc_name
-
-def writer_for(acc, mate, ext, out_root, refs, acc2dir, acc2taxid, taxid2name,
-               writers, processes, pigz_threads, batch_dir):
-    if acc in writers:
-        return writers[acc]
-    root = out_root_for(acc, out_root, acc2dir, acc in refs, acc2taxid, taxid2name)
-    root.mkdir(parents=True, exist_ok=True)
-    fn = root / f"{acc.split('.',1)[0]}_{mate}{ext}"
-    if batch_dir is not None:
-        tmp_fn = Path(batch_dir) / (fn.as_posix().replace("/", "__"))
-        w = open(tmp_fn, "w")
-        writers[acc] = (w, fn, tmp_fn)
-        return writers[acc]
-    p = subprocess.Popen(
-        ["pigz", f"-p{pigz_threads}", "-c"],
-        stdin=subprocess.PIPE,
-        stdout=open(fn, "wb"),
-        text=True, 
-        encoding="utf-8",
-        bufsize=1 << 20
-    )
-    writers[acc] = (p.stdin, fn, None)
-    processes[acc] = p
-    return writers[acc]
-
-def close_writers(writers, processes):
-    for (h, _, tmp) in writers.values():
-        if h and not h.closed:
-            h.close()
-    for acc, p in processes.items():
-        rc = p.wait()
-        if rc != 0:
-            raise RuntimeError(f"pigz failed for {acc}")
-
-def batch_compress(writers, pigz_threads):
-    groups = {}
-    for (handle, final_fn, tmp_fn) in writers.values():
-        if tmp_fn is None:
-            continue
-        groups.setdefault(final_fn.parent, []).append((final_fn, tmp_fn))
-    for parent, lst in groups.items():
-        parent.mkdir(parents=True, exist_ok=True)
-        for final_fn, tmp_fn in lst:
-            subprocess.check_call(["pigz", f"-p{pigz_threads}", "-c", tmp_fn], stdout=open(str(final_fn), "wb"))
-    # cleanup tmp files
-    for (_, _, tmp_fn) in writers.values():
-        if tmp_fn and Path(tmp_fn).exists():
-            Path(tmp_fn).unlink()
-
-def sanitize_folder_name(name: str) -> str:
-    # collapse whitespace → "_", strip, and remove path separators
-    s = re.sub(r"\s+", "_", name.strip())
-    return s.replace("/", "_").replace("\\", "_")
-
-def load_taxon_names(kraken_report_path):
-    """
-    Return {taxid: scientific_name} parsed from a Kraken2 report.
-    Works for tab-separated standard Kraken reports; falls back to regex.
-    """
-    taxid2name = {}
-    with open(kraken_report_path, "r") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) >= 6:
-                taxid = parts[4].strip()
-                name  = parts[5].strip()
-                taxid2name[taxid] = name
-            else:
-                # fallback for space-separated display
-                m = re.match(r"\s*\S+\s+\S+\s+\S+\s+\S+\s+(\d+)\s+(.*)$", line)
-                if m:
-                    taxid = m.group(1)
-                    name  = m.group(2).strip()
-                    taxid2name[taxid] = name
-    return taxid2name
-
-def parse_report_tree(report_path):
-    parent, children, stack, rank_by_taxid = {}, {}, [], {}
-    with open(report_path, "r") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 6:
-                continue
-            rcode = parts[3].strip() 
-            taxid = parts[4].strip()
-            name_field = parts[5]
-            indent = len(name_field) - len(name_field.lstrip())
-            rank_by_taxid[taxid] = rcode
-            while stack and stack[-1][1] >= indent:
-                stack.pop()
-            if stack:
-                p = stack[-1][0]
-                parent[taxid] = p
-                children.setdefault(p, []).append(taxid)
-            else:
-                parent[taxid] = None
-            stack.append((taxid, indent))
-    return parent, children, rank_by_taxid
-
-
-def descendants_of(taxid, children):
-    out, todo = set(), list(children.get(taxid, []))
-    while todo:
-        cur = todo.pop()
-        if cur in out:
-            continue
-        out.add(cur)
-        todo.extend(children.get(cur, []))
-    return out
-
-def build_recipients(acc2dir, acc2taxid, parent, children, rank_by_taxid):
-    rec = {}
-    for acc in acc2dir.keys():
-        t = acc2taxid.get(acc)
-        if not t:
-            continue
-        capture = {t}
-        capture |= descendants_of(t, children)
-        for a in ancestors_of(t, parent):
-            capture.add(a)
-            if rank_by_taxid.get(a) == "G":
-                break
-        for tv in capture:
-            rec.setdefault(tv, set()).add(acc)
-    return rec
-
-def load_classified_taxids(path):
-    # {read_id -> classified taxid} from Kraken output (lines starting with "C\t")
-    m = {}
-    opn = gzip.open if path.endswith(".gz") else open
-    mode = "rt" if path.endswith(".gz") else "r"
-    with opn(path, mode) as f:
-        for line in f:
-            if line.startswith("C\t"):
-                parts = line.rstrip("\n").split("\t")
-                if len(parts) >= 3:
-                    _, rid, taxid = parts[:3]
-                    m[rid] = taxid
-    return m
-
-
-# ───────────────────────── splitting ─────────────────────────
 def split_fastq(fq, mate, read2taxid, refs, acc2dir, acc2taxid, taxid2name,
                 out_root, pigz_threads, batch_dir, recipients_by_taxid, tax2acc, canonical_policy):
     writers = {}
@@ -274,75 +55,143 @@ def split_fastq(fq, mate, read2taxid, refs, acc2dir, acc2taxid, taxid2name,
     if batch_dir is not None:
         batch_compress(writers, pigz_threads)
 
-def ancestors_of(taxid, parent):
-    out = []
-    cur = parent.get(taxid)
-    while cur:
-        out.append(cur)
-        cur = parent.get(cur)
-    return out
+def get_read_classified_species(kraken_out, kraken_report):
+    taxons_wepp_pathogens = get_taxid_of_pathogens_for_wepp()
+    wepp_species_taxon_name_mapping = {}
+    
+    # 1. Get taxid→names from kraken_report
+    taxid_to_names = {}
+    with open(kraken_report, "r") as f:
+        lines = [line.rstrip("\n") for line in f]
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        parts = line.split("\t")
+        if len(parts) < 6:
+            i += 1
+            continue
+
+        taxid = parts[4].strip()
+        name = parts[5].strip()
+        rank = parts[3].strip()
+
+        # In case of genus, if the member species are in wepp_pathogens, then we need to map its taxon with those of wepp species
+        if rank.startswith('G'):
+            species_under_genus = []
+            j = i + 1
+            while j < len(lines):
+                next_parts = lines[j].split("\t")
+                if len(next_parts) >= 6 and next_parts[3].strip().startswith('S'):
+                    species_under_genus.append((next_parts[4].strip(), next_parts[5].strip()))
+                    j += 1
+                else:
+                    break
+            
+            wepp_species = []
+            for sp_taxid, sp_name in species_under_genus:
+                if sp_taxid in taxons_wepp_pathogens.keys():
+                    wepp_species.append(sp_name)
+                    wepp_species_taxon_name_mapping[sp_name] = sp_taxid
+
+            if wepp_species:
+                wepp_species_names = set(wepp_species)
+                taxid_to_names.setdefault(taxid, set()).update(wepp_species_names)
+                for sp_taxid, _ in species_under_genus:
+                    taxid_to_names.setdefault(sp_taxid, set()).update(wepp_species_names)
+            else:
+                taxid_to_names.setdefault(taxid, set()).add(name)
+                for sp_taxid, sp_name in species_under_genus:
+                    taxid_to_names.setdefault(sp_taxid, set()).add(sp_name)
+
+            i = j # Move to the line after the last species
+        
+        elif taxid:
+            taxid_to_names.setdefault(taxid, set()).add(name)
+            i += 1
+        else:
+            i += 1
 
 
+    # 2. Get read→tax_id from kraken_report
+    read_to_name = {}
+    with open(kraken_out, "r") as f:
+            for line in f:
+                if line.startswith("C\t"):
+                    parts = line.rstrip("\n").split("\t")
+                    if len(parts) >= 3:
+                        _, rid, taxid = parts[:3]
+
+                        # Map read → species name(s) using the first table
+                        if taxid in taxid_to_names:
+                            names = taxid_to_names[taxid]
+                            if len(names) > 1:
+                                # In case of wepp species, prefer all those names
+                                wepp_names = set(wepp_species_taxon_name_mapping.keys())
+                                wepp_intersection = names.intersection(wepp_names)
+                                if wepp_intersection:
+                                    read_to_name[rid] = list(wepp_intersection)
+                                else:
+                                    # If no intersection, pick a random name
+                                    read_to_name[rid] = [random.choice(list(names))]
+                            else:
+                                read_to_name[rid] = list(names)
+
+    return read_to_name, wepp_species_taxon_name_mapping
+
+def get_taxid_of_pathogens_for_wepp():
+    added_taxons_path = "data/pathogens_for_wepp/added_taxons.tsv"
+    added_taxons = {}
+    if os.path.exists(added_taxons_path):
+        with open(added_taxons_path, "r") as f:
+            for line in f:
+                if line.strip():
+                    parts = line.strip().split('\t')
+                    if len(parts) == 2:
+                        taxid, folder = parts
+                        added_taxons[taxid] = folder
+    return added_taxons
+    
 # ─────────────────────────── CLI ────────────────────────────
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("-k", "--kraken-out", required=True)
-    ap.add_argument("-m", "--mapping", required=True)
+    ap.add_argument("-r", "--kraken-report", required=True)
     ap.add_argument("--r1", required=True)
     ap.add_argument("--r2")
     ap.add_argument("-o", "--out-dir", required=True)
-    ap.add_argument("--ref-accessions")
-    ap.add_argument("--acc2dir", required=True)
-    ap.add_argument("--pigz-threads", type=int, default=4)
-    ap.add_argument("--batch-compress", action="store_true")
-    ap.add_argument("--kraken-report", required=True)   # ← NEW
-    ap.add_argument("--canonical-policy", choices=["first", "last"], default="last")
+    ap.add_argument("-t","--threads", type=int, default=4)
 
     return ap.parse_args()
 
 def main():
     a = parse_args()
+    
     Path(a.out_dir).mkdir(parents=True, exist_ok=True)
-
-    refs = load_ref_accessions(a.ref_accessions)
-    tax2acc = load_taxid_map(a.mapping)  # {taxid: [acc,...]}
-    acc2taxid = {acc: taxid for taxid, accs in tax2acc.items() for acc in accs}
-    taxid2name = load_taxon_names(a.kraken_report)
-    acc2dir = json.load(open(a.acc2dir))
-
-    # Build taxonomy tree and recipient routing for panel accessions
-    parent, children, rank_by_taxid = parse_report_tree(a.kraken_report)
-    recipients_by_taxid = build_recipients(acc2dir, acc2taxid, parent, children, rank_by_taxid)
-
     # Per-read classified taxid from Kraken output
-    read2taxid = load_classified_taxids(a.kraken_out)
-    if not read2taxid:
+    read2species = get_read_classified_species(a.kraken_out, a.kraken_report)
+    if not read2species:
         sys.exit("No classified reads in Kraken output.")
 
-    batch_dir = tempfile.mkdtemp(prefix="split_tmp_") if a.batch_compress else None
-    try:
-        if a.r2:
-            pid = os.fork()
-            if pid == 0:
-                split_fastq(
-                    a.r2, "R2", read2taxid, refs, acc2dir, acc2taxid, taxid2name,
-                    a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc, a.canonical_policy
-                )
-                os._exit(0)
-            split_fastq(
-                a.r1, "R1", read2taxid, refs, acc2dir, acc2taxid, taxid2name,
+    if a.r2:
+        p = Process(
+            target=run_split,
+            args=(
+                a.r2, "R2", read2species, refs, acc2dir, acc2taxid, taxid2name,
                 a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc, a.canonical_policy
             )
-            os.waitpid(pid, 0)
-        else:
-            split_fastq(
-                a.r1, "R1", read2taxid, refs, acc2dir, acc2taxid, taxid2name,
-                a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc, a.canonical_policy
-            )
-    finally:
-        if batch_dir and Path(batch_dir).exists():
-            shutil.rmtree(batch_dir, ignore_errors=True)
+        )
+        p.start()
 
+    # Always process R1 in this process
+    run_split(
+        a.r1, "R1", read2species, refs, acc2dir, acc2taxid, taxid2name,
+        a.out_dir, a.pigz_threads, batch_dir, recipients_by_taxid, tax2acc, a.canonical_policy
+    )
+
+    # Wait for R2 if running
+    if a.r2:
+        p.join()
 
 if __name__ == "__main__":
     main()
