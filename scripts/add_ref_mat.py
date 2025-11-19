@@ -134,6 +134,32 @@ def copy_viz_and_jsonl(workdir, pathogen_dir):
         print("\n[WARN] No JSONL files found in workdir\n")
 
 
+def add_taxon_to_file(taxon_id: str):
+    """
+    Adds a taxon ID to data/pathogens_for_wepp/added_taxons.txt if not already present.
+    Creates the file and directory if they don't exist.
+    """
+    file_path = os.path.join(ROOT_PATHOGENS_DIR, "added_taxons.txt")
+    
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    
+    # Create the file if it doesn't exist
+    if not os.path.exists(file_path):
+        with open(file_path, "w"):
+            pass
+
+    # Read existing taxon IDs
+    with open(file_path, "r") as f:
+        existing_taxons = set(line.strip() for line in f)
+
+    # Add the new taxon ID if it's not already there
+    if taxon_id not in existing_taxons:
+        with open(file_path, "a") as f:
+            f.write(f"{taxon_id}\n")
+        print(f"[INFO] Added taxon ID {taxon_id} to {file_path}")
+
+
 def refseq_seems_in_db(db_dir, refseq_id):
     """
     Checks if a RefSeq ID is in the Kraken2 database by checking for its taxid
@@ -393,6 +419,8 @@ def add_pathogens_workflow(args):
         fasta = efetch_fasta_by_accession(refseq_id)
         fasta_path = save_fasta(species_dir, refseq_id, fasta)
         print(f"[INFO] FASTA saved: {fasta_path}")
+
+        add_taxon_to_file(taxid)
 
         # --- Auto-add FASTA to Kraken2 DB if not already there ---
         if args.db:

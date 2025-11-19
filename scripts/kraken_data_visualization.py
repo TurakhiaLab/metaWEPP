@@ -127,20 +127,31 @@ leaves.sort_values(by='Percent', ascending=False, inplace=True)
 # print top 10 species >=1% 
 species_candidates = leaves[leaves['Rank'].str.startswith('S')].copy()
 
+# Read taxon IDs that have already been added to the pathogen list
+added_taxons_path = "data/pathogens_for_wepp/added_taxons.txt"
+added_taxons = set()
+if os.path.exists(added_taxons_path):
+    with open(added_taxons_path, "r") as f:
+        added_taxons = {line.strip() for line in f if line.strip()}
+
 if not species_candidates.empty:
-    header = (
-        "\n\n\nNOTE:\n"
-        "The following species have >1% assigned reads:"
-    )
-    lines = [
-        f"{i}) {name} (TaxID {tx}; {pct:.2f}%)"
-        for i, (name, tx, pct) in enumerate(
-            zip(species_candidates['Name'], species_candidates['TaxID'], species_candidates['Percent']),
-            start=1
+    # Filter out species that are already in added_taxons.txt
+    candidates_to_print = species_candidates[~species_candidates['TaxID'].astype(str).isin(added_taxons)]
+
+    if not candidates_to_print.empty:
+        header = (
+            "\n\n\nNOTE:\n"
+            "The following species have >1% assigned reads but ABSENT from your haplotype analysis:"
         )
-    ]
-    print(header + "\n" + "\n".join(lines))
-    print("\n\n")
+        lines = [
+            f"{i}) {name} (TaxID {tx}; {pct:.2f}%)"
+            for i, (name, tx, pct) in enumerate(
+                zip(candidates_to_print['Name'], candidates_to_print['TaxID'], candidates_to_print['Percent']),
+                start=1
+            )
+        ]
+        print(header + "\n" + "\n".join(lines))
+        print("\n\n")
 
 
 fig, ax = plt.subplots(figsize=(10, 8))
