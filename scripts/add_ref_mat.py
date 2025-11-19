@@ -133,31 +133,39 @@ def copy_viz_and_jsonl(workdir, pathogen_dir):
     else:
         print("\n[WARN] No JSONL files found in workdir\n")
 
-
-def add_taxon_to_file(taxon_id: str):
-    """
-    Adds a taxon ID to data/pathogens_for_wepp/added_taxons.txt if not already present.
-    Creates the file and directory if they don't exist.
-    """
-    file_path = os.path.join(ROOT_PATHOGENS_DIR, "added_taxons.txt")
+def add_taxon_to_file(taxon_id, folder_name):
+    entries = []
+    file_path = os.path.join(ROOT_PATHOGENS_DIR, "added_taxons.tsv")
     
     # Ensure the directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    
+
     # Create the file if it doesn't exist
     if not os.path.exists(file_path):
         with open(file_path, "w"):
             pass
 
-    # Read existing taxon IDs
     with open(file_path, "r") as f:
-        existing_taxons = set(line.strip() for line in f)
+        for line in f:
+            if line.strip():
+                tid, fname = line.strip().split("\t")
+                entries.append((tid, fname))
 
-    # Add the new taxon ID if it's not already there
-    if taxon_id not in existing_taxons:
-        with open(file_path, "a") as f:
-            f.write(f"{taxon_id}\n")
-        print(f"[INFO] Added taxon ID {taxon_id} to {file_path}")
+    exact_exists = (taxon_id, folder_name) in entries
+    same_taxid_exists = any(tid == taxon_id for tid, _ in entries)
+
+    # Case 1: exact match → warn, do nothing
+    if exact_exists:
+        print(f"\n\n[WARN] Exact entry {taxon_id} → {folder_name} already exists: CHECK AGAIN!!!\n")
+        return
+
+    # Case 2: same taxid, different folder
+    if same_taxid_exists:
+        print(f"\n\n[WARN] Taxon {taxon_id} exists but with a different folder; adding new entry: CHECK PROPERLY!!!\n")
+
+    # Case 3: new taxon → normal append
+    with open(file_path, "a") as f:
+        f.write(f"{taxon_id}\t{folder_name}\n")
 
 
 def refseq_seems_in_db(db_dir, refseq_id):
@@ -420,7 +428,7 @@ def add_pathogens_workflow(args):
         fasta_path = save_fasta(species_dir, refseq_id, fasta)
         print(f"[INFO] FASTA saved: {fasta_path}")
 
-        add_taxon_to_file(taxid)
+        add_taxon_to_file(taxid, folder_name)
 
         # --- Auto-add FASTA to Kraken2 DB if not already there ---
         if args.db:

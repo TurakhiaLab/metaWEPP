@@ -128,14 +128,20 @@ leaves.sort_values(by='Percent', ascending=False, inplace=True)
 species_candidates = leaves[leaves['Rank'].str.startswith('S')].copy()
 
 # Read taxon IDs that have already been added to the pathogen list
-added_taxons_path = "data/pathogens_for_wepp/added_taxons.txt"
+added_taxons_path = "data/pathogens_for_wepp/added_taxons.tsv"
 added_taxons = set()
 if os.path.exists(added_taxons_path):
     with open(added_taxons_path, "r") as f:
-        added_taxons = {line.strip() for line in f if line.strip()}
+        for line in f:
+           line = line.strip()
+           if not line:
+               continue
+           parts = line.split("\t")
+           taxid = parts[0].strip()   # only column 1
+           added_taxons.add(taxid)
 
 if not species_candidates.empty:
-    # Filter out species that are already in added_taxons.txt
+    # Filter out species that are already in added_taxons.tsv
     candidates_to_print = species_candidates[~species_candidates['TaxID'].astype(str).isin(added_taxons)]
 
     if not candidates_to_print.empty:
