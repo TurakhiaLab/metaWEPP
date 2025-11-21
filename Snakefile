@@ -25,7 +25,7 @@ if "DIR" not in config:
 rule all:
     input:
         f"results/{DIR}/classification_proportions.png",
-        f"results/{DIR}/kraken_output.txt"
+        f"results/{DIR}/.split_read.done"
 
 KRAKEN_DB = config.get("KRAKEN_DB")
 if KRAKEN_DB is None:
@@ -52,19 +52,6 @@ MIN_DEPTH = float(config.get("MIN_DEPTH_FOR_WEPP", 0))
 #PATHOGENS_FOR_DASHBOARD = [p.strip() for p in pathogen_str.split(",") if p.strip()]
 #print(f"Dashboard = {DASHBOARD_ENABLED}", file=sys.stderr)
 #print("PATHOGENS_FOR_DASHBOARD:", ", ".join(PATHOGENS_FOR_DASHBOARD))
-
-# File that stores the mapping from accession to taxid
-NCBI_TAXID_MAP = os.path.join(config["KRAKEN_DB"], "seqid2taxid.map")
-
-## New map output path
-#TAXID_MAP = os.path.join("config", "accession2taxid.map")
-## Convert the map
-#with open(NCBI_TAXID_MAP) as infile, open(TAXID_MAP, "w") as outfile:
-#    for line in infile:
-#        if line.strip():
-#            full_id, taxid = line.strip().split()
-#            accession = full_id.split("|")[-1]
-#            outfile.write(f"{accession}\t{taxid}\n")
 
 IS_SINGLE_END = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
@@ -179,34 +166,50 @@ rule kraken_visualization:
         kraken_report = rules.kraken.output.kraken_report,
     output:
         png = f"results/{DIR}/classification_proportions.png"
+    params:
+        min_prop = float(config.get("MIN_PROP_FOR_WEPP", 0.01))
     shell:
         r"""
         python scripts/kraken_data_visualization.py \
-            {input.kraken_report} {output.png} {float(config.get("MIN_PROP_FOR_WEPP", 0.01))}
+            {input.kraken_report} {output.png} {params.min_prop}
         """
-#
-#rule split_read:
-#    input:
-#        kraken_out = rules.kraken.output.kraken_out,
-#        kraken_report = rules.kraken.output.kraken_report,
-#        png = rules.kraken_visualization.output.png,
-#        r1 = FQ1,
-#        r2 = lambda wc: [] if IS_SINGLE_END else [FQ2],
-#    output:
-#        "results/{DIR}/.split_read.done"
-#    params:
-#        script = "scripts/split_read.py",
-#    threads: workflow.cores
-#    run:
-#        subprocess.run(
-#            ["python", params.script, "-k", input.kraken_out, "-r", input.kraken_out, "--r1", input.r1, "--r2", input.r2, "-o results/{DIR}", "-t", threads],
-#            check=True
-#        )
-#        Path(output[0]).touch()
+
+rule split_read:
+    input:
+        kraken_out = rules.kraken.output.kraken_out,
+        kraken_report = rules.kraken.output.kraken_report,
+        png = rules.kraken_visualization.output.png,
+        r1 = FQ1,
+        r2 = lambda wc: [] if IS_SINGLE_END else [FQ2],
+    output:
+        "results/{DIR}/.split_read.done"
+    params:
+        script = "scripts/split_read.py",
+    threads: workflow.cores
+    run:
+        output_dir = Path(output[0]).parent
+        cmd = [
+            "python",
+            params.script,
+            "-k",
+            input.kraken_out,
+            "-r",
+            input.kraken_report,
+            "--r1",
+            input.r1,
+            "-o",
+            str(output_dir),
+            "-t",
+            str(threads),
+        ]
+
+        if input.r2:
+            cmd.extend(["--r2", input.r2[0]])
+
+        subprocess.run(cmd, check=True)
+        Path(output[0]).touch()
 
 
-## 6.5) Kraken Visualization
-#
 #checkpoint build_acc2classified_dir:
 #    input:
 #        kraken_out = f"{OUT_ROOT}/kraken_output.txt",
