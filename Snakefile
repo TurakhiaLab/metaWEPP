@@ -182,10 +182,10 @@ rule kraken_visualization:
     shell:
         r"""
         python scripts/kraken_data_visualization.py \
-            {input.kraken_report} {output.png} 
+            {input.kraken_report} {output.png} {float(config.get("MIN_PROP_FOR_WEPP", 0.01))}
         """
 #
-#rule split_reads:
+#rule split_read:
 #    input:
 #        kraken_out = rules.kraken.output.kraken_out,
 #        kraken_report = rules.kraken.output.kraken_report,
@@ -193,9 +193,9 @@ rule kraken_visualization:
 #        r1 = FQ1,
 #        r2 = lambda wc: [] if IS_SINGLE_END else [FQ2],
 #    output:
-#        "results/{DIR}/.split_reads.done"
+#        "results/{DIR}/.split_read.done"
 #    params:
-#        script = "scripts/split_reads.py",
+#        script = "scripts/split_read.py",
 #    threads: workflow.cores
 #    run:
 #        subprocess.run(

@@ -29,4 +29,7 @@ CLADE_LIST: "pango,nextstrain:pango"
 
 CLADE_IDX: "0,1"
 
+# Argumnets for deciding when to run WEPP
 MIN_DEPTH_FOR_WEPP: "10"
+
+MIN_PROP_FOR_WEPP: "0.01"

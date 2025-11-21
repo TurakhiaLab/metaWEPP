@@ -8,12 +8,13 @@ import subprocess
 
 # Usage:
 # python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> 
-if len(sys.argv) < 3:
-    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file>")
+if len(sys.argv) < 4:
+    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> <minimum_proportion_threshold_for_wepp>")
     sys.exit(1)
 
 report_path = sys.argv[1]
 fig_path = sys.argv[2]
+min_proportion_threshold = float(sys.argv[3])
 exclude_ids = set()
 
 # Load the report file
@@ -101,8 +102,8 @@ leaves = leaves.drop(rows_to_drop).reset_index(drop=True)
 # Recalculate percentages using the total number of reads in the sample
 leaves['Percent'] = 100.0 * leaves['Direct_Assigned'] / total_reads
 
-# Drop leaf nodes with recalculated Percent < 1%
-leaves = leaves[leaves['Percent'] >= 1]
+# Drop leaf nodes with recalculated Percent < min_proportion_threshold
+leaves = leaves[leaves['Percent'] >= (min_proportion_threshold * 100)]
 
 # Calculate remainder and add 'Others' if needed
 percent_sum = leaves['Percent'].sum()
@@ -147,7 +148,7 @@ if not species_candidates.empty:
     if not candidates_to_print.empty:
         header = (
             "\n\n\nNOTE:\n"
-            "The following species have >1% assigned reads but ABSENT from your haplotype analysis:"
+            f"The following species have >{min_proportion_threshold * 100}% assigned reads but ABSENT from your haplotype analysis:"
         )
         lines = [
             f"{i}) {name} (TaxID {tx}; {pct:.2f}%)"
