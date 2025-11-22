@@ -161,7 +161,7 @@ def add_taxon_to_file(taxon_id, folder_name):
 
     # Case 2: same taxid, different folder
     if same_taxid_exists:
-        print(f"\n\n[WARN] Taxon {taxon_id} exists but with a different folder; adding new entry: CHECK PROPERLY!!!\n")
+        print(f"\n\n[WARN] Taxon {taxon_id} exists but with a different folder!!! Adding a new entry\n")
 
     # Case 3: new taxon → normal append
     with open(file_path, "a") as f:
