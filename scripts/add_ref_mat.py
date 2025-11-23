@@ -135,7 +135,7 @@ def copy_viz_and_jsonl(workdir, pathogen_dir):
 
 def add_taxon_to_file(taxon_id, folder_name):
     entries = []
-    file_path = os.path.join(ROOT_PATHOGENS_DIR, "added_taxons.tsv")
+    file_path = os.path.join(ROOT_PATHOGENS_DIR, "added_taxons.csv")
     
     # Ensure the directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -148,7 +148,7 @@ def add_taxon_to_file(taxon_id, folder_name):
     with open(file_path, "r") as f:
         for line in f:
             if line.strip():
-                tid, fname = line.strip().split("\t")
+                tid, fname = line.strip().split(",")
                 entries.append((tid, fname))
 
     exact_exists = (taxon_id, folder_name) in entries
@@ -165,7 +165,7 @@ def add_taxon_to_file(taxon_id, folder_name):
 
     # Case 3: new taxon → normal append
     with open(file_path, "a") as f:
-        f.write(f"{taxon_id}\t{folder_name}\n")
+        f.write(f"{taxon_id},{folder_name}\n")
 
 
 def refseq_seems_in_db(db_dir, refseq_id):

@@ -13,13 +13,13 @@ from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 
 def get_taxid_of_pathogens_for_wepp():
-    added_taxons_path = "data/pathogens_for_wepp/added_taxons.tsv"
+    added_taxons_path = "data/pathogens_for_wepp/added_taxons.csv"
     added_taxons = {}
     if os.path.exists(added_taxons_path):
         with open(added_taxons_path, "r") as f:
             for line in f:
                 if line.strip():
-                    parts = line.strip().split('\t')
+                    parts = line.strip().split(',')
                     if len(parts) == 2:
                         taxid, folder = parts
                         added_taxons.setdefault(taxid, set()).add(folder)
