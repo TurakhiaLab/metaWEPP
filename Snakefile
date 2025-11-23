@@ -186,6 +186,7 @@ rule split_read:
         r1 = FQ1,
         r2 = lambda wc: [] if IS_SINGLE_END else [FQ2],
     output:
+        "results/{DIR}/pathogen_coverage.tsv",
         "results/{DIR}/.split_read.done"
     params:
         script = "scripts/split_read.py",
