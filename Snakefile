@@ -357,7 +357,7 @@ rule print_dashboard_instructions:
         "results/{DIR}/.wepp_dashboard.done"
     run:
         if not config.get("DASHBOARD_ENABLED"):
-            print("\nTo view the dashboard, re-run the following commands:")
+            print("\n\n\n\nTo view the dashboard, re-run the following commands:\n")
             with open(f"results/{DIR}/run_wepp.txt", "r") as f:
                 for line in f:
                     line = line.strip()
@@ -365,7 +365,8 @@ rule print_dashboard_instructions:
                         modified_line = line.replace("DASHBOARD_ENABLED=False", "DASHBOARD_ENABLED=True")
                     else:
                         modified_line = line + " DASHBOARD_ENABLED=True"
-                    print(modified_line)
+                    print(modified_line, "\n")
+            print("\n")
         else:
             print("\nDashboard is already enabled. No action needed.")
 
