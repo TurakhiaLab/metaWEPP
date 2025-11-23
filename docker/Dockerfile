@@ -39,11 +39,8 @@ ENV PATH=/root/miniforge3/bin:$PATH
 RUN /root/miniforge3/bin/conda init bash && \
     echo "source ~/.bashrc" >> /root/.bash_profile
 
-# Install Snakemake, taxoniumtools, and matplotlib using pip
-RUN pip install snakemake taxoniumtools matplotlib
-
-# Install viral_usher using Conda
-RUN conda install -c bioconda -y viral-usher
+# Install Snakemake, taxoniumtools, matplotlib, and viral_usher using pip
+RUN pip install snakemake taxoniumtools matplotlib viral_usher
 
 # Create workspace directory
 RUN mkdir -p /workspace
