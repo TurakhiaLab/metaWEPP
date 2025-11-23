@@ -215,16 +215,14 @@ rule split_read:
             cmd.extend(["--r2", input.r2[0]])
 
         subprocess.run(cmd, check=True)
-        Path(output[0]).touch()
+
+        tsv_path = Path(output[0])
+        if not tsv_path.exists():
+            tsv_path.write_text("")
+
+        Path(output[1]).touch()
 
 rule prepare_for_wepp:
-    """
-    Build run_wepp.txt using pathogen_coverage.tsv and MIN_DEPTH_FOR_WEPP.
-    For each pathogen with depth >= MIN_DEPTH_FOR_WEPP:
-        - If pathogen is explicitly in PATHOGENS, use its clade_list / clade_idx.
-        - Else use values from the 'default' entry.
-        - Auto-detect TREE (.pb/.pb.gz) and REF (.fa/.fasta/.fna).
-    """
     input:
         "results/{DIR}/.split_read.done",
         coverage = "results/{DIR}/pathogen_coverage.tsv"
@@ -233,15 +231,27 @@ rule prepare_for_wepp:
     run:
         MIN_DEPTH_FOR_WEPP = float(config.get("MIN_DEPTH_FOR_WEPP", 0))
 
-        coverage_df = pd.read_csv(
-            input.coverage,
-            sep="\t",
-            header=None,
-            names=["pathogen", "depth"]
-        )
+        try:
+            coverage_df = pd.read_csv(
+                input.coverage,
+                sep="\t",
+                header=None,
+                names=["pathogen", "depth"]
+            )
+        except pd.errors.EmptyDataError:
+            coverage_df = pd.DataFrame(columns=["pathogen", "depth"])
+
+        coverage_df = coverage_df.dropna()
+        # If coverage_df is empty → create empty run_wepp.txt and exit
+        if coverage_df.empty:
+            Path(output[0]).write_text("")
+            return
 
         # Keep Pathogens meeting depth requirement
         selected_pathogens = coverage_df[coverage_df["depth"] >= MIN_DEPTH_FOR_WEPP]["pathogen"].tolist()
+        # No pathogens pass depth → empty run_wepp.txt
+        if not selected_pathogens:
+            Path(output[0]).write_text("")
 
         WEPP_METADATA = {
             PATHOGENS[i]: {
