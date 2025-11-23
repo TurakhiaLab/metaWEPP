@@ -270,7 +270,7 @@ rule prepare_for_wepp:
 
                 # Source directories
                 pathogen_dir = Path(f"data/pathogens_for_wepp/{pathogen}")
-                result_dir = Path(f"results/{pathogen}")
+                result_dir = Path(f"results/{DIR}/{pathogen}")
 
                 # Destination directory
                 dest_dir = Path(WEPP_ROOT) / "data" / f"{DIR}_{pathogen}"
@@ -343,26 +343,12 @@ rule run_wepp:
     output:
         "results/{DIR}/.wepp.done"
     run:
-        with open(input[0], "r") as f:
-            commands = [line.strip() for line in f if line.strip()]
-
-        procs = [subprocess.Popen(cmd, shell=True) for cmd in commands]
-        exit_codes = [p.wait() for p in procs]
-        
-        failed_commands = []
-        for i, code in enumerate(exit_codes):
-            if code != 0:
-                failed_commands.append(commands[i])
-
-        if failed_commands:
-            print("The following commands failed:")
-            for cmd in failed_commands:
-                print(f"  - {cmd}")
-            # Raise an exception to make the snakemake rule fail
-            raise Exception("Some WEPP runs failed.")
+        for line in open(input[0]):
+            cmd = line.strip()
+            if cmd:
+                subprocess.check_call(cmd, shell=True)
 
         Path(output[0]).touch()
-
 
 rule print_dashboard_instructions:
     input:
