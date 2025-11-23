@@ -136,6 +136,10 @@ MIN_DEPTH_FOR_WEPP: "10"
 
 Follow the command prompts to add the pathogens.
 
+```
+snakemake --config KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample --cores 8
+```
+
 For SARS-CoV-2:
 ```txt
 a) Type "sars cov 2" and press [enter] to search for SARS-CoV-2.
@@ -196,6 +200,10 @@ MIN_DEPTH_FOR_WEPP: "10"
 ```
 
 **Step 5:** Run the pipeline 
+
+```
+snakemake --config KRAKEN_DB=test_kraken_DB DIR=simulated_metagenomic_sample --cores 8
+```
 
 Follow the command prompts to add the pathogens.
 
