@@ -37,7 +37,7 @@
 metaWEPP is a Snakemake-based bioinformatics pipeline that brings near-haplotype–level resolution to metagenomic analysis. As illustrated in figure, metaWEPP can analyze metagenomic or mixed-genome samples from environmental sources and clinical specimens. metaWEPP first uses standard taxonomic classifiers to assign sequencing reads to known species, then applies [WEPP](https://github.com/TurakhiaLab/WEPP) to phylogenetically place these reads onto updated, species-specific mutation-annotated trees built from all publicly available clinical sequences,  and finally selects the subset of haplotypes that is best match of the sample. metaWEPP also reports unaccounted alleles that are indicative of novel variants and includes an interactive dashboard to provide a detailed visualization for each species. 
 
 <div align="center">
-    <img src="metaWEPP_Overview.png" width="600">
+    <img src="metaWEPP_Overview.png" width="1000">
     <div><b>Figure 1: metaWEPP Overview</b></div>
 </div>
 
