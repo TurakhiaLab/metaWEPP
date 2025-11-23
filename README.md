@@ -22,10 +22,10 @@
 - [User Guide](#guide)
   - [Data Organization](#data)
   - [metaWEPP Arguments](#arg)
-    - [Detailed Example](#argexample)
+    - [Example of species-specific arguments](#argexample)
   - [Run Command](#run) 
-  - [MAT Download](#mat) 
-- [Building Kraken Database](#build-database)
+  - [MAT for pathogen species](#mat) 
+- [Kraken2 Database](#build-database)
   - [Downloading prebuilt database](#prebuilt)
   - [Creating custom database](#custom)
 
@@ -328,54 +328,46 @@ The metaWEPP Snakemake pipeline requires the following arguments, which can be p
 11. `DASHBOARD_ENABLED` - Enables WEPP dashboard for visualization of haplotype results
 12. `PATHOGENS` - List of pathogens with custom WEPP settings. Any species not listed here will use the `default` settings.
 12. `CLADE_LIST` - Comma-separated list of clade annotation schemes present in the MAT file. Each element corresponds to the pathogen species in the order specified in `PATHOGENS`. If there is no clade annotation for a pathogen species, do not provide any value for that species.
-13. `CLADE_IDX` - Comma-separated list of clade indices for each pathogen. If a pathogen has no lineage annotations, use `-1`. Each element corresponds to the pathogen species in the order specified by `PATHOGENS`.
+13. `CLADE_IDX` - Comma-separated list of clade indices for each pathogen. If a pathogen has no lineage annotations, use **-1**. Each element corresponds to the pathogen species in the order specified by `PATHOGENS`.
 14. `MIN_DEPTH_FOR_WEPP` - Minimum read coverage required to run WEPP for any pathogen species.
 15. `MIN_PROP_FOR_WEPP` - Minimum relative abundance of a species before metaWEPP prompts to add it for haplotype-level analysis.
 
 
-#### <a name="argexample"> Detailed Example:
+#### <a name="argexample"> Example of species-specific arguments:
 ```
-PATHOGENS: "default,sars_cov_2"
-CLADE_LIST: "pango,nextstrain:pango"
-CLADE_IDX: "0,1"
-MIN_DEPTH_FOR_WEPP: "10"
+PATHOGENS: "default,SARS_COV_2,RSV_A"
+CLADE_LIST: ",nextstrain:pango,nextstrain"
+CLADE_IDX: "-1,1,0"
 ```
-This means:
 
-**default pathogens** (all pathogens not named explicitly):
+These arguments are applied by first checking whether the species listed in `PATHOGENS` are present in `data/pathogens_for_wepp`. Then, the corresponding `CLADE_LIST` and `CLADE_IDX` values are used for WEPP analysis as follows:
 
-Use the first element of the list in CLADE_IDX "0" and CLADE_LIST "pango"
-
-Use depth threshold 10 (only one value provided -> applies to all pathogens)
-
-**sars_cov_2**:
-
-Use the second element of the list in CLADE_IDX "1" and CLADE_LIST "nextstrain:pango"(will be convert to "nextstrain,pango" when running WEPP)
-
-Use depth threshold 10 (only one value provided -> applies to all pathogens)
-
-| Pathogen   | Clade Index | Clade List        | Minimum depth |
-| ---------- | ---------   | ----------------- | --------------|
-| default    | 0           | pango             | 10            |
-| sars_cov_2 | 1           | nextstrain:pango  | 10            |
+**SARS_COV_2** - `CLADE_LIST` is **nextstrain,pango**, and `CLADE_IDX` is **1**. 
+**RSV_A** - `CLADE_LIST` is **nextstrain** and `CLADE_IDX` is **0**.
+**All other species** - `CLADE_LIST` is not passed, and `CLADE_IDX` is **-1**.
 
 
 ### <a name="run"> Run Command
 
-metaWEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line config arguments. Other parameters can also be provided via the config file. It also accepts `--cores`  to control the number of threads used during execution.
+metaWEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line arguments. Other parameters can be provided via the config file. Additionally, the `--cores` argument must be supplied on the command line to specify the number of threads used by the workflow.
 
 Examples:
-1. Using all parameters from the config file:
+1. Using all the parameters from the config file:
 ```
-snakemake --config KRAKEN_DB=<path to the Kraken database> DIR=<name of the sample folder for analysis> --cores 32
+snakemake --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample --cores 32
 ```
 
+2. Overriding MIN_Q and MIN_PROP_FOR_WEPP through command line:
+```
+snakemake --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample MIN_Q=25 MIN_PROP_FOR_WEPP=0.05 --cores 32
+```
 
-### <a name="mat"> MAT Download
-Mutation-annotated trees (MAT) for different pathogens are maintained by the UShER team, which can be found [here](https://dev.usher.bio). You can also create your own MAT for any pathogen from the consensus genome assemblies using [viral_usher](https://github.com/AngieHinrichs/viral_usher).
+### <a name="mat"> MAT for pathogen species
+Mutation-annotated trees (MATs) for some pathogen species are maintained by the UShER team and can be found [here](https://dev.usher.bio). Alternatively, metaWEPP includes an internal pipeline to generate MATs for any virus with sequences available on GenBank.
 
-##  <a name="build-database"></a> Building Kraken Database
-Users can either download prebuilt databases available online or create custom ones using their genomes.
+
+##  <a name="build-database"></a> Kraken2 Database
+Users can either download prebuilt databases available online or create custom databases using their own genome sequences.
 
 ### <a name="prebuilt"> Downloading prebuilt database
 **Step 1:** Get the link of `.tar.gz` file of the genome collection you want from [here](https://benlangmead.github.io/aws-indexes/k2). Download the database using either `wget` or `curl` command.
@@ -383,34 +375,30 @@ Users can either download prebuilt databases available online or create custom o
 
 **Step 2:** Unzip the downloaded database in a new directory using `tar`.
 ```
-tar -xzf file.tar.gz
+mkdir -p <prebuilt_database>
+tar -xvzf <database.tar.gz> -C <prebuilt_database>
 ```
 
 
 ### <a name="custom"> Creating custom database
-**Step 1:** Install the taxonomy. This is necessary for building a Kraken database. Replace "$DBNAME" above with your preferred database name.
+**Step 1:** Download the taxonomy data, which is required to build a custom Kraken2 database. 
 ```
-kraken2-build --download-taxonomy --db $DBNAME
-```
-
-**Step 2:** Add sequences to the database's genome library.
-```
-k2 add-to-library --db $DBNAME --file <reference_genomes.fa> 
+kraken2-build --download-taxonomy --db <custom_database>
 ```
 
-**Step 3:** Build the database. 
+**Step 2:** Add reference sequences to the database's genome library.
 ```
-kraken2-build --build --db $DBNAME
+k2 add-to-library --file <reference_sequence.fa> --db <custom_database> 
+```
+
+**Step 3:** Build the custom database. 
+```
+kraken2-build --build --db <custom_database>
 ```
 
 You can also customize kmer lengths with `--kmer-len` and `--minimizer-len`. For example,  
 ```
-kraken2-build --build --db $DBNAME --kmer-len 21 --minimizer-len 15
+kraken2-build --build --db <custom_database> --kmer-len <kmer_length> --minimizer-len <minimizer_length>
 ```
 
-⚠️ If you would like to save disk memory, perform the following commands:
-```
-rm -rf test_kraken_DB/taxonomy 
-rm -rf test_kraken_DB/library  
-```
 More information about creating custom databases can be found [here](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases).

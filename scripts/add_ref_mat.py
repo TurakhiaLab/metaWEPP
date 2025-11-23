@@ -107,7 +107,7 @@ def build_kraken_db(db_dir, threads=8):
                 print(f"[ERROR] Could not remove '{path}': {e}")
                 # sys.exit(1) # Optionally exit if a file can't be removed
 
-    cmd = ["kraken2-build", "--build", "--fast-build", "--db", db_dir, f"--threads={threads}"]
+    cmd = ["kraken2-build", "--build", "--db", db_dir, f"--threads={threads}"]
     print("[CMD]", " ".join(cmd))
     subprocess.run(cmd, check=True)
 
