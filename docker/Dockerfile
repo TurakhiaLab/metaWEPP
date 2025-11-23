@@ -22,10 +22,8 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     git \
     nodejs \
-    npm \
-    nginx \
-    rsync \
     pigz \
+    minimap2 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -41,11 +39,11 @@ ENV PATH=/root/miniforge3/bin:$PATH
 RUN /root/miniforge3/bin/conda init bash && \
     echo "source ~/.bashrc" >> /root/.bash_profile
 
-# Install yarn
-RUN npm install -g yarn
-
 # Install Snakemake, taxoniumtools, and matplotlib using pip
 RUN pip install snakemake taxoniumtools matplotlib
+
+# Install viral_usher using Conda
+RUN conda install -c bioconda -y viral-usher
 
 # Create workspace directory
 RUN mkdir -p /workspace

@@ -1,10 +1,10 @@
 # Snakefile
 
-# imports
 import os
 import csv, re, itertools
 import subprocess
 import pandas as pd
+import shutil
 
 from pathlib import Path
 import sys, glob
@@ -27,7 +27,9 @@ rule all:
     input:
         f"results/{DIR}/classification_proportions.png",
         f"results/{DIR}/.split_read.done",
-        f"results/{DIR}/run_wepp.txt"
+        f"results/{DIR}/run_wepp.txt",
+        f"results/{DIR}/.wepp.done",
+        f"results/{DIR}/.wepp_dashboard.done"
 
 
 KRAKEN_DB = config.get("KRAKEN_DB")
@@ -266,12 +268,28 @@ rule prepare_for_wepp:
 
                 cl_idx = f"{raw_meta['clade_idx']}"
 
-                # Identify important files
+                # Source directories
                 pathogen_dir = Path(f"data/pathogens_for_wepp/{pathogen}")
+                result_dir = Path(f"results/{pathogen}")
+
+                # Destination directory
+                dest_dir = Path(WEPP_ROOT) / "data" / f"{DIR}_{pathogen}"
+                dest_dir.mkdir(parents=True, exist_ok=True)
+
+                # 1. Copy files from data/pathogens_for_wepp/{pathogen}
+                for file in pathogen_dir.glob("*"):
+                    if file.is_file():
+                        shutil.copy2(file, dest_dir)
+
+                # 2. Copy files from results/{pathogen} if present
+                if result_dir.exists():
+                    for file in result_dir.glob("*"):
+                        if file.is_file():
+                            shutil.copy2(file, dest_dir)
 
                 tree_file = (
-                    list(pathogen_dir.glob("*.pb")) +
-                    list(pathogen_dir.glob("*.pb.gz"))
+                    list(dest_dir.glob("*.pb")) +
+                    list(dest_dir.glob("*.pb.gz"))
                 )
                 if not tree_file:
                     raise FileNotFoundError(
@@ -280,9 +298,9 @@ rule prepare_for_wepp:
                 tree_name = tree_file[0].name
 
                 ref_file = (
-                    list(pathogen_dir.glob("*.fa")) +
-                    list(pathogen_dir.glob("*.fasta")) +
-                    list(pathogen_dir.glob("*.fna"))
+                    list(dest_dir.glob("*.fa")) +
+                    list(dest_dir.glob("*.fasta")) +
+                    list(dest_dir.glob("*.fna"))
                 )
                 if not ref_file:
                     raise FileNotFoundError(
@@ -291,8 +309,8 @@ rule prepare_for_wepp:
                 ref_name = ref_file[0].name
 
                 taxonium_files = (
-                    list(pathogen_dir.glob("*.jsonl")) +
-                    list(pathogen_dir.glob("*.jsonl.gz"))
+                    list(dest_dir.glob("*.jsonl")) +
+                    list(dest_dir.glob("*.jsonl.gz"))
                 )
                 taxonium_arg = (
                     f"TAXONIUM_FILE={taxonium_files[0].name} "
@@ -319,80 +337,50 @@ rule prepare_for_wepp:
 
                 f.write(cmd)
 
+rule run_wepp:
+    input:
+        "results/{DIR}/run_wepp.txt"
+    output:
+        "results/{DIR}/.wepp.done"
+    run:
+        with open(input[0], "r") as f:
+            commands = [line.strip() for line in f if line.strip()]
 
-                
+        procs = [subprocess.Popen(cmd, shell=True) for cmd in commands]
+        exit_codes = [p.wait() for p in procs]
+        
+        failed_commands = []
+        for i, code in enumerate(exit_codes):
+            if code != 0:
+                failed_commands.append(commands[i])
+
+        if failed_commands:
+            print("The following commands failed:")
+            for cmd in failed_commands:
+                print(f"  - {cmd}")
+            # Raise an exception to make the snakemake rule fail
+            raise Exception("Some WEPP runs failed.")
+
+        Path(output[0]).touch()
 
 
-#rule emit_dashboard_instructions:
-#    input:
-#        runs    = run_txts_for_all
-#    output:
-#        howto   = f"{WEPP_CMD_LOG}/{TAG}_dashboard_howto.txt"
-#    params:
-#        script = "scripts/emit_dashboard_howto.py",
-#        cmd_log = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt"
-#    shell:
-#        "python scripts/emit_dashboard_howto.py --cmd-log {params.cmd_log} --out {output.howto}"
-#
-#
-#rule run_wepp_dashboard:
-#    input:
-#        run_txt = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_run.txt",
-#    output:
-#        dash_txt = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_dashboard_run.txt",
-#    threads: workflow.cores
-#    params:
-#        snakefile    = str(WEPP_WORKFLOW),
-#        workdir      = str(WEPP_ROOT),
-#        seq_type     = config.get("SEQUENCING_TYPE", "d").lower(),
-#        primer_bed   = config["PRIMER_BED"],
-#        min_af       = config["MIN_AF"],
-#        min_q        = config["MIN_Q"],
-#        max_reads    = config["MAX_READS"],
-#        clade_list   = config["CLADE_LIST"],
-#        clade_idx    = config["CLADE_IDX"],
-#        cfgfile      = str(CONFIG),
-#        resultsdir   = str(WEPP_RESULTS_DIR),
-#        prefix       = lambda wc: wc.acc.split('.')[0],
-#        ref_name     = lambda wc: f"{wc.acc}.fa",
-#        tag_dir      = lambda wc: tag(wc.acc),
-#        tree_name    = lambda wc: os.path.basename(WEPP_TREE(wc.acc)),
-#        tree_full    = lambda wc: WEPP_TREE(wc.acc),
-#        fasta_name   = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
-#        fasta_full   = lambda wc: WEPP_REF(wc.acc),
-#        cmd_log      = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
-#        pathogens_name = lambda wc: dir(wc.acc),
-#        taxonium_file  = lambda wc: (WEPP_JSONL(wc.acc) if ACC2JSONL.get(wc.acc) else "")
-#    conda:
-#        "env/wepp.yaml"
-#    shell:
-#        r"""
-#        if [ -n "{params.taxonium_file}" ]; then
-#            tax_arg="--taxonium_file {params.taxonium_file}"
-#        else
-#            tax_arg=""
-#        fi
-#
-#        python ./scripts/run_inner.py \
-#            --dir        {params.tag_dir} \
-#            --prefix     {params.prefix} \
-#            --primer_bed {params.primer_bed} \
-#            --min_af     {params.min_af} \
-#            --min_q      {params.min_q} \
-#            --max_reads  {params.max_reads} \
-#            --tree       {params.tree_name} \
-#            --ref        {params.fasta_name} \
-#            --snakefile  {params.snakefile} \
-#            --workdir    {params.workdir} \
-#            --cfgfile    {params.cfgfile} \
-#            --cores      {threads} \
-#            --sequencing_type {params.seq_type} \
-#            --pathogens_name {params.pathogens_name} \
-#            --cmd_log {params.cmd_log}
-#            $tax_arg
-#
-#        touch {output.dash_txt}
-#        """
-#
-#
-#
+rule print_dashboard_instructions:
+    input:
+        f"results/{DIR}/.wepp.done"
+    output:
+        "results/{DIR}/.wepp_dashboard.done"
+    run:
+        if not config.get("DASHBOARD_ENABLED"):
+            print("\nTo view the dashboard, re-run the following commands:")
+            with open(f"results/{DIR}/run_wepp.txt", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if "DASHBOARD_ENABLED" in line:
+                        modified_line = line.replace("DASHBOARD_ENABLED=False", "DASHBOARD_ENABLED=True")
+                    else:
+                        modified_line = line + " DASHBOARD_ENABLED=True"
+                    print(modified_line)
+        else:
+            print("\nDashboard is already enabled. No action needed.")
+
+        Path(output[0]).touch()
