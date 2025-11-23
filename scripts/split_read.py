@@ -8,8 +8,9 @@ Split reads classified by Kraken2 into per-accession FASTQs.
     <OUT_ROOT>/other_pathogens/<accession>/<accession>_{R1,R2}.fq.gz
 """
 
-import argparse, gzip, json, sys, subprocess, tempfile, shutil, re, multiprocessing, os, random, glob
+import argparse, gzip, json, sys, subprocess, tempfile, shutil, re, concurrent, os, random, glob
 from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
 
 def get_taxid_of_pathogens_for_wepp():
     added_taxons_path = "data/pathogens_for_wepp/added_taxons.tsv"
@@ -448,29 +449,39 @@ def main():
     if not read_to_name:
         sys.exit("No classified reads in Kraken output.")
 
-    # Process R1 reads
-    r1_lengths, r1_ambiguous = split_fastq(
-        a.r1, "R1", read_to_name,
-        a.out_dir, a.threads
-    )
+    results = {}
+    with ProcessPoolExecutor(max_workers=2) as exe:
+        futures = {}
 
-    total_pathogen_read_lengths = r1_lengths
-    total_ambiguous_reads = r1_ambiguous
-
-    # Process R2 reads if they exist
-    if a.r2:
-        r2_lengths, r2_ambiguous = split_fastq(
-            a.r2, "R2", read_to_name,
-            a.out_dir, a.threads
+        # Launch R1
+        futures['R1'] = exe.submit(
+            split_fastq, a.r1, "R1", read_to_name, a.out_dir, a.threads
         )
+
+        # Launch R2 (if present)
+        if a.r2:
+            futures['R2'] = exe.submit(
+                split_fastq, a.r2, "R2", read_to_name, a.out_dir, a.threads
+            )
+
+        # Collect results
+        for mate, fut in futures.items():
+            results[mate] = fut.result()
+
+    # Combine R1 + R2 results
+    total_pathogen_read_lengths, total_ambiguous_reads = results['R1']
+
+    if 'R2' in results:
+        r2_lengths, r2_ambiguous = results['R2']
+
         for pathogen, length in r2_lengths.items():
-            total_pathogen_read_lengths[pathogen] = total_pathogen_read_lengths.get(pathogen, 0) + length
-        
+            total_pathogen_read_lengths[pathogen] = \
+                total_pathogen_read_lengths.get(pathogen, 0) + length
+
         for group, info in r2_ambiguous.items():
-            # The directory and fastas should be the same, so only add if not already present
             if group not in total_ambiguous_reads:
                 total_ambiguous_reads[group] = info
-
+    
     if total_ambiguous_reads:
         resolved_lengths = resolve_ambiguous_reads(total_ambiguous_reads, a.out_dir, a.sequencing_type, a.threads)
         for pathogen, length in resolved_lengths.items():
