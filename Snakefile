@@ -4,6 +4,7 @@
 import os
 import csv, re, itertools
 import subprocess
+import pandas as pd
 
 from pathlib import Path
 import sys, glob
@@ -25,7 +26,9 @@ if "DIR" not in config:
 rule all:
     input:
         f"results/{DIR}/classification_proportions.png",
-        f"results/{DIR}/.split_read.done"
+        f"results/{DIR}/.split_read.done",
+        f"results/{DIR}/run_wepp.txt"
+
 
 KRAKEN_DB = config.get("KRAKEN_DB")
 if KRAKEN_DB is None:
@@ -34,26 +37,25 @@ if KRAKEN_DB is None:
         "  --config KRAKEN_DB=<folder path>"
     )
 
+PATHOGENS = config["PATHOGENS"].split(",")
+CLADE_LIST = config["CLADE_LIST"].split(",")
+CLADE_IDX = [int(x) for x in config["CLADE_IDX"].split(",")]
+
+# Check if the lengths of all WEPP variables for different pathogens are equal
+if not (len(PATHOGENS) == len(CLADE_LIST) == len(CLADE_IDX)):
+    print(
+        f"ERROR: PATHOGENS, CLADE_LIST, CLADE_IDX must have equal length.\n"
+        f"PATHOGENS={len(PATHOGENS)}, CLADE_LIST={len(CLADE_LIST)}, CLADE_IDX={len(CLADE_IDX)}"
+    )
+    sys.exit(1)
 
 WEPP_ROOT        = "WEPP"
 WEPP_WORKFLOW    = "WEPP/workflow/Snakefile"
 WEPP_RESULTS_DIR = "WEPP/results"
 WEPP_DATA_DIR    = "WEPP/data"
 WEPP_CMD_LOG     = "WEPP/cmd_log"
-
-CONFIG      = "config/config.yaml"
-
-# Dashboard variable from config
-DASHBOARD_ENABLED = config.get("DASHBOARD_ENABLED", False)
-MIN_DEPTH = float(config.get("MIN_DEPTH_FOR_WEPP", 0))
-
-## Get comma-separated pathogens string
-#pathogen_str = config.get("PATHOGENS_FOR_DASHBOARD", "")
-#PATHOGENS_FOR_DASHBOARD = [p.strip() for p in pathogen_str.split(",") if p.strip()]
-#print(f"Dashboard = {DASHBOARD_ENABLED}", file=sys.stderr)
-#print("PATHOGENS_FOR_DASHBOARD:", ", ".join(PATHOGENS_FOR_DASHBOARD))
-
-IS_SINGLE_END = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
+CONFIG           = "config/config.yaml"
+IS_SINGLE_END    = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
 fq_dir = Path("data") / config["DIR"]
 if not fq_dir.exists():
@@ -185,6 +187,7 @@ rule split_read:
         "results/{DIR}/.split_read.done"
     params:
         script = "scripts/split_read.py",
+        sequencing_type = config.get("SEQUENCING_TYPE"),
     threads: workflow.cores
     run:
         output_dir = Path(output[0]).parent
@@ -201,6 +204,8 @@ rule split_read:
             str(output_dir),
             "-t",
             str(threads),
+            "-s",
+            params.sequencing_type,
         ]
 
         if input.r2:
@@ -209,302 +214,115 @@ rule split_read:
         subprocess.run(cmd, check=True)
         Path(output[0]).touch()
 
+rule prepare_for_wepp:
+    """
+    Build run_wepp.txt using pathogen_coverage.tsv and MIN_DEPTH_FOR_WEPP.
+    For each pathogen with depth >= MIN_DEPTH_FOR_WEPP:
+        - If pathogen is explicitly in PATHOGENS, use its clade_list / clade_idx.
+        - Else use values from the 'default' entry.
+        - Auto-detect TREE (.pb/.pb.gz) and REF (.fa/.fasta/.fna).
+    """
+    input:
+        "results/{DIR}/.split_read.done",
+        coverage = "results/{DIR}/pathogen_coverage.tsv"
+    output:
+        "results/{DIR}/run_wepp.txt"
+    run:
+        MIN_DEPTH_FOR_WEPP = float(config.get("MIN_DEPTH_FOR_WEPP", 0))
 
-#checkpoint build_acc2classified_dir:
-#    input:
-#        kraken_out = f"{OUT_ROOT}/kraken_output.txt",
-#        mapping    = TAXID_MAP,
-#        acc2dir    = ACC2DIR_JSON
-#    output:
-#        classified = ACC2CLASSIFIEDDIR_JSON
-#    params:
-#        script = "scripts/generate_acc2classified_dir.py"
-#    shell:
-#        "python {params.script} "
-#        "--kraken-out {input.kraken_out} "
-#        "--mapping {input.mapping} "
-#        "--acc2dir {input.acc2dir} "
-#        "-o {output.classified}"
-#
-## 7) Split Kraken output into per-taxid FASTQs 
-## --- config ---
-#ACC2CLASSIFIEDDIR_JSON = "config/acc2classified_dir.json"
-#
-## canonical paths used for split_per_accession rule
-#KRAKEN_OUT     = f"{OUT_ROOT}/kraken_output.txt"
-#KRAKEN_REPORT  = f"{OUT_ROOT}/kraken_report.txt"
-#SPLIT_SENTINEL = f"{OUT_ROOT}/.split_done"
-#
-#SPLIT_INPUTS = {
-#    "mapping":       TAXID_MAP,
-#    "acc2dir":       ACC2DIR_JSON,
-#    "r1":            FQ1,
-#    "kraken_out":    KRAKEN_OUT,
-#    "kraken_report": KRAKEN_REPORT,
-#    "classified":    ACC2CLASSIFIEDDIR_JSON,
-#}
-#if not IS_SINGLE_END:
-#    SPLIT_INPUTS["r2"] = FQ2
-#
-#SPLIT_PARAMS = {
-#    "script":    "scripts/split_read.py",
-#    "dir_arg":   f"--acc2dir {ACC2DIR_JSON}",
-#    "ref_arg":   "" if not REF_ACCESSIONS else "--ref-accessions " + ",".join(REF_ACCESSIONS),
-#    "dir":       OUT_ROOT
-#}
-#
-#r2_arg = "--r2 {input.r2} \\" if not IS_SINGLE_END else ""
-#
-#SPLIT_SHELL = r"""
-#python {params.script} \
-#--kraken-out {input.kraken_out} \
-#--kraken-report {input.kraken_report} \
-#--mapping {input.mapping} \
-#--r1 {input.r1} \
-#""" + r2_arg + r"""
-#{params.ref_arg} \
-#{params.dir_arg} \
-#--out-dir {params.dir} \
-#--pigz-threads {threads} \
-#"""
-#
-## ----------------- CASE 1: ACC2CLASSIFIEDDIR_JSON is EMPTY ------------------
-#if CLASSIFIED_EMPTY:
-#    rule split_per_accession:
-#        input:  **SPLIT_INPUTS
-#        output:
-#            done = f"{OUT_ROOT}/.split_done"
-#        params: **SPLIT_PARAMS,
-#        threads: workflow.cores
-#        shell:
-#            SPLIT_SHELL + r" && touch {output.done}"
-#            
-## ----------------- CASE 2: ACC2CLASSIFIEDDIR_JSON is NOT EMPTY --------------
-#else:
-#    if IS_SINGLE_END:
-#        rule split_per_accession:
-#            input: **SPLIT_INPUTS
-#            output:
-#                r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
-#            params: 
-#                **SPLIT_PARAMS,
-#                done = SPLIT_SENTINEL
-#            threads: workflow.cores
-#            shell:
-#                SPLIT_SHELL + r" && touch {params.done}"
-#    else:
-#        rule split_per_accession:
-#            input: **SPLIT_INPUTS
-#            output:
-#                r1_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R1.fq.gz",
-#                r2_out = f"{OUT_ROOT}/{{out_dir}}/{{acc}}_R2.fq.gz",
-#            params: 
-#                **SPLIT_PARAMS,
-#                done = SPLIT_SENTINEL
-#            threads: workflow.cores
-#            shell:
-#                SPLIT_SHELL + r" --r2 {input.r2} && touch {params.done}"
-#
-#checkpoint coverage_calculate:
-#    input:
-#        classified = ACC2CLASSIFIEDDIR_JSON, 
-#        r1s        = split_fastqs_for_coverage 
-#    output:
-#        coverage = ACC2COVERED_JSON
-#    params:
-#        out_root      = OUT_ROOT,
-#        pathogen_root = str(PATHOGEN_ROOT),
-#        min_depth     = MIN_DEPTH,
-#        script        = "scripts/calc_coverage_json.py"
-#    shell:
-#        r"""
-#        python {params.script} \
-#          --acc2classified {input.classified} \
-#          --out-root {params.out_root} \
-#          --pathogen-root {params.pathogen_root} \
-#          --min-depth {params.min_depth} \
-#          --out-json {output.coverage}
-#        """
-#
-#
-#
-## 7.5) Prepare wepp input directory
-## For every accession (wildcard: {acc}) copy the reference *.fa and the matching 
-## *.pb.gz / *.pb into the same OUT_ROOT/<acc>/ directory that already contains 
-## the split reads.
-## helper defined
-#TAG = config["DIR"]
-#def tag(acc):
-#    return f"{ACC2DIR[acc]}_{TAG}"
-#
-#if IS_SINGLE_END:
-#    # ───────── single-end ────────────────────────────────────────────────────
-#    rule prepare_wepp_inputs:
-#        input:
-#            r1          = lambda wc:
-#                f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
-#                f"{wc.acc.split('.')[0]}_R1.fq.gz",
-#            fasta       = lambda wc: ACC2FASTA[wc.acc],
-#            pb          = lambda wc: ACC2PB[wc.acc],
-#            viz         = f"{OUT_ROOT}/classification_proportions.png", 
-#            classified  = ACC2CLASSIFIEDDIR_JSON,
-#            kraken_out  = f"{OUT_ROOT}/kraken_output.txt", 
-#            kraken_report = f"{OUT_ROOT}/kraken_report.txt",
-#            coverage = ACC2COVERED_JSON
-#        output:
-#            new_r1      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz",
-#        params:
-#            data_dir    = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
-#            tree_dest   = lambda wc: WEPP_TREE(wc.acc),
-#            fasta_dest  = lambda wc: WEPP_REF(wc.acc),
-#            jsonl_src   = lambda wc: ACC2JSONL.get(wc.acc, ""),
-#            jsonl_dest  = lambda wc: WEPP_JSONL(wc.acc)
-#        shell:
-#            r"""
-#            mkdir -p {params.data_dir}
-#            cp {input.fasta} {params.fasta_dest}
-#            cp {input.pb}    {params.tree_dest}
-#
-#            if [ -f "{input.r1}" ]; then
-#                cp {input.r1} {output.new_r1}
-#            else
-#                echo | gzip -c > {output.new_r1}
-#            fi
-#
-#            if [ -n "{params.jsonl_src}" ]; then
-#                cp "{params.jsonl_src}" "{params.jsonl_dest}"
-#            fi
-#            """
-#
-#else:
-#    # ───────── paired-end ───────────────────────────────────────────────────
-#    rule prepare_wepp_inputs:
-#        input:
-#            r1          = lambda wc:
-#                f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
-#                f"{wc.acc.split('.')[0]}_R1.fq.gz",
-#            r2          = lambda wc:
-#                f"{OUT_ROOT}/{wc.dir_tag.replace('_' + TAG, '')}/"
-#                f"{wc.acc.split('.')[0]}_R2.fq.gz",
-#            fasta       = lambda wc: ACC2FASTA[wc.acc],
-#            pb          = lambda wc: ACC2PB[wc.acc],
-#            viz         = f"{OUT_ROOT}/classification_proportions.png",
-#            classified  = ACC2CLASSIFIEDDIR_JSON,
-#            kraken_out  = f"{OUT_ROOT}/kraken_output.txt",
-#            kraken_report = f"{OUT_ROOT}/kraken_report.txt",
-#            coverage = ACC2COVERED_JSON
-#        output:
-#            new_r1      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
-#            new_r2      = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
-#        params:
-#            data_dir    = lambda wc: f"{WEPP_DATA_DIR}/{wc.dir_tag}",
-#            tree_dest   = lambda wc: WEPP_TREE(wc.acc),
-#            fasta_dest  = lambda wc: WEPP_REF(wc.acc),
-#            jsonl_src   = lambda wc: ACC2JSONL.get(wc.acc, ""),
-#            jsonl_dest  = lambda wc: WEPP_JSONL(wc.acc)
-#        shell:
-#            r"""
-#            mkdir -p {params.data_dir}
-#            cp {input.fasta} {params.fasta_dest}
-#            cp {input.pb}    {params.tree_dest}
-#
-#            if [ -f "{input.r1}" ]; then
-#                cp {input.r1} {output.new_r1}
-#            else
-#                echo | gzip -c > {output.new_r1}
-#            fi
-#
-#            if [ -f "{input.r2}" ]; then
-#                cp {input.r2} {output.new_r2}
-#            else
-#                echo | gzip -c > {output.new_r2}
-#            fi
-#
-#            if [ -n "{params.jsonl_src}" ]; then
-#                cp "{params.jsonl_src}" "{params.jsonl_dest}"
-#            fi
-#            """
-#
-## 8) Invoke WEPP’s Snakefile for each taxid
-## Run WEPP
-#rule run_wepp:
-#    input:
-#        # FASTQs are stored in WEPP/data/<acc>_<TAG>/
-#        r1         = f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}.fastq.gz"
-#                      if IS_SINGLE_END else
-#                      f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R1.fastq.gz",
-#        r2         = [] if IS_SINGLE_END else
-#                      f"{WEPP_DATA_DIR}/{{dir_tag}}/{{acc}}_R2.fastq.gz",
-#    output:
-#        run_txt    = f"{WEPP_RESULTS_DIR}/{{dir_tag}}/{{acc}}_run.txt",
-#    threads: workflow.cores
-#    params:
-#        snakefile   = str(WEPP_WORKFLOW),
-#        workdir     = str(WEPP_ROOT),
-#        seq_type    = config.get("SEQUENCING_TYPE", "d").lower(),
-#        primer_bed  = config["PRIMER_BED"],
-#        min_af      = config["MIN_AF"],
-#        min_q       = config["MIN_Q"],
-#        max_reads   = config["MAX_READS"],
-#        clade_list  = config["CLADE_LIST"],
-#        clade_idx   = config["CLADE_IDX"],
-#        min_prop    = config["MIN_PROP"],
-#        min_len    = config["MIN_LEN"],
-#        cfgfile     = str(CONFIG),
-#        resultsdir  = str(WEPP_RESULTS_DIR),
-#        prefix      = lambda wc: wc.acc.split('.')[0],
-#        ref_name    = lambda wc: f"{wc.acc}.fa",
-#        tag_dir     = lambda wc: tag(wc.acc),  
-#        tree_name   = lambda wc: os.path.basename(WEPP_TREE(wc.acc)),
-#        tree_full   = lambda wc: WEPP_TREE(wc.acc),
-#        fasta_name  = lambda wc: os.path.basename(WEPP_REF(wc.acc)),
-#        fasta_full  = lambda wc: WEPP_REF(wc.acc),
-#        cmd_log     = f"{WEPP_CMD_LOG}/{TAG}_dashboard_run.txt",
-#        pathogens_name = lambda wc: dir(wc.acc)
-#    conda:
-#        "env/wepp.yaml"
-#    shell:
-#        r"""
-#        # ── skip WEPP when both FASTQs are empty ──────────────────────
-#        min_reads=100
-#        has_reads() {{
-#            local f=$1
-#            local num_reads
-#            num_reads=$( (gzip -cd "$f" 2>/dev/null || cat "$f") | wc -l )
-#            [ "$((num_reads / 4))" -ge "$min_reads" ]
-#        }}
-#
-#        if ! has_reads "{input.r1}" && ( [ -z "{input.r2}" ] || ! has_reads "{input.r2}" ); then
-#            echo "Fewer than $min_reads for {wildcards.acc}; removing data folder and skipping WEPP."
-#            rm -rf "{WEPP_DATA_DIR}/{params.tag_dir}"
-#            mkdir -p {params.resultsdir}/{wildcards.acc}
-#            touch {output.run_txt}
-#            exit 0
-#        fi
-#
-#        mkdir -p {WEPP_CMD_LOG}
-#        [ -f {params.cmd_log} ] || touch {params.cmd_log}
-#
-#        python ./scripts/run_inner.py \
-#            --dir        {params.tag_dir} \
-#            --prefix     {params.prefix} \
-#            --primer_bed {params.primer_bed} \
-#            --min_af     {params.min_af} \
-#            --min_q      {params.min_q} \
-#            --max_reads  {params.max_reads} \
-#            --tree       {params.tree_name} \
-#            --ref        {params.fasta_name} \
-#            --snakefile  {params.snakefile} \
-#            --workdir    {params.workdir} \
-#            --cfgfile    {params.cfgfile} \
-#            --cores      {threads} \
-#            --sequencing_type {params.seq_type} \
-#            --pathogens_name {params.pathogens_name} \
-#            --cmd_log {params.cmd_log}
-#
-#        touch {output.run_txt} 
-#        """
-#
+        coverage_df = pd.read_csv(
+            input.coverage,
+            sep="\t",
+            header=None,
+            names=["pathogen", "depth"]
+        )
+
+        # Keep Pathogens meeting depth requirement
+        selected_pathogens = coverage_df[coverage_df["depth"] >= MIN_DEPTH_FOR_WEPP]["pathogen"].tolist()
+
+        WEPP_METADATA = {
+            PATHOGENS[i]: {
+                "clade_list": CLADE_LIST[i],
+                "clade_idx": CLADE_IDX[i]
+            }
+            for i in range(len(PATHOGENS))
+        }
+
+        DEFAULT_META = WEPP_METADATA.get("default", None)
+        if DEFAULT_META is None:
+            raise ValueError(
+                "ERROR: PATHOGENS must include a 'default' entry in config."
+            )
+        
+        # Write output
+        with open(output[0], "w") as f:
+            for pathogen in selected_pathogens:
+                # Choose either specific metadata or default
+                raw_meta = WEPP_METADATA.get(pathogen, DEFAULT_META)
+
+                # Process clade list
+                cl = (raw_meta["clade_list"] or "").replace(":", ",")
+                clade_list_arg = f"CLADE_LIST={cl} " if cl else ""
+
+                cl_idx = f"{raw_meta['clade_idx']}"
+
+                # Identify important files
+                pathogen_dir = Path(f"data/pathogens_for_wepp/{pathogen}")
+
+                tree_file = (
+                    list(pathogen_dir.glob("*.pb")) +
+                    list(pathogen_dir.glob("*.pb.gz"))
+                )
+                if not tree_file:
+                    raise FileNotFoundError(
+                        f"No *.pb or *.pb.gz TREE file found in {pathogen_dir}"
+                    )
+                tree_name = tree_file[0].name
+
+                ref_file = (
+                    list(pathogen_dir.glob("*.fa")) +
+                    list(pathogen_dir.glob("*.fasta")) +
+                    list(pathogen_dir.glob("*.fna"))
+                )
+                if not ref_file:
+                    raise FileNotFoundError(
+                        f"No reference FASTA (*.fa, *.fasta, *.fna) found in {pathogen_dir}"
+                    )
+                ref_name = ref_file[0].name
+
+                taxonium_files = (
+                    list(pathogen_dir.glob("*.jsonl")) +
+                    list(pathogen_dir.glob("*.jsonl.gz"))
+                )
+                taxonium_arg = (
+                    f"TAXONIUM_FILE={taxonium_files[0].name} "
+                    if taxonium_files else ""
+                )
+
+                # Build command
+                cmd = (
+                    f"snakemake --snakefile {WEPP_WORKFLOW} --directory {WEPP_ROOT} "
+                    f"--cores {workflow.cores} --use-conda "
+                    f"--config DIR={DIR}_{pathogen} FILE_PREFIX=metaWEPP_run "
+                    f"TREE={tree_name} REF={ref_name} "
+                    f"SEQUENCING_TYPE={config.get('SEQUENCING_TYPE', 'd')} "
+                    f"PRIMER_BED={config.get('PRIMER_BED')} "
+                    f"MIN_AF={config.get('MIN_AF')} "
+                    f"MIN_DEPTH={config.get('MIN_DEPTH')} "
+                    f"MIN_Q={config.get('MIN_Q')} "
+                    f"MIN_PROP={config.get('MIN_PROP')} "
+                    f"MIN_LEN={config.get('MIN_LEN')} "
+                    f"MAX_READS={config.get('MAX_READS')} "
+                    f"{clade_list_arg}CLADE_IDX={cl_idx} {taxonium_arg}"
+                    f"DASHBOARD_ENABLED={config.get('DASHBOARD_ENABLED')}\n"
+                )
+
+                f.write(cmd)
+
+
+                
+
+
 #rule emit_dashboard_instructions:
 #    input:
 #        runs    = run_txts_for_all

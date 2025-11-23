@@ -7,6 +7,9 @@ PRIMER_BED: "none.bed"
 # Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 MIN_AF: "0.005"
 
+# Mask any site with depth below this threshold
+MIN_DEPTH: "10"
+
 # Mask any allele with base quality score below this threshold
 MIN_Q: "20"
 
@@ -25,9 +28,9 @@ DASHBOARD_ENABLED: False
 # Arguments for WEPP that can be customized by pathogens
 PATHOGENS: "default,sars_cov_2"
 
-CLADE_LIST: "pango,nextstrain:pango"
+CLADE_LIST: ",nextstrain:pango"
 
-CLADE_IDX: "0,1"
+CLADE_IDX: "-1,1"
 
 # Argumnets for deciding when to run WEPP
 MIN_DEPTH_FOR_WEPP: "10"
