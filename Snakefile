@@ -15,9 +15,13 @@ import itertools, json
 # 1) Load METAWEPP config
 configfile: "config/config.yaml"
 
+argv = sys.argv[1:]
+requested_rules = {arg for arg in argv if arg and not arg.startswith("-")}
+is_test = "test" in requested_rules
+
 # 2) Constants from config
 DIR = config.get("DIR")
-if "DIR" not in config:
+if "DIR" not in config and not is_test:
     raise ValueError(
         "No DIR folder specified.\n"
         "Call snakemake with, e.g.,  --config DIR=TEST_DIR"
@@ -33,7 +37,7 @@ rule all:
 
 
 KRAKEN_DB = config.get("KRAKEN_DB")
-if KRAKEN_DB is None:
+if KRAKEN_DB is None and not is_test:
     raise ValueError(
         "Please provide the path to the Kraken2 database via\n"
         "  --config KRAKEN_DB=<folder path>"
@@ -59,9 +63,12 @@ WEPP_CMD_LOG     = "WEPP/cmd_log"
 CONFIG           = "config/config.yaml"
 IS_SINGLE_END    = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
-fq_dir = Path("data") / config["DIR"]
-if not fq_dir.exists():
-    raise FileNotFoundError(f"Input folder {DIR} does not exist")
+if not is_test:
+    fq_dir = Path("data") / config["DIR"]
+    if not fq_dir.exists():
+        raise FileNotFoundError(f"Input folder {DIR} does not exist")
+else:
+    fq_dir = Path("data") / "TEST"
 
 # look for input FASTQs
 def gzip_if_needed(file_path):
@@ -76,33 +83,37 @@ def gzip_if_needed(file_path):
         return Path(str(file_path) + ".gz")
     return file_path
 
-if IS_SINGLE_END:
-    r1_files = sorted(fq_dir.glob("*.fastq*"))
-    if len(r1_files) != 1:
-        raise RuntimeError(
-            f"{fq_dir} must contain exactly one .fastq file for single-end mode, "
-            f"but found {len(r1_files)}."
-        )
-    FQ1 = str(gzip_if_needed(r1_files[0]))
-    FQ2 = ""
-else: # Paired-end
-    r1_files = sorted(fq_dir.glob("*_R1.fastq*"))
-    if len(r1_files) != 1:
-        raise RuntimeError(
-            f"{fq_dir} must contain exactly one *_R1.fastq* file for paired-end mode, "
-            f"but found {len(r1_files)}."
-        )
+if not is_test:
+    if IS_SINGLE_END:
+        r1_files = sorted(fq_dir.glob("*.fastq*"))
+        if len(r1_files) != 1:
+            raise RuntimeError(
+                f"{fq_dir} must contain exactly one .fastq file for single-end mode, "
+                f"but found {len(r1_files)}."
+            )
+        FQ1 = str(gzip_if_needed(r1_files[0]))
+        FQ2 = ""
+    else: # Paired-end
+        r1_files = sorted(fq_dir.glob("*_R1.fastq*"))
+        if len(r1_files) != 1:
+            raise RuntimeError(
+                f"{fq_dir} must contain exactly one *_R1.fastq* file for paired-end mode, "
+                f"but found {len(r1_files)}."
+            )
 
-    r2_files = sorted(fq_dir.glob("*_R2.fastq*"))
-    if len(r2_files) != 1:
-        raise RuntimeError(
-            f"{fq_dir} must contain exactly one *_R2.fastq* file for paired-end mode, "
-            f"but found {len(r2_files)}."
-        )
-    FQ1 = str(gzip_if_needed(r1_files[0]))
-    FQ2 = str(gzip_if_needed(r2_files[0]))
+        r2_files = sorted(fq_dir.glob("*_R2.fastq*"))
+        if len(r2_files) != 1:
+            raise RuntimeError(
+                f"{fq_dir} must contain exactly one *_R2.fastq* file for paired-end mode, "
+                f"but found {len(r2_files)}."
+            )
+        FQ1 = str(gzip_if_needed(r1_files[0]))
+        FQ2 = str(gzip_if_needed(r2_files[0]))
 
-print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
+    print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
+else:
+    FQ1 = "data/TEST_R1.fastq.gz"
+    FQ2 = "" if IS_SINGLE_END else "data/TEST_R2.fastq.gz"
 
 
 # ────────────────────────────────────────────────────────────────
@@ -382,3 +393,9 @@ rule print_dashboard_instructions:
             print("\nDashboard is already enabled. No action needed.")
 
         Path(output[0]).touch()
+
+
+rule test:
+    message: "Printing metaWEPP configuration help"
+    shell:
+        "python scripts/metawepp_help.py"
