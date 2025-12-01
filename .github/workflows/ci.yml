@@ -1,0 +1,6 @@
+name: ci
+on:
+  push:
+    branches:
+      - main
+      - feature/help-and-cicd
