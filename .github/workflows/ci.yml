@@ -25,7 +25,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt-get install minimap2
-          pip install viral_usher matplotlib snakemake
+          pip install viral_usher matplotlib snakemake pandas
 
       - name: Run metaWEPP
         run: |
