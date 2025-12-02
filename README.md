@@ -23,6 +23,7 @@
   - [Data Organization](#data)
   - [metaWEPP Arguments](#arg)
     - [Example of species-specific arguments](#argexample)
+    - [Example of manually Adding a Reference FASTA to pathogens_for_wepp](#addrefexample)
   - [Run Command](#run) 
   - [MAT for pathogen species](#mat) 
 - [Kraken2 Database](#build-database)
@@ -373,6 +374,52 @@ These arguments are applied by first checking whether the species listed in `PAT
 **RSV_A** - `CLADE_LIST` is **nextstrain** and `CLADE_IDX` is **0**.
 **All other species** - `CLADE_LIST` is not passed, and `CLADE_IDX` is **-1**.
 
+#### <a name="addrefexample"> Example of manually Adding a Reference FASTA to pathogens_for_wepp
+
+**Step 1**: Check the Current added_taxons.csv
+
+Example current `added_taxons.csv`:
+```
+11250,rsv_a
+2697049,sars_cov_2
+```
+
+This means:
+- rsv_a is mapped to taxon ID 11250]
+- sars_cov_2 is mapped to taxon ID 2697049
+
+**Step 2**: Add the New Pathogen Folder and FASTA
+
+Suppose you want to add Monkeypox manually: `data/pathogens_for_wepp/monkey_pox/monkey_pox.fna`
+
+Make sure the folder contains: a reference FASTA (*.fa, *.fasta, or *.fna) and a MAT file (*.pb or *.pb.gz) 
+
+**Step 3**: Run Kraken2 on the Reference FASTA
+
+Use Kraken2 to determine the taxon ID for the new reference genome:
+```
+kraken2 --db <kraken_DB_path> data/pathogens_for_wepp/monkey_pox/monkey_pox.fna
+```
+
+Example output:
+```
+Loading database information... done.
+Processed 1 sequences (197209 bp) ...
+C  NC_063383.1     10244   197209  10244:6 10242:6 ...
+```
+
+The third column `10244` is the taxon ID.
+
+**Step 4**: Update `added_taxons.csv`
+
+Append the new mapping using the detected taxon ID and folder name. Add `10244,monkey_pox` to `added_taxons.csv`.
+
+After adding Monkeypox, the CSV becomes:
+```
+11250,rsv_a
+2697049,sars_cov_2
+10244,monkey_pox
+```
 
 ### <a name="run"> Run Command
 
