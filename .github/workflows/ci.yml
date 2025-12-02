@@ -28,4 +28,4 @@ jobs:
 
       - name: Run metaWEPP
         run: |
-          snakemake test --cores 1 --use-conda
+          snakemake test --cores 1
