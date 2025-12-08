@@ -260,14 +260,10 @@ HRVA/PUNE/NIV108127/10|KM109984.1|2010-01-26,,1.000000
 ## <a name="guide"></a> User Guide
 
 ### <a name="data"> Data Organization
-We assume that all metagenomic samples are stored in the `data` directory, each within its own subdirectory given by DIR argument (see [Run Command](#run)). Pathogen species to be analyzed with WEPP at the haplotype level can be added either manually or automatically fetched by metaWEPP based on user inputs. For manual addition, create a directory for each species at: 
+We assume that all metagenomic samples are stored in the `data` directory, each within its own subdirectory given by DIR argument (see [Run Command](#run)). Pathogen species to be analyzed with WEPP at the haplotype level can be added either manually or automatically fetched by metaWEPP based on user inputs. For manual addition, create a directory for each species and place the reference genome fasta file and mat file at: 
 ```
 data/pathogens_for_wepp/<pathogen_species_name>
 ```
-and place both its reference genome and the MAT file inside. Additionally, add the `Taxonomy ID` fof each added species to `data/pathogens_for_wepp/added_taxons.csv` on a new line using the format: 
-```
-<Taxonomy ID>,<pathogen_species_name>
-``` 
 
 Each created `DIR` inside `data` is expected to contain only the metagenomic sequencing reads, with filenames ending in `*_R{1/2}.fastq.gz` for paired-end reads, and `*.fastq.gz` for single-end reads. For each metagenomic sample, metaWEPP generates species-level results in the corresponding sample subdirectories under `results`. Haplotype-level results for each pathogen in a sample are located within the respective pathogen directories under `WEPP/results` as shown below. 
 
