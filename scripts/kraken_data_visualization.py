@@ -29,7 +29,8 @@ df['Name'] = df['Name'].str.strip()
 # Get total reads from the 'root' entry in the report.
 try:
     mapped_reads = df[df['Name'] == 'root']['Reads'].iloc[0]
-    unclassified_reads = df[df['Name'] == 'unclassified']['Reads'].iloc[0]
+    unclassified_reads = df[df['Name'] == 'unclassified']['Reads'].iloc[0] if not df[df['Name'] == 'unclassified']['Reads'].empty else 0
+
     total_reads = mapped_reads + unclassified_reads
 except IndexError:
     print("Error: 'root' or 'unclassified' entry not found in Kraken report. Cannot determine total reads.", file=sys.stderr)
