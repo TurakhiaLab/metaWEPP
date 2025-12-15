@@ -120,79 +120,110 @@ if not RUNNING_TEST:
 # ────────────────────────────────────────────────────────────────
 
 PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
+ADDED_TAXONS = PATHOGEN_ROOT / "added_taxons.csv"
 haplotype_pathogens = []
 
 # ────────────────────────────────────────────────────────────────
 # Auto-update added_taxons.csv using Kraken2 on ref FASTAs
 # ────────────────────────────────────────────────────────────────
 
-ADDED_TAXONS = PATHOGEN_ROOT / "added_taxons.csv"
+rule check_pathogen:
+    output:
+        ADDED_TAXONS
+    params:
+        pathogen_root = PATHOGEN_ROOT,
+        kraken_db = KRAKEN_DB
+    run:
+        pathogen_root = Path(params.pathogen_root)
+        added_taxons = Path(output[0])
 
-if ADDED_TAXONS.exists():
-    existing_entries = [] # existed entries in added_taxons.csv
-    with open(ADDED_TAXONS, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
+        # Ensure root directory exists
+        pathogen_root.mkdir(parents=True, exist_ok=True)
+
+        # --------------------------------------------------
+        # Load existing added_taxons.csv (if present)
+        # --------------------------------------------------
+        csv_dirs = set()
+        if added_taxons.exists():
+            with open(added_taxons, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    taxid, folder_name = [x.strip() for x in line.split(",", 1)]
+                    csv_dirs.add(folder_name)
+        else:
+            # Create empty CSV if missing
+            added_taxons.touch()
+
+        # --------------------------------------------------
+        # Scan pathogen directories
+        # --------------------------------------------------
+        new_lines = []
+        for pathogen_dir in sorted(pathogen_root.iterdir()):
+            if not pathogen_dir.is_dir():
                 continue
-            parts = line.split(",")
-            taxid, folder_name = parts[0].strip(), parts[1].strip()
-            existing_entries.append((taxid, folder_name))
-    csv_dirs = {folder for _, folder in existing_entries}
-    
-else:
-    # If the file doesn't exist, create an empty one
-    ADDED_TAXONS.touch()
 
-new_lines = []
-for pathogen_dir in sorted(PATHOGEN_ROOT.iterdir()):
-    if not pathogen_dir.is_dir():
-        continue
+            folder_name = pathogen_dir.name
+            if folder_name in csv_dirs:
+                continue
 
-    folder_name = pathogen_dir.name
-    if folder_name in csv_dirs:
-        continue
+            fasta_files = (
+                list(pathogen_dir.glob("*.fa")) +
+                list(pathogen_dir.glob("*.fasta")) +
+                list(pathogen_dir.glob("*.fna"))
+            )
 
-    fasta_files = list(pathogen_dir.glob("*.fa")) + list(pathogen_dir.glob("*.fasta")) + list(pathogen_dir.glob("*.fna"))
-    ref_fasta = fasta_files[0] if fasta_files else None
+            if not fasta_files:
+                continue
 
-    if ref_fasta is None or not any(pathogen_dir.glob("*.pb")) and not any(pathogen_dir.glob("*.pb.gz")):
-        continue
+            if not (
+                any(pathogen_dir.glob("*.pb")) or
+                any(pathogen_dir.glob("*.pb.gz"))
+            ):
+                continue
 
-    result = subprocess.run(
-        ["kraken2", "--db", KRAKEN_DB, str(ref_fasta),],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+            ref_fasta = fasta_files[0]
 
-    taxid = None
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split()
-        if len(parts) >= 3 and parts[0] == "C":
-            taxid = parts[2]
-            break
+            # --------------------------------------------------
+            # Run kraken2
+            # --------------------------------------------------
+            result = subprocess.run(
+                ["kraken2", "--db", params.kraken_db, str(ref_fasta)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
 
-    if taxid is None:
-        print(
-            f"[WARN] Could not find a classified taxon id for the reference genome '{ref_fasta}' you provided in folder '{folder_name}'. Skipping.",
-            file=sys.stderr,
-        )
-        continue
-    new_lines.append((taxid, folder_name))
-    csv_dirs.add(folder_name)
+            taxid = None
+            for line in result.stdout.splitlines():
+                parts = line.split()
+                if len(parts) >= 3 and parts[0] == "C":
+                    taxid = parts[2]
+                    break
 
-if new_lines:
-    with open(ADDED_TAXONS, "a") as f:
-        for taxid, folder_name in new_lines:
-            f.write(f"{taxid},{folder_name}\n")
+            if taxid is None:
+                print(
+                    f"[WARN] Could not find taxon id for '{ref_fasta}' "
+                    f"using DB '{params.kraken_db}'. Skipping.",
+                    file=sys.stderr,
+                )
+                continue
 
-# ────────────────────────────────────────────────────────────────
+            new_lines.append((taxid, folder_name))
+            csv_dirs.add(folder_name)
+
+        # --------------------------------------------------
+        # Append new entries
+        # --------------------------------------------------
+        if new_lines:
+            with open(added_taxons, "a") as f:
+                for taxid, folder_name in new_lines:
+                    f.write(f"{taxid},{folder_name}\n")
 
 rule add_pathogen:
+    input:
+        rules.check_pathogen.output
     output:
         f"results/{DIR}/.add_pathogen.done"
     params:
