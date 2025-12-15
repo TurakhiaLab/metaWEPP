@@ -17,11 +17,12 @@ configfile: "config/config.yaml"
 
 # 2) Constants from config
 DIR = config.get("DIR")
-if "DIR" not in config:
-    raise ValueError(
-        "No DIR folder specified.\n"
-        "Call snakemake with, e.g.,  --config DIR=TEST_DIR"
-    )
+KRAKEN_DB = config.get("KRAKEN_DB")
+
+requested_rules = set()
+for arg in sys.argv[1:]:
+    if not arg.startswith("-"):
+        requested_rules.add(arg)
 
 rule all:
     input:
@@ -30,14 +31,6 @@ rule all:
         f"results/{DIR}/run_wepp.txt",
         f"results/{DIR}/.wepp.done",
         f"results/{DIR}/.wepp_dashboard.done"
-
-
-KRAKEN_DB = config.get("KRAKEN_DB")
-if KRAKEN_DB is None:
-    raise ValueError(
-        "Please provide the path to the Kraken2 database via\n"
-        "  --config KRAKEN_DB=<folder path>"
-    )
 
 PATHOGENS = config["PATHOGENS"].split(",")
 CLADE_LIST = config["CLADE_LIST"].split(",")
@@ -59,11 +52,11 @@ WEPP_CMD_LOG     = "WEPP/cmd_log"
 CONFIG           = "config/config.yaml"
 IS_SINGLE_END    = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
-fq_dir = Path("data") / config["DIR"]
-if not fq_dir.exists():
-    raise FileNotFoundError(f"Input folder {DIR} does not exist")
+RUNNING_TEST = "test" in requested_rules
 
-# look for input FASTQs
+FQ1 = ""
+FQ2 = ""
+
 def gzip_if_needed(file_path):
     """Gzips a file if it's not already gzipped, returns new path."""
     if not str(file_path).endswith(".gz"):
@@ -76,35 +69,52 @@ def gzip_if_needed(file_path):
         return Path(str(file_path) + ".gz")
     return file_path
 
-if IS_SINGLE_END:
-    r1_files = sorted(fq_dir.glob("*.fastq*"))
-    if len(r1_files) != 1:
-        raise RuntimeError(
-            f"{fq_dir} must contain exactly one .fastq file for single-end mode, "
-            f"but found {len(r1_files)}."
+def check_input_files():
+    if not DIR:
+        raise ValueError("No DIR folder specified.\n"
+        "Call snakemake with, e.g.,  --config DIR=TEST_DIR"
         )
-    FQ1 = str(gzip_if_needed(r1_files[0]))
-    FQ2 = ""
-else: # Paired-end
-    r1_files = sorted(fq_dir.glob("*_R1.fastq*"))
-    if len(r1_files) != 1:
-        raise RuntimeError(
-            f"{fq_dir} must contain exactly one *_R1.fastq* file for paired-end mode, "
-            f"but found {len(r1_files)}."
+    if not KRAKEN_DB:
+        raise ValueError( "Please provide the path to the Kraken2 database via\n"
+        "  --config KRAKEN_DB=<folder path>"
         )
 
-    r2_files = sorted(fq_dir.glob("*_R2.fastq*"))
-    if len(r2_files) != 1:
-        raise RuntimeError(
-            f"{fq_dir} must contain exactly one *_R2.fastq* file for paired-end mode, "
-            f"but found {len(r2_files)}."
-        )
-    FQ1 = str(gzip_if_needed(r1_files[0]))
-    FQ2 = str(gzip_if_needed(r2_files[0]))
+    fq_dir = Path("data") / config["DIR"]
+    if not fq_dir.exists():
+        raise FileNotFoundError(f"Input folder {DIR} does not exist")
 
-print(f"Input FASTQs chosen:\n  FQ1 = {FQ1}\n  FQ2 = {FQ2}", file=sys.stderr)
+    if IS_SINGLE_END:
+        r1_files = sorted(fq_dir.glob("*.fastq*"))
+        if len(r1_files) != 1:
+            raise RuntimeError(
+                f"{fq_dir} must contain exactly one .fastq file for single-end mode, "
+                f"but found {len(r1_files)}."
+            )
+        fq1 = str(gzip_if_needed(r1_files[0]))
+        fq2 = ""
+    else: # Paired-end
+        r1_files = sorted(fq_dir.glob("*_R1.fastq*"))
+        if len(r1_files) != 1:
+            raise RuntimeError(
+                f"{fq_dir} must contain exactly one *_R1.fastq* file for paired-end mode, "
+                f"but found {len(r1_files)}."
+            )
 
+        r2_files = sorted(fq_dir.glob("*_R2.fastq*"))
+        if len(r2_files) != 1:
+            raise RuntimeError(
+                f"{fq_dir} must contain exactly one *_R2.fastq* file for paired-end mode, "
+                f"but found {len(r2_files)}."
+            )
+        fq1 = str(gzip_if_needed(r1_files[0]))
+        fq2 = str(gzip_if_needed(r2_files[0]))
 
+    print(f"Input FASTQs chosen:\n  FQ1 = {fq1}\n  FQ2 = {fq2}", file=sys.stderr)
+    return fq1, fq2
+
+if not RUNNING_TEST:
+    FQ1, FQ2 = check_input_files()
+    
 # ────────────────────────────────────────────────────────────────
 # Adds new pathogens with interative script to data/pathogens_for_wepp
 # ────────────────────────────────────────────────────────────────
@@ -452,3 +462,8 @@ rule print_dashboard_instructions:
             print("\nDashboard is already enabled. No action needed.")
 
         Path(output[0]).touch()
+
+rule test:
+    message: "Printing metaWEPP configuration help"
+    shell:
+        "python scripts/metawepp_help.py"
