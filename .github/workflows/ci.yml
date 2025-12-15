@@ -2,8 +2,7 @@ name: ci
 on:
   push:
     branches:
-      - feature/help-and-cicd
-
+      - main
 permissions:
   contents: write
 

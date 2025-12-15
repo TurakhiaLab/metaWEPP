@@ -22,7 +22,7 @@ KRAKEN_DB = config.get("KRAKEN_DB")
 requested_rules = set()
 for arg in sys.argv[1:]:
     if not arg.startswith("-"):
-        requested_rules.add(arg) # adds all rules that don't start with '-'
+        requested_rules.add(arg)
 
 rule all:
     input:
@@ -69,7 +69,7 @@ def gzip_if_needed(file_path):
         return Path(str(file_path) + ".gz")
     return file_path
 
-def resolve_fastqs():
+def check_input_files():
     if not DIR:
         raise ValueError("No DIR folder specified.\n"
         "Call snakemake with, e.g.,  --config DIR=TEST_DIR"
@@ -113,7 +113,7 @@ def resolve_fastqs():
     return fq1, fq2
 
 if not RUNNING_TEST:
-    FQ1, FQ2 = resolve_fastqs()
+    FQ1, FQ2 = check_input_files()
     
 # ────────────────────────────────────────────────────────────────
 # Adds new pathogens with interative script to data/pathogens_for_wepp
