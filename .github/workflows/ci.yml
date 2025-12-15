@@ -1,0 +1,31 @@
+name: ci
+on:
+  push:
+    branches:
+      - feature/help-and-cicd
+
+permissions:
+  contents: write
+
+jobs:
+  Run-metaWEPP:
+    name: Deploy Job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt-get install minimap2
+          pip install viral_usher matplotlib snakemake pandas
+
+      - name: Run metaWEPP
+        run: |
+          snakemake test --cores 1
