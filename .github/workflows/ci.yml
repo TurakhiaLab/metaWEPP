@@ -8,8 +8,11 @@ permissions:
 
 jobs:
   Run-metaWEPP:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     name: Deploy Job
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -21,8 +24,12 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt update
-          sudo apt-get install minimap2
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y minimap2
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install minimap2
+          fi
           pip install viral_usher matplotlib snakemake pandas
 
       - name: Run metaWEPP
