@@ -1,6 +1,6 @@
 <div align="center">
 
-# metaWEPP: Improving the resolution of metagenomic analysis using WEPP
+# metaWEPP: Improving resolution of metagenomic analysis using WEPP
 
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg 
 [license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
