@@ -9,6 +9,10 @@
 [<img src="https://img.shields.io/badge/Build with-CMake-green.svg?logo=snakemake">](https://cmake.org)
 [<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
 
+<div align="center">
+  <img src="docs/images/metaWEPP_logo.svg" width="300"/>
+</div>
+
 </div>
 
 ## Table of Contents
