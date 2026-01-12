@@ -345,7 +345,7 @@ The metaWEPP Snakemake pipeline requires the following arguments, which can be p
 1. `DIR` - Folder containing the metagenomic reads.
 2. `KRAKEN_DB` - Folder containing the Kraken2 database. 
 3. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
-4. `PRIMER_BED` - BED file for primers, which should be present in the `WEPP/primers` directory.
+4. `PRIMER_BED` - BED file argument for primers, which requires path to the file.
 5. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%) by WEPP.
 6. `MIN_DEPTH` - Sites with read depth below this threshold will be masked by WEPP.
 7. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked by WEPP.

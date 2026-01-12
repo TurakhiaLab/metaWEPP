@@ -45,10 +45,6 @@ if not (len(PATHOGENS) == len(CLADE_LIST) == len(CLADE_IDX)):
     sys.exit(1)
 
 WEPP_ROOT        = "WEPP"
-WEPP_WORKFLOW    = "WEPP/workflow/Snakefile"
-WEPP_RESULTS_DIR = "WEPP/results"
-WEPP_DATA_DIR    = "WEPP/data"
-WEPP_CMD_LOG     = "WEPP/cmd_log"
 CONFIG           = "config/config.yaml"
 IS_SINGLE_END    = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
@@ -441,7 +437,8 @@ rule prepare_for_wepp:
 
                 # Build command
                 cmd = (
-                    f"snakemake --snakefile {WEPP_WORKFLOW} --directory {WEPP_ROOT} "
+                    f"(cd {WEPP_ROOT} &&"
+                    f"snakemake "
                     f"--cores {workflow.cores} --use-conda "
                     f"--config DIR={DIR}_{pathogen} FILE_PREFIX=metaWEPP_run "
                     f"TREE={tree_name} REF={ref_name} "
@@ -454,7 +451,7 @@ rule prepare_for_wepp:
                     f"MIN_LEN={config.get('MIN_LEN')} "
                     f"MAX_READS={config.get('MAX_READS')} "
                     f"{clade_list_arg}CLADE_IDX={cl_idx} {taxonium_arg}"
-                    f"DASHBOARD_ENABLED={config.get('DASHBOARD_ENABLED')}\n"
+                    f"DASHBOARD_ENABLED={config.get('DASHBOARD_ENABLED')})\n"
                 )
 
                 f.write(cmd)
