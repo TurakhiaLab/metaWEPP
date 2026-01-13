@@ -21,9 +21,7 @@ GCF_RE = re.compile(r'GCF_\d+(?:\.\d+)?', re.IGNORECASE)
 REQUESTS_TIMEOUT = 60
 SLEEP_BETWEEN = 0.34
 
-ROOT_PATHOGENS_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "../data", "pathogens_for_wepp")
-)
+ROOT_PATHOGENS_DIR = os.path.join(os.getcwd(), "data", "pathogens_for_wepp")
 
 NCBI_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
@@ -499,7 +497,7 @@ def main():
             "At least one pathogen with a MAT is required for the pipeline to run.\n\n"
         )
     else:
-        print("\n[INFO] Setup complete. Pathogen data is ready.")
+        print("\n[INFO] Setup complete. Pathogen data is ready.\n\n")
 
 
 if __name__ == "__main__":
