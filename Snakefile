@@ -103,8 +103,6 @@ def check_input_files():
         if len(r1_files) != 1 or len(r2_files) != 1: raise RuntimeError("Paired-end requires exactly one *_R1.fastq and *_R2.fastq")
         fq1 = str(gzip_if_needed(r1_files[0]))
         fq2 = str(gzip_if_needed(r2_files[0]))
-
-    print(f"Input FASTQs chosen:\n  FQ1 = {fq1}\n  FQ2 = {fq2}", file=sys.stderr)
     return fq1, fq2
 
 if not RUNNING_TEST:

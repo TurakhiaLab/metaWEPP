@@ -5,6 +5,7 @@ import textwrap
 import os
 import math
 import subprocess
+from pathlib import Path
 
 # Usage:
 # python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> 
@@ -208,7 +209,9 @@ plt.savefig(fig_path, dpi=300, bbox_inches='tight')
 
 if add_species_runtime:
     # Call add_ref_mat.py to update the database
+    current_script_dir = Path(__file__).resolve().parent
+    add_ref_script = current_script_dir / "add_ref_mat.py"
     subprocess.run(
-                ["python", "scripts/add_ref_mat.py"],
+                [sys.executable, str(add_ref_script)],
                 check=True
             )

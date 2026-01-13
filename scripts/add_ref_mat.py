@@ -496,7 +496,7 @@ def main():
     if not any_mat_available(ROOT_PATHOGENS_DIR):
         print(
             "\n\n[WARN] No MAT (.pb/.pb.gz) found in data/pathogens_for_wepp. "
-            "At least one pathogen with a MAT is required for the pipeline to run."
+            "At least one pathogen with a MAT is required for the pipeline to run.\n\n"
         )
     else:
         print("\n[INFO] Setup complete. Pathogen data is ready.")
