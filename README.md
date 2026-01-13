@@ -345,19 +345,20 @@ The metaWEPP Snakemake pipeline requires the following arguments, which can be p
 1. `DIR` - Folder containing the metagenomic reads.
 2. `KRAKEN_DB` - Folder containing the Kraken2 database. 
 3. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
-4. `PRIMER_BED` - BED file argument for primers, which requires path to the file.
+4. `PRIMER_BED` - BED file argument for primers, which requires complete path to the file.
 5. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%) by WEPP.
 6. `MIN_DEPTH` - Sites with read depth below this threshold will be masked by WEPP.
 7. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked by WEPP.
 8. `MIN_PROP` -  Minimum Proportion of haplotypes detected by WEPP (Wastewater Samples: 0.5%, Clinical Samples: 5%).
 9. `MIN_LEN` -  Minimum read length to be considered after ivar trim (Default: 80).
 10. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.
-11. `DASHBOARD_ENABLED` - Enables WEPP dashboard for visualization of haplotype results
-12. `PATHOGENS` - List of pathogens with custom WEPP settings. Any species not listed here will use the `default` settings.
-12. `CLADE_LIST` - Comma-separated list of clade annotation schemes present in the MAT file. Each element corresponds to the pathogen species in the order specified in `PATHOGENS`. If there is no clade annotation for a pathogen species, do not provide any value for that species.
-13. `CLADE_IDX` - Comma-separated list of clade indices for each pathogen. If a pathogen has no lineage annotations, use **-1**. Each element corresponds to the pathogen species in the order specified by `PATHOGENS`.
-14. `MIN_DEPTH_FOR_WEPP` - Minimum read coverage required to run WEPP for any pathogen species.
-15. `MIN_PROP_FOR_WEPP` - Minimum relative abundance of a species before metaWEPP prompts to add it for haplotype-level analysis.
+11. `DASHBOARD_ENABLED` - Enables WEPP dashboard for visualization of haplotype results.
+12. `ADD_SPECIES_RUNTIME` - Asks users to add pathogen species at runtime when enabled.
+13. `PATHOGENS` - List of pathogens with custom WEPP settings. Any species not listed here will use the `default` settings.
+14. `CLADE_LIST` - Comma-separated list of clade annotation schemes present in the MAT file. Each element corresponds to the pathogen species in the order specified in `PATHOGENS`. If there is no clade annotation for a pathogen species, do not provide any value for that species.
+15. `CLADE_IDX` - Comma-separated list of clade indices for each pathogen. If a pathogen has no lineage annotations, use **-1**. Each element corresponds to the pathogen species in the order specified by `PATHOGENS`.
+16. `MIN_DEPTH_FOR_WEPP` - Minimum read coverage required to run WEPP for any pathogen species.
+17. `MIN_PROP_FOR_WEPP` - Minimum relative abundance of a species before metaWEPP prompts to add it for haplotype-level analysis.
 
 
 #### <a name="argexample"> Example of species-specific arguments:

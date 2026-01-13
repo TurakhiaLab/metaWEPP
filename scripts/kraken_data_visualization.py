@@ -8,13 +8,14 @@ import subprocess
 
 # Usage:
 # python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> 
-if len(sys.argv) < 4:
-    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> <minimum_proportion_threshold_for_wepp>")
+if len(sys.argv) < 5:
+    print("Usage: python kraken_data_visualization.py <path_to_kraken_report_file> <visualization_file> <minimum_proportion_threshold_for_wepp> <add_species_runtime>")
     sys.exit(1)
 
 report_path = sys.argv[1]
 fig_path = sys.argv[2]
 min_proportion_threshold = float(sys.argv[3])
+add_species_runtime = sys.argv[4].lower() == "true"
 exclude_ids = set()
 
 # Load the report file
@@ -205,8 +206,9 @@ fig.suptitle('Pathogen Proportions', fontsize=20, fontweight='bold', ha='center'
 os.makedirs(os.path.dirname(fig_path), exist_ok=True)
 plt.savefig(fig_path, dpi=300, bbox_inches='tight')
 
-# Call add_ref_mat.py to update the database
-subprocess.run(
-            ["python", "scripts/add_ref_mat.py"],
-            check=True
-        )
+if add_species_runtime:
+    # Call add_ref_mat.py to update the database
+    subprocess.run(
+                ["python", "scripts/add_ref_mat.py"],
+                check=True
+            )

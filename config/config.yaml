@@ -1,7 +1,7 @@
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
 SEQUENCING_TYPE: "d"
 
-# Need complete path for the BED file, if no primer BED file available, set to "none.bed"
+# Need complete path for the BED file
 PRIMER_BED: ""
 
 # Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
@@ -24,6 +24,9 @@ MAX_READS: "1000000000"
 
 # True to view WEPP results on dashboard, otherwise False. 
 DASHBOARD_ENABLED: False 
+
+# Does not ask to add pathogen species at runtime if False
+ADD_SPECIES_RUNTIME: True
 
 # Arguments for WEPP that can be customized by pathogens
 PATHOGENS: "default,sars_cov_2"
