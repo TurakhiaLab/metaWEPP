@@ -34,10 +34,22 @@ for arg in sys.argv[1:]:
 PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
 ADDED_TAXONS  = PATHOGEN_ROOT / "added_taxons.csv"
 
-WEPP_ROOT = Path.cwd() / "WEPP"
-if not WEPP_ROOT.exists():
-    print(f"Creating WEPP root directory at: {WEPP_ROOT}", file=sys.stderr)
-    WEPP_ROOT.mkdir(parents=True, exist_ok=True)
+# Setting variables based on conda installation or docker image
+env_root = Path(sys.prefix)
+wepp_conda_path = env_root / "WEPP"
+WEPP_DATA = Path.cwd() / "WEPP"
+
+if wepp_conda_path.exists():
+    WEPP_ROOT = wepp_conda_path
+    print(f"\nCreating WEPP's data directory at: {WEPP_DATA}\n", file=sys.stderr)
+    WEPP_DATA.mkdir(parents=True, exist_ok=True)
+else:
+    WEPP_ROOT = WEPP_DATA
+    if not WEPP_ROOT.exists():
+        print(f"Error: WEPP not installed at {WEPP_ROOT}", file=sys.stderr)
+        sys.exit(1)
+
+WEPP_SNAKEFILE = WEPP_ROOT / "workflow" / "Snakefile"
 
 # User inputs are relative to where the user runs the command
 IS_SINGLE_END = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
@@ -343,7 +355,7 @@ rule prepare_for_wepp:
                 pathogen_dir = PATHOGEN_ROOT / pathogen
                 
                 # Destination Directory inside WEPP
-                dest_dir = WEPP_ROOT / "data" / f"{DIR}_{pathogen}"
+                dest_dir = WEPP_DATA / "data" / f"{DIR}_{pathogen}"
                 dest_dir.mkdir(parents=True, exist_ok=True)
                 
                 # 1. Copy files from data/pathogens_for_wepp/{pathogen}
@@ -369,8 +381,9 @@ rule prepare_for_wepp:
                 taxonium_arg = f"TAXONIUM_FILE={taxonium_files[0].name} " if taxonium_files else ""
                 
                 cmd = (
-                    f"(cd {WEPP_ROOT} && "
                     f"snakemake "
+                    f"-s {WEPP_SNAKEFILE} "
+                    f"--directory {WEPP_DATA} "
                     f"--cores {workflow.cores} --use-conda "
                     f"--config DIR={DIR}_{pathogen} FILE_PREFIX=metaWEPP_run "
                     f"TREE={tree_name} REF={ref_name} "
@@ -383,7 +396,7 @@ rule prepare_for_wepp:
                     f"MIN_LEN={config.get('MIN_LEN')} "
                     f"MAX_READS={config.get('MAX_READS')} "
                     f"{clade_list_arg}CLADE_IDX={cl_idx} {taxonium_arg}"
-                    f"DASHBOARD_ENABLED={config.get('DASHBOARD_ENABLED')})\n"
+                    f"DASHBOARD_ENABLED={config.get('DASHBOARD_ENABLED')}\n"
                 )
                 f.write(cmd)
 
