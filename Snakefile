@@ -31,6 +31,8 @@ for arg in sys.argv[1:]:
 # 2. DEFINE PATHS FOR INTERNAL RESOURCES
 # ────────────────────────────────────────────────────────────────
 
+RUNNING_TEST  = "test" in requested_rules
+
 PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
 ADDED_TAXONS  = PATHOGEN_ROOT / "added_taxons.csv"
 
@@ -45,7 +47,7 @@ if wepp_conda_path.exists():
     WEPP_DATA.mkdir(parents=True, exist_ok=True)
 else:
     WEPP_ROOT = WEPP_DATA
-    if not WEPP_ROOT.exists():
+    if not WEPP_ROOT.exists() and not RUNNING_TEST:
         print(f"Error: WEPP not installed at {WEPP_ROOT}", file=sys.stderr)
         sys.exit(1)
 
@@ -53,7 +55,6 @@ WEPP_SNAKEFILE = WEPP_ROOT / "workflow" / "Snakefile"
 
 # User inputs are relative to where the user runs the command
 IS_SINGLE_END = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
-RUNNING_TEST  = "test" in requested_rules
 
 rule all:
     input:
