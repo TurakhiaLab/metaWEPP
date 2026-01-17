@@ -31,7 +31,7 @@ for arg in sys.argv[1:]:
 # 2. DEFINE PATHS FOR INTERNAL RESOURCES
 # ────────────────────────────────────────────────────────────────
 
-RUNNING_TEST  = "test" in requested_rules
+RUNNING_HELP  = "help" in requested_rules
 
 PATHOGEN_ROOT = Path("data/pathogens_for_wepp")
 ADDED_TAXONS  = PATHOGEN_ROOT / "added_taxons.csv"
@@ -47,7 +47,7 @@ if wepp_conda_path.exists():
     WEPP_DATA.mkdir(parents=True, exist_ok=True)
 else:
     WEPP_ROOT = WEPP_DATA
-    if not WEPP_ROOT.exists() and not RUNNING_TEST:
+    if not WEPP_ROOT.exists() and not RUNNING_HELP:
         print(f"Error: WEPP not installed at {WEPP_ROOT}", file=sys.stderr)
         sys.exit(1)
 
@@ -118,7 +118,7 @@ def check_input_files():
         fq2 = str(gzip_if_needed(r2_files[0]))
     return fq1, fq2
 
-if not RUNNING_TEST:
+if not RUNNING_HELP:
     FQ1, FQ2 = check_input_files()
     
 # ────────────────────────────────────────────────────────────────
@@ -381,8 +381,10 @@ rule prepare_for_wepp:
                 taxonium_files = list(dest_dir.glob("*.jsonl")) + list(dest_dir.glob("*.jsonl.gz"))
                 taxonium_arg = f"TAXONIUM_FILE={taxonium_files[0].name} " if taxonium_files else ""
                 
+                wepp_executable = WEPP_ROOT / "run-wepp"
+                
                 cmd = (
-                    f"snakemake "
+                    f"{wepp_executable} "
                     f"-s {WEPP_SNAKEFILE} "
                     f"--directory {WEPP_DATA} "
                     f"--cores {workflow.cores} --use-conda "
@@ -407,10 +409,11 @@ rule run_wepp:
     output:
         "results/{DIR}/.wepp.done"
     run:
+
         for line in open(input[0]):
             cmd = line.strip()
             if cmd:
-                subprocess.check_call(cmd, shell=True)
+                subprocess.check_call(cmd, shell=True, executable="/bin/bash")
         Path(output[0]).touch()
 
 rule print_dashboard_instructions:
@@ -433,7 +436,7 @@ rule print_dashboard_instructions:
         
         Path(output[0]).touch()
 
-rule test:
+rule help:
     message: "Printing metaWEPP configuration help"
     params:
         script = BASE_DIR / "scripts/metawepp_help.py"

@@ -79,9 +79,22 @@ All set to try the [examples](#example).
 ```
 git clone https://github.com/TurakhiaLab/metaWEPP.git
 cd metaWEPP
+chmod +x run-metawepp
 ```
 
-**Step 2:** Install Kraken.
+**Step 2:** Update `~/.bashrc` for linux or `~/.zshrc` for macOS.
+```
+echo "
+run-metawepp() {
+    snakemake -s $PWD/Snakefile \"\$@\"
+}
+export -f run-metawepp
+" >> ~/.bashrc
+
+source ~/.bashrc
+```
+
+**Step 3:** Install Kraken.
 The following commands install kraken and also update the `$PATH` variable for running the tool easily.
 ```
 git clone https://github.com/DerrickWood/kraken2.git
@@ -98,10 +111,12 @@ cd ..
 sudo apt-get install minimap2
 pip install viral_usher matplotlib snakemake
 ```
-**Step 4:** Install `WEPP`.
+**Step 5:** Install `WEPP`.
 
 ```
 git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
+cd WEPP
+chmod +x run-wepp
 ```
 View the WEPP installation guide starting from Option 3 in the [WEPP repository](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
 
@@ -130,7 +145,7 @@ rm k2_viral_20251015.tar.gz
 Follow the command prompts to add the pathogens.
 
 ```
-snakemake --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample MIN_PROP=0.05 PATHOGENS=default,respiratory_syncytial_virus_a,sars_cov_2 CLADE_LIST=,nextstrain,nextstrain:pango CLADE_IDX=-1,0,1 --cores 32
+run-metawepp --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample MIN_PROP=0.05 PATHOGENS=default,respiratory_syncytial_virus_a,sars_cov_2 CLADE_LIST=,nextstrain,nextstrain:pango CLADE_IDX=-1,0,1 --cores 32
 ```
 
 For SARS-CoV-2:
@@ -215,7 +230,7 @@ rm k2_viral_20251015.tar.gz
 
 **Step 6:** Run the pipeline 
 ```
-snakemake --config KRAKEN_DB=viral_kraken_db DIR=real_metagenomic_sample MIN_PROP=0.05 PATHOGENS=default,respiratory_syncytial_virus_a CLADE_LIST=,nextstrain CLADE_IDX=-1,0 --cores 32
+run-metawepp --config KRAKEN_DB=viral_kraken_db DIR=real_metagenomic_sample MIN_PROP=0.05 PATHOGENS=default,respiratory_syncytial_virus_a CLADE_LIST=,nextstrain CLADE_IDX=-1,0 --cores 32
 ```
 
 On being prompted to add a new species for haplotype-level analysis, press `y`, and follow the steps below for RSV-A and Rhinovirus-A.
@@ -382,12 +397,12 @@ metaWEPP requires `KRAKEN_DB` and `DIR` to be specified as command-line argument
 Examples:
 1. Using all the parameters from the config file:
 ```
-snakemake --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample --cores 32
+run-metawepp --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample --cores 32
 ```
 
 2. Overriding MIN_Q and MIN_PROP_FOR_WEPP through command line:
 ```
-snakemake --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample MIN_Q=25 MIN_PROP_FOR_WEPP=0.05 --cores 32
+run-metawepp --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample MIN_Q=25 MIN_PROP_FOR_WEPP=0.05 --cores 32
 ```
 
 ### <a name="mat"> MAT for pathogen species

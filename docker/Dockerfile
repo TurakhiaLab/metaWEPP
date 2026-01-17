@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
     sudo \
     pip \
     build-essential \
+    libopenmpi-dev \
+    libboost-all-dev \
     python3-pandas \
     pkg-config \
     zip \
@@ -58,6 +60,16 @@ RUN git clone https://github.com/DerrickWood/kraken2.git && \
     ./install_kraken2.sh . && \
     echo 'export PATH="/metaWEPP/kraken2:$PATH"' >> /root/.bashrc
 
+# Setting aliases for running WEPP and metaWEPP
+RUN echo 'run-wepp() {' >> /root/.bashrc && \
+    echo '    /root/miniforge3/bin/snakemake -s /metaWEPP/WEPP/workflow/Snakefile "$@"' >> /root/.bashrc && \
+    echo '}' >> /root/.bashrc && \
+    echo 'export -f run-wepp' >> /root/.bashrc
+
+RUN echo 'run-metawepp() {' >> /root/.bashrc && \
+    echo '    /root/miniforge3/bin/snakemake -s /metaWEPP/Snakefile "$@"' >> /root/.bashrc && \
+    echo '}' >> /root/.bashrc && \
+    echo 'export -f run-metawepp' >> /root/.bashrc
 
 # Default command: start an interactive login shell to source ~/.bashrc
 CMD [ "bash", "--login" ]
