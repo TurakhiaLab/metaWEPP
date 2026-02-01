@@ -43,7 +43,6 @@ WEPP_DATA = Path.cwd() / "WEPP"
 
 if wepp_conda_path.exists():
     WEPP_ROOT = wepp_conda_path
-    print(f"\nCreating WEPP's data directory at: {WEPP_DATA}\n", file=sys.stderr)
     WEPP_DATA.mkdir(parents=True, exist_ok=True)
 else:
     WEPP_ROOT = WEPP_DATA
