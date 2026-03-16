@@ -6,8 +6,9 @@
 [license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
 
 [![License][license-badge]][license-link]
-[<img src="https://img.shields.io/badge/Build with-CMake-green.svg?logo=snakemake">](https://cmake.org)
+[<img src="https://img.shields.io/badge/Install%20with-Bioconda-brightgreen.svg?style=flat">](https://bioconda.github.io/recipes/metawepp/README.html)
 [<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
+[![Build Status](https://github.com/TurakhiaLab/metaWEPP/actions/workflows/ci.yml/badge.svg)](https://github.com/TurakhiaLab/metaWEPP/actions)
 
 <div align="center">
   <img src="docs/images/metaWEPP_logo.svg" width="300"/>
@@ -18,8 +19,9 @@
 ## Table of Contents
 - [Introduction](#intro)
 - [Installation](#install)
-  - [Option-1: Install via Dockerfile](#docker)
-  - [Option-2: Install via Shell Commands (requires sudo access)](#shell)
+  - [Option-1: Install via Bioconda (Recommended)](#conda)
+  - [Option-2: Install via Dockerfile](#docker)
+  - [Option-3: Install via Shell Commands (requires sudo access)](#shell)
 - [Quick Start](#example)
   - [Example-1: Simulated metagenomic sample](#simulate)
   - [Example-2: Real world metagenomic sample](#real-world) 
@@ -47,9 +49,36 @@ metaWEPP is a Snakemake-based bioinformatics pipeline that achieves near-haploty
 
 
 ## <a name="install"></a> Installation
-⚠️ Currently, if you do not have a MAT for a pathogen and want to generate one using viral_usher while running metaWEPP in a Docker container, you must run viral_usher outside the metaWEPP container and then copy the resulting MAT into the container.
+metaWEPP offers multiple installation methods. 
+1. Bioconda (Recommended)
+2. Dockerfile 
+3. Shell Commands
 
-### <a name="docker"></a> Option-1: Install via Dockerfile.
+⚠️ If you plan to generate the MAT for a pathogen within the metaWEPP workflow using viral_usher, you must have Docker access on your system.
+
+### <a name="conda"></a> Option-1: Install via Bioconda (Recommended).
+**Step 1:** Create a new conda environment for metaWEPP.
+```bash
+conda create --name metawepp-env
+conda activate metawepp-env
+conda config --env --add channels bioconda 
+conda config --env --add channels conda-forge 
+conda config --env --set channel_priority flexible
+conda install metawepp
+```
+
+⚠️ You can use `conda install metawepp --solver=libmamba` to enable a faster dependency resolution and installation.
+
+**Step 2:** Confirm proper working by running the following command. This should print metaWEPP's help menu.
+```bash
+run-metawepp help --cores 1
+```
+
+**Step 3:** Create a `data` directory and start analyzing your samples with metaWEPP. If you are running samples from multiple `data` directories, specify the `.snakemake` directory created in one run as the `--conda-prefix` for the others to avoid redundant creation of Snakemake conda environments.
+
+Before trying the [examples](#example), please ensure that you have downloaded the `simulated_metagenomic_sample` into the `data` directory from [here](https://github.com/TurakhiaLab/metaWEPP/tree/main/data/simulated_metagenomic_sample).
+
+### <a name="docker"></a> Option-2: Install via Dockerfile.
 
 **Step 1:** Clone the metaWEPP repository.
 ```
@@ -70,10 +99,17 @@ cd ..
 docker run -it -p 80:80 metawepp
 ```
 
+**Step 4:** Confirm proper working by running the following command. This should print metaWEPP's help menu.
+```bash
+run-metawepp help --cores 1
+```
+
+⚠️ If you do not have a MAT for a pathogen and wish to generate one using viral_usher while running metaWEPP in a Docker container, you should run viral_usher outside the metaWEPP container and then copy the resulting MAT into the container.
+
 All set to try the [examples](#example).
 
 
-### <a name="shell"></a> Option-2: Install via Shell Commands (requires sudo access).
+### <a name="shell"></a> Option-3: Install via Shell Commands (requires sudo access).
 
 **Step 1:** Clone the repository.
 ```
@@ -119,6 +155,12 @@ cd WEPP
 chmod +x run-wepp
 ```
 View the WEPP installation guide starting from Option 3 in the [WEPP repository](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
+
+
+**Step 6:** Confirm proper working by running the following command. This should print metaWEPP's help menu.
+```bash
+run-metawepp help --cores 1
+```
 
 All set to try the [examples](#example).
 
