@@ -43,9 +43,13 @@ WEPP_DATA = Path.cwd() / "WEPP"
 
 if wepp_conda_path.exists():
     WEPP_ROOT = wepp_conda_path
+    WEPP_EXECUTABLE = env_root / "bin" / "run-wepp"
+    if not WEPP_EXECUTABLE.exists():
+        WEPP_EXECUTABLE = WEPP_ROOT / "run-wepp"
     WEPP_DATA.mkdir(parents=True, exist_ok=True)
 else:
     WEPP_ROOT = WEPP_DATA
+    WEPP_EXECUTABLE = WEPP_ROOT / "run-wepp"
     if not WEPP_ROOT.exists() and not RUNNING_HELP:
         print(f"Error: WEPP not installed at {WEPP_ROOT}", file=sys.stderr)
         sys.exit(1)
@@ -380,7 +384,7 @@ rule prepare_for_wepp:
                 taxonium_files = list(dest_dir.glob("*.jsonl")) + list(dest_dir.glob("*.jsonl.gz"))
                 taxonium_arg = f"TAXONIUM_FILE={taxonium_files[0].name} " if taxonium_files else ""
                 
-                wepp_executable = WEPP_ROOT / "run-wepp"
+                wepp_executable = WEPP_EXECUTABLE
                 
                 cmd = (
                     f"{wepp_executable} "
