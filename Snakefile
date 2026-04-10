@@ -6,6 +6,7 @@ import shutil
 import sys, glob
 from pathlib import Path
 from collections import defaultdict
+from itertools import zip_longest
 import itertools, json
 
 # ────────────────────────────────────────────────────────────────
@@ -70,10 +71,13 @@ rule all:
 # ────────────────────────────────────────────────────────────────
 # 3. HELPER FUNCTIONS
 # ────────────────────────────────────────────────────────────────
-
-PATHOGENS = config["PATHOGENS"].split(",")
-CLADE_LIST = config["CLADE_LIST"].split(",")
-CLADE_IDX = [int(x) for x in config["CLADE_IDX"].split(",")]
+PATHOGENS = [x.strip() for x in str(config.get("PATHOGENS") or "").split(",") if x.strip()] or ["default"]
+CLADE_LIST = [x.strip() for x in str(config.get("CLADE_LIST") or "").split(",")]
+_clade_idx_raw = config.get("CLADE_IDX")
+if _clade_idx_raw is None or (isinstance(_clade_idx_raw, str) and not str(_clade_idx_raw).strip()):
+    CLADE_IDX = [-1] * len(PATHOGENS) if PATHOGENS else []
+else:
+    CLADE_IDX = [int(x.strip()) for x in str(_clade_idx_raw).split(",") if str(x).strip() != ""]
 
 if not (len(PATHOGENS) == len(CLADE_LIST) == len(CLADE_IDX)):
     print(
@@ -81,6 +85,35 @@ if not (len(PATHOGENS) == len(CLADE_LIST) == len(CLADE_IDX)):
         f"PATHOGENS={len(PATHOGENS)}, CLADE_LIST={len(CLADE_LIST)}, CLADE_IDX={len(CLADE_IDX)}"
     )
     sys.exit(1)
+
+def build_wepp_metadata(pathogens, clade_lists, clade_idxs):
+    """
+    Build pathogen -> metadata mapping while tolerating partially specified
+    CLADE_LIST/CLADE_IDX values. Missing values default to empty clade list and -1.
+    """
+    if not pathogens:
+        raise ValueError("ERROR: PATHOGENS is required and must include 'default'.")
+    if "default" not in pathogens:
+        raise ValueError("ERROR: 'default' must be present in PATHOGENS.")
+
+    meta = {}
+    for pathogen, clade_list, clade_idx in zip_longest(
+        pathogens, clade_lists, clade_idxs, fillvalue=None
+    ):
+        if not pathogen:
+            continue
+        meta[pathogen] = {
+            "clade_list": "" if clade_list is None else str(clade_list).strip(),
+            "clade_idx": -1 if clade_idx is None else int(clade_idx),
+        }
+    return meta
+
+if not RUNNING_HELP and os.environ.get("METAWEPP_CONFIG_PRINTED") != "1":
+    print("\nmetaWEPP config arguments:", file=sys.stderr)
+    for key in sorted(config.keys()):
+        print(f"  {key}={config.get(key)}", file=sys.stderr)
+    print("", file=sys.stderr)
+    os.environ["METAWEPP_CONFIG_PRINTED"] = "1"
 
 FQ1 = ""
 FQ2 = ""
@@ -341,9 +374,8 @@ rule prepare_for_wepp:
         if not selected_pathogens:
             Path(output[0]).write_text("")
 
-        WEPP_METADATA = { PATHOGENS[i]: {"clade_list": CLADE_LIST[i], "clade_idx": CLADE_IDX[i]} for i in range(len(PATHOGENS)) }
-        DEFAULT_META = WEPP_METADATA.get("default", None)
-        if DEFAULT_META is None: raise ValueError("ERROR: 'default' entry missing in config.")
+        WEPP_METADATA = build_wepp_metadata(PATHOGENS, CLADE_LIST, CLADE_IDX)
+        DEFAULT_META = WEPP_METADATA["default"]
 
         # Write output
         with open(output[0], "w") as f:
