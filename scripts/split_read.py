@@ -54,7 +54,11 @@ def get_wepp_pathogen_fasta_files(species_name):
     fasta_files = glob.glob(os.path.join(pathogen_path, "*.fna")) + glob.glob(os.path.join(pathogen_path, "*.fasta")) + glob.glob(os.path.join(pathogen_path, "*.fa"))
     return fasta_files
 
-def split_fastq(fq_path, mate, read2species, out_dir, threads):
+def fastq_suffix(mate, paired):
+    return f"_{mate}" if paired else ""
+
+
+def split_fastq(fq_path, mate, read2species, out_dir, threads, paired=True):
     """
     Splits a FASTQ file based on read classification.
     This is a single-threaded implementation.
@@ -110,7 +114,7 @@ def split_fastq(fq_path, mate, read2species, out_dir, threads):
                     else:
                         target_dir = Path(out_dir) / "Other_Pathogens" / species_name
                     target_dir.mkdir(parents=True, exist_ok=True)
-                    out_path = target_dir / f"{species_name}_{mate}.fastq.gz"
+                    out_path = target_dir / f"{species_name}{fastq_suffix(mate, paired)}.fastq.gz"
 
                     out_f = open(out_path, "ab")
                     proc = subprocess.Popen(
@@ -170,7 +174,7 @@ def split_fastq(fq_path, mate, read2species, out_dir, threads):
 
     return pathogen_read_lengths, ambiguous_reads_info
 
-def resolve_ambiguous_reads(ambiguous_reads_info, out_dir, seq_type, threads):
+def resolve_ambiguous_reads(ambiguous_reads_info, out_dir, seq_type, threads, paired=True):
     # Get the set of WEPP pathogen names
     taxons_wepp_pathogens = get_taxid_of_pathogens_for_wepp()
     wepp_pathogen_names = set()
@@ -291,7 +295,7 @@ def resolve_ambiguous_reads(ambiguous_reads_info, out_dir, seq_type, threads):
                             if writer_key not in writers:
                                 target_dir = Path(out_dir) / species_name
                                 target_dir.mkdir(parents=True, exist_ok=True)
-                                out_path = target_dir / f"{species_name}_{mate}.fastq.gz"
+                                out_path = target_dir / f"{species_name}{fastq_suffix(mate, paired)}.fastq.gz"
                                 
                                 # Use pigz for faster compression
                                 out_f = open(out_path, "ab")  # Append mode
@@ -453,15 +457,15 @@ def main():
     with ProcessPoolExecutor(max_workers=2) as exe:
         futures = {}
 
-        # Launch R1
+        paired = bool(a.r2)
+
         futures['R1'] = exe.submit(
-            split_fastq, a.r1, "R1", read_to_name, a.out_dir, a.threads
+            split_fastq, a.r1, "R1", read_to_name, a.out_dir, a.threads, paired
         )
 
-        # Launch R2 (if present)
-        if a.r2:
+        if paired:
             futures['R2'] = exe.submit(
-                split_fastq, a.r2, "R2", read_to_name, a.out_dir, a.threads
+                split_fastq, a.r2, "R2", read_to_name, a.out_dir, a.threads, paired
             )
 
         # Collect results
@@ -483,7 +487,7 @@ def main():
                 total_ambiguous_reads[group] = info
     
     if total_ambiguous_reads:
-        resolved_lengths = resolve_ambiguous_reads(total_ambiguous_reads, a.out_dir, a.sequencing_type, a.threads)
+        resolved_lengths = resolve_ambiguous_reads(total_ambiguous_reads, a.out_dir, a.sequencing_type, a.threads, paired)
         for pathogen, length in resolved_lengths.items():
             total_pathogen_read_lengths[pathogen] = total_pathogen_read_lengths.get(pathogen, 0) + length
 
