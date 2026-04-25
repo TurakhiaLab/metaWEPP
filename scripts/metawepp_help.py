@@ -11,7 +11,6 @@ OPTIONS = [
     ("DIR", "Folder containing the metagenomic reads."),
     ("KRAKEN_DB", "Folder containing the Kraken2 database."),
     ("SEQUENCING_TYPE", "Sequencing read type (s: Illumina single-ended, d: Illumina double-ended, n: ONT long reads)."),
-    ("PRIMER_BED", "BED file for primers, expected under WEPP/primers."),
     ("MIN_AF", "Alleles with an allele frequency below this threshold are masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%)."),
     ("MIN_DEPTH", "Sites with read depth below this threshold are masked by WEPP."),
     ("MIN_Q", "Alleles with a Phred score below this threshold are masked by WEPP."),
@@ -21,10 +20,12 @@ OPTIONS = [
     ("DASHBOARD_ENABLED", "Enables the WEPP dashboard for visualizing haplotype results."),
     ("ADD_SPECIES_RUNTIME", "Asks users to add pathogen species at runtime when enabled."),
     ("PATHOGENS", "List of pathogens with custom WEPP settings; species not listed use default settings."),
-    ("CLADE_LIST", "Comma-separated clade annotation schemes in the MAT file, ordered to match PATHOGENS; leave blank for species without clade annotations."),
-    ("CLADE_IDX", "Comma-separated clade indices for each pathogen; use -1 for species without lineage annotations, ordered to match PATHOGENS."),
+    ("CLADE_LIST", "Clade annotation schemes in the MAT file. Either a single value broadcast to every species, or use comma-separated values ordered to match PATHOGENS. Leave a slot blank for species without clade annotations."),
+    ("CLADE_IDX", "Clade indices for each pathogen. Either a single value broadcast to every species, or use comma-separated values ordered to match PATHOGENS. Use -1 for species without lineage annotations."),
+    ("PRIMER_BED", "Absolute path(s) to the BED file(s) for primers. Comma-separated paths ordered to match PATHOGENS for per-species primer trimming. Leave a slot blank for species without primer trimming."),
     ("MIN_DEPTH_FOR_WEPP", "Minimum read coverage required to run WEPP for any pathogen species."),
     ("MIN_PROP_FOR_WEPP", "Minimum relative abundance before metaWEPP prompts adding a species for haplotype-level analysis."),
+    ("CORES_PER_PATHOGEN", "Cores allocated to each concurrent WEPP species run. Either a single value is broadcast to every species, or comma-separated values ordered to match PATHOGENS are used for per-species allocation. Empty values in per-species allocation list, or 'auto' evenly divides whatever threads remain from the '--cores' after subtracting the explicit allocations."),
 ]
 
 

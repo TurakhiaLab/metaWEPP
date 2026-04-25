@@ -4,6 +4,7 @@ import subprocess
 import pandas as pd
 import shutil
 import sys, glob
+import time
 from pathlib import Path
 from collections import defaultdict
 from itertools import zip_longest
@@ -72,39 +73,95 @@ rule all:
 # 3. HELPER FUNCTIONS
 # ────────────────────────────────────────────────────────────────
 PATHOGENS = [x.strip() for x in str(config.get("PATHOGENS") or "").split(",") if x.strip()] or ["default"]
-CLADE_LIST = [x.strip() for x in str(config.get("CLADE_LIST") or "").split(",")]
-_clade_idx_raw = config.get("CLADE_IDX")
-if _clade_idx_raw is None or (isinstance(_clade_idx_raw, str) and not str(_clade_idx_raw).strip()):
-    CLADE_IDX = [-1] * len(PATHOGENS) if PATHOGENS else []
-else:
-    CLADE_IDX = [int(x.strip()) for x in str(_clade_idx_raw).split(",") if str(x).strip() != ""]
 
-if not (len(PATHOGENS) == len(CLADE_LIST) == len(CLADE_IDX)):
-    print(
-        f"ERROR: PATHOGENS, CLADE_LIST, CLADE_IDX must have equal length.\n"
-        f"PATHOGENS={len(PATHOGENS)}, CLADE_LIST={len(CLADE_LIST)}, CLADE_IDX={len(CLADE_IDX)}"
-    )
-    sys.exit(1)
 
-def build_wepp_metadata(pathogens, clade_lists, clade_idxs):
+def _parse_per_pathogen(raw, pathogens, default, caster=str, name="option"):
+    """Parse a per-pathogen config value into a {pathogen: value} dict.
+
+    Accepted forms:
+      - None / empty string          → every pathogen uses ``default``.
+      - Single value ``"x"``         → broadcast ``x`` to every pathogen.
+      - ``N`` comma-separated values → 1-to-1 mapping with ``PATHOGENS``.
+
+    Each option supplies its own sentinel via ``default``:
+      - ``CLADE_LIST``         → ``""``   (no clade annotations; this is
+        the literal per-species value, matching the original behaviour –
+        e.g. the leading slot in ``",nextstrain:pango,..."`` becomes an
+        empty string for the ``default`` pathogen)
+      - ``CLADE_IDX``          → ``-1``   (no lineage annotations)
+      - ``PRIMER_BED``         → ``""``   (no primer trimming for this
+        species; absolute paths that only split on commas, never on slashes)
+      - ``CORES_PER_PATHOGEN`` → ``"auto"`` sentinel, resolved later by
+        the checkpoint so it can share leftover ``--cores`` across the
+        species that asked for auto allocation.
+
+    A mismatch between the number of values and ``len(PATHOGENS)`` raises
+    a clear error pointing at the offending option.
     """
-    Build pathogen -> metadata mapping while tolerating partially specified
-    CLADE_LIST/CLADE_IDX values. Missing values default to empty clade list and -1.
-    """
+    if raw is None or str(raw).strip() == "":
+        return {p: default for p in pathogens}
+
+    parts = [x.strip() for x in str(raw).split(",")]
+
+    def cast(token):
+        if token == "":
+            return default
+        return caster(token)
+
+    if len(parts) == 1:
+        value = cast(parts[0])
+        return {p: value for p in pathogens}
+
+    if len(parts) != len(pathogens):
+        raise ValueError(
+            f"ERROR: '{name}' has {len(parts)} value(s) but PATHOGENS has "
+            f"{len(pathogens)}. Provide either 1 value (broadcast to every "
+            f"species) or exactly {len(pathogens)} comma-separated values."
+        )
+
+    return {p: cast(v) for p, v in zip(pathogens, parts)}
+
+
+def _cast_cores(token):
+    """Cast a CORES_PER_PATHOGEN token to either an int or the 'auto' sentinel."""
+    s = str(token).strip().lower()
+    if s in {"auto", ""}:
+        return "auto"
+    return max(1, int(s))
+
+
+CLADE_LIST_MAP = _parse_per_pathogen(
+    config.get("CLADE_LIST"), PATHOGENS, default="", name="CLADE_LIST"
+)
+CLADE_IDX_MAP = _parse_per_pathogen(
+    config.get("CLADE_IDX"), PATHOGENS, default=-1, caster=int, name="CLADE_IDX"
+)
+PRIMER_BED_MAP = _parse_per_pathogen(
+    config.get("PRIMER_BED"), PATHOGENS, default="", name="PRIMER_BED"
+)
+CORES_PER_PATHOGEN_MAP = _parse_per_pathogen(
+    config.get("CORES_PER_PATHOGEN"),
+    PATHOGENS,
+    default="auto",
+    caster=_cast_cores,
+    name="CORES_PER_PATHOGEN",
+)
+
+
+def build_wepp_metadata(pathogens, clade_list_map, clade_idx_map, primer_bed_map, cores_map):
+    """Build pathogen -> {clade_list, clade_idx, primer_bed, cores} metadata."""
     if not pathogens:
         raise ValueError("ERROR: PATHOGENS is required and must include 'default'.")
     if "default" not in pathogens:
         raise ValueError("ERROR: 'default' must be present in PATHOGENS.")
 
     meta = {}
-    for pathogen, clade_list, clade_idx in zip_longest(
-        pathogens, clade_lists, clade_idxs, fillvalue=None
-    ):
-        if not pathogen:
-            continue
+    for pathogen in pathogens:
         meta[pathogen] = {
-            "clade_list": "" if clade_list is None else str(clade_list).strip(),
-            "clade_idx": -1 if clade_idx is None else int(clade_idx),
+            "clade_list": str(clade_list_map.get(pathogen, "")).strip(),
+            "clade_idx": int(clade_idx_map.get(pathogen, -1)),
+            "primer_bed": str(primer_bed_map.get(pathogen, "")).strip(),
+            "cores": cores_map.get(pathogen, "auto"),
         }
     return meta
 
@@ -349,45 +406,89 @@ rule split_read:
         if not tsv_path.exists(): tsv_path.write_text("")
         Path(output[1]).touch()
 
-rule prepare_for_wepp:
+# ────────────────────────────────────────────────────────────────
+# 5. RUN WEPP (PARALLEL ACROSS SPECIES)
+#
+# `prepare_for_wepp` is a checkpoint so the DAG can be expanded once
+# species gets its own command file under results/{DIR}/wepp_cmds/ and
+# is dispatched as an independent `run_wepp_single` job.
+# ────────────────────────────────────────────────────────────────
+
+checkpoint prepare_for_wepp:
     input:
         "results/{DIR}/.split_read.done",
         coverage = "results/{DIR}/pathogen_coverage.tsv"
     output:
-        "results/{DIR}/run_wepp.txt"
+        run_wepp_txt = "results/{DIR}/run_wepp.txt",
+        cmd_dir = directory("results/{DIR}/wepp_cmds")
     run:
+        cmd_dir = Path(output.cmd_dir)
+        cmd_dir.mkdir(parents=True, exist_ok=True)
+
         try:
             coverage_df = pd.read_csv(input.coverage, sep="\t", header=None, names=["pathogen", "depth"])
         except pd.errors.EmptyDataError:
             coverage_df = pd.DataFrame(columns=["pathogen", "depth"])
-            
-        coverage_df = coverage_df.dropna() 
-        # If coverage_df is empty → create empty run_wepp.txt and exit
+
+        coverage_df = coverage_df.dropna()
+        # If coverage_df is empty → create empty run_wepp.txt (no species to run)
         if coverage_df.empty:
-            Path(output[0]).write_text("")
+            Path(output.run_wepp_txt).write_text("")
             return
 
         # Keep Pathogens meeting depth requirement
         MIN_DEPTH = float(config.get("MIN_DEPTH_FOR_WEPP", 0))
         selected_pathogens = coverage_df[coverage_df["depth"] >= MIN_DEPTH]["pathogen"].tolist()
-        # No pathogens pass depth → empty run_wepp.txt
         if not selected_pathogens:
-            Path(output[0]).write_text("")
+            Path(output.run_wepp_txt).write_text("")
+            return
 
-        WEPP_METADATA = build_wepp_metadata(PATHOGENS, CLADE_LIST, CLADE_IDX)
+        WEPP_METADATA = build_wepp_metadata(
+            PATHOGENS,
+            CLADE_LIST_MAP,
+            CLADE_IDX_MAP,
+            PRIMER_BED_MAP,
+            CORES_PER_PATHOGEN_MAP,
+        )
         DEFAULT_META = WEPP_METADATA["default"]
 
-        # Write output
-        with open(output[0], "w") as f:
+        # ── Resolve CORES_PER_PATHOGEN for every selected species ──
+        # Explicit integer values are honoured verbatim and take precedence
+        # shares whatever budget remains after subtracting the explicit allocations:
+        #     remaining = --cores − Σ(explicit)
+        #     auto_share = ceil(remaining / n_auto)   (clamped to ≥ 1)
+        selected_requests = {
+            p: WEPP_METADATA.get(p, DEFAULT_META).get("cores", "auto")
+            for p in selected_pathogens
+        }
+        explicit_total = sum(
+            int(v) for v in selected_requests.values() if v != "auto"
+        )
+        auto_pathogens = [p for p, v in selected_requests.items() if v == "auto"]
+        if auto_pathogens:
+            remaining = int(workflow.cores) - explicit_total
+            auto_share = -(-remaining // len(auto_pathogens))  # ceil division
+            if auto_share < 1:
+                auto_share = 1
+        else:
+            auto_share = 1  # unused when no auto slots exist
+
+        def resolve_cores(pathogen):
+            requested = selected_requests[pathogen]
+            if requested == "auto":
+                return auto_share
+            return max(1, int(requested))
+
+        with open(output.run_wepp_txt, "w") as run_wepp_f:
             for pathogen in selected_pathogens:
-                # Choose either specific metadata or default
                 raw_meta = WEPP_METADATA.get(pathogen, DEFAULT_META)
-                # Process clade list
                 cl = (raw_meta["clade_list"] or "").replace(":", ",")
                 clade_list_arg = f"CLADE_LIST={cl} " if cl else ""
                 cl_idx = f"{raw_meta['clade_idx']}"
+                primer_bed = raw_meta["primer_bed"]
+                pathogen_cores = resolve_cores(pathogen)
 
-                # Source Directory
+                # Source directory (shared read-only pathogen assets)
                 pathogen_dir = PATHOGEN_ROOT / pathogen
                 
                 # Destination Directory inside WEPP
@@ -403,30 +504,27 @@ rule prepare_for_wepp:
                 if result_dir.exists():
                     for file in result_dir.glob("*"):
                         if file.is_file(): shutil.copy2(file, dest_dir)
-                
+
                 tree_file = list(dest_dir.glob("*.pb")) + list(dest_dir.glob("*.pb.gz"))
                 ref_file = list(dest_dir.glob("*.fa")) + list(dest_dir.glob("*.fasta")) + list(dest_dir.glob("*.fna"))
-                
+
                 if not tree_file: raise FileNotFoundError(f"No tree file in {pathogen_dir}")
                 if not ref_file: raise FileNotFoundError(f"No ref file in {pathogen_dir}")
-                
+
                 tree_name = tree_file[0].name
                 ref_name = ref_file[0].name
-                
+
                 taxonium_files = list(dest_dir.glob("*.jsonl")) + list(dest_dir.glob("*.jsonl.gz"))
                 taxonium_arg = f"TAXONIUM_FILE={taxonium_files[0].name} " if taxonium_files else ""
-                
-                wepp_executable = WEPP_EXECUTABLE
-                
-                cmd = (
-                    f"{wepp_executable} "
+
+                wepp_args = (
                     f"-s {WEPP_SNAKEFILE} "
                     f"--directory {WEPP_DATA} "
-                    f"--cores {workflow.cores} --use-conda "
+                    f"--use-conda "
                     f"--config DIR={DIR}_{pathogen} FILE_PREFIX=metaWEPP_run "
                     f"TREE={tree_name} REF={ref_name} "
                     f"SEQUENCING_TYPE={config.get('SEQUENCING_TYPE', 'd')} "
-                    f"PRIMER_BED={config.get('PRIMER_BED')} "
+                    f"PRIMER_BED={primer_bed} "
                     f"MIN_AF={config.get('MIN_AF')} "
                     f"MIN_DEPTH={config.get('MIN_DEPTH')} "
                     f"MIN_Q={config.get('MIN_Q')} "
@@ -434,21 +532,201 @@ rule prepare_for_wepp:
                     f"MIN_LEN={config.get('MIN_LEN')} "
                     f"MAX_READS={config.get('MAX_READS')} "
                     f"{clade_list_arg}CLADE_IDX={cl_idx} {taxonium_arg}"
-                    f"DASHBOARD_ENABLED={config.get('DASHBOARD_ENABLED')}\n"
+                    f"DASHBOARD_ENABLED={config.get('DASHBOARD_ENABLED')}"
                 )
-                f.write(cmd)
+
+                # Full command (used for run_wepp.txt / dashboard instructions)
+                full_cmd = f"{WEPP_EXECUTABLE} --cores {pathogen_cores} {wepp_args}\n"
+                run_wepp_f.write(full_cmd)
+
+                # Per-species command dispatched in parallel by Snakemake.
+                # `--nolock` is required because concurrent WEPP invocations
+                # share the same --directory (WEPP).
+                per_cmd = (
+                    f"{WEPP_EXECUTABLE} --nolock --cores {pathogen_cores} {wepp_args}\n"
+                )
+                (cmd_dir / f"{pathogen}.cmd").write_text(per_cmd)
+
+
+def _cores_per_pathogen_threads(wildcards):
+    """Schedule-side thread count for ``run_wepp_single``.
+
+    Reads the ``--cores N`` that was baked into the per-species command file
+    by the checkpoint. Snakemake requires ``threads <= workflow.cores``, so
+    we cap the value here for scheduling purposes only — the WEPP
+    subinvocation still receives the *requested* ``--cores N`` (unclamped),
+    giving ``CORES_PER_PATHOGEN`` precedence over the parent ``--cores``.
+    """
+    cmd_path = Path(
+        f"results/{wildcards.DIR}/wepp_cmds/{wildcards.pathogen}.cmd"
+    )
+    try:
+        m = re.search(r"--cores\s+(\d+)", cmd_path.read_text())
+        if m:
+            return max(1, min(int(workflow.cores), int(m.group(1))))
+    except Exception:
+        pass
+    return max(1, int(workflow.cores))
+
+
+def _aggregate_wepp_done(wildcards):
+    """Collect per-species .done files after the checkpoint expands the DAG."""
+    cmd_dir = Path(
+        checkpoints.prepare_for_wepp.get(DIR=wildcards.DIR).output.cmd_dir
+    )
+    pathogens = [p.stem for p in cmd_dir.glob("*.cmd")]
+    return expand(
+        "results/{DIR}/wepp_done/{pathogen}.done",
+        DIR=wildcards.DIR,
+        pathogen=pathogens,
+    )
+
+
+def _run_under_pty(cmd, log_path, env):
+    """Run *cmd* in a child process attached to a pseudo-TTY and append
+    every byte the child writes (stdout + stderr, in chronological order)
+    to *log_path*. Returns the child's exit status.
+    """
+    import pty
+    import termios
+
+    master_fd, slave_fd = pty.openpty()
+    try:
+        attrs = termios.tcgetattr(slave_fd)
+        attrs[1] &= ~termios.OPOST   # output flags
+        attrs[3] &= ~termios.ECHO    # local flags
+        termios.tcsetattr(slave_fd, termios.TCSANOW, attrs)
+    except (termios.error, OSError):
+        pass
+
+    try:
+        proc = subprocess.Popen(
+            ["/bin/bash", "-c", cmd],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            env=env,
+            close_fds=True,
+        )
+        os.close(slave_fd)
+        slave_fd = -1
+
+        with open(log_path, "ab") as logf:
+            while True:
+                try:
+                    data = os.read(master_fd, 4096)
+                except OSError:
+                    break
+                if not data:
+                    break
+                logf.write(data)
+                logf.flush()
+        return proc.wait()
+    finally:
+        if slave_fd >= 0:
+            try:
+                os.close(slave_fd)
+            except OSError:
+                pass
+        try:
+            os.close(master_fd)
+        except OSError:
+            pass
+
+
+rule run_wepp_single:
+    """Run WEPP for a single species. Multiple instances of this rule run
+    concurrently; Snakemake schedules them based on ``threads`` vs
+    ``--cores``, while the per-species ``--cores N`` baked into the command
+    file is what WEPP actually uses (may exceed ``--cores``)."""
+    input:
+        cmd = "results/{DIR}/wepp_cmds/{pathogen}.cmd"
+    output:
+        done = "results/{DIR}/wepp_done/{pathogen}.done"
+    threads: _cores_per_pathogen_threads
+    run:
+        base_cmd = Path(input.cmd).read_text().strip()
+        if not base_cmd:
+            Path(output.done).touch()
+            return
+        m = re.search(r"--cores\s+(\d+)", base_cmd)
+        if m:
+            requested_cores = int(m.group(1))
+        else:
+            requested_cores = max(1, int(workflow.cores))
+            base_cmd = f"{base_cmd} --cores {requested_cores}"
+
+        # Each parallel WEPP run gets its own log file so the parent terminal stays readable
+        log_path = Path(f"results/{wildcards.DIR}/wepp_logs/{wildcards.pathogen}.log")
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        def fmt_elapsed(seconds):
+            seconds = int(seconds)
+            h, rem = divmod(seconds, 3600)
+            m_, s = divmod(rem, 60)
+            return f"{h}h{m_:02d}m{s:02d}s" if h else f"{m_}m{s:02d}s"
+
+        print(
+            f"[metaWEPP] Launching WEPP for '{wildcards.pathogen}' with "
+            f"{requested_cores} cores (scheduler slot: {threads}) "
+            f"-> {log_path}",
+            file=sys.stderr,
+        )
+        sys.stderr.flush()
+
+        # Header written before the PTY-attached child appends.
+        log_path.write_text(
+            f"# metaWEPP log for pathogen='{wildcards.pathogen}'\n"
+            f"# requested cores: {requested_cores}\n"
+            f"# command:\n{base_cmd}\n\n"
+        )
+
+        # Run the inner WEPP under a pseudo-TTY so tools that gate output
+        # on isatty() (Snakemake, conda, tqdm, ...) emit the full chatter they would on a real terminal. 
+        env = dict(os.environ)
+        env.setdefault("TERM", "dumb")
+        env.setdefault("NO_COLOR", "1")
+        env.setdefault("PYTHONUNBUFFERED", "1")
+
+        start_ts = time.time()
+        try:
+            rc = _run_under_pty(base_cmd, log_path, env)
+            if rc != 0:
+                raise subprocess.CalledProcessError(rc, base_cmd)
+        except subprocess.CalledProcessError as exc:
+            elapsed = fmt_elapsed(time.time() - start_ts)
+            sep = "-" * 78
+            try:
+                full_log = log_path.read_text(errors="replace")
+            except Exception:
+                full_log = "<unable to read log file>"
+            print(
+                f"\n[metaWEPP] '{wildcards.pathogen}' WEPP FAILED after "
+                f"{elapsed} (exit {exc.returncode}) -- full log: {log_path}\n"
+                f"{sep}\n{full_log}\n{sep}\n",
+                file=sys.stderr,
+            )
+            sys.stderr.flush()
+            raise
+
+        elapsed = fmt_elapsed(time.time() - start_ts)
+        print(
+            f"[metaWEPP] '{wildcards.pathogen}' WEPP complete in {elapsed} "
+            f"(log: {log_path})",
+            file=sys.stderr,
+        )
+        sys.stderr.flush()
+        Path(output.done).parent.mkdir(parents=True, exist_ok=True)
+        Path(output.done).touch()
+
 
 rule run_wepp:
+    """Aggregator: waits for every per-species WEPP job to finish."""
     input:
-        "results/{DIR}/run_wepp.txt"
+        _aggregate_wepp_done
     output:
         "results/{DIR}/.wepp.done"
     run:
-
-        for line in open(input[0]):
-            cmd = line.strip()
-            if cmd:
-                subprocess.check_call(cmd, shell=True, executable="/bin/bash")
         Path(output[0]).touch()
 
 rule print_dashboard_instructions:

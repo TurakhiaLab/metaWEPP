@@ -1,9 +1,6 @@
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
 SEQUENCING_TYPE: "d"
 
-# Need complete path for the BED file
-PRIMER_BED: ""
-
 # Allele frequency threshold based masking to accomodate sequencing errors: Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%
 MIN_AF: "0.005"
 
@@ -26,7 +23,7 @@ MAX_READS: "1000000000"
 DASHBOARD_ENABLED: False 
 
 # Does not ask to add pathogen species at runtime if False
-ADD_SPECIES_RUNTIME: True
+ADD_SPECIES_RUNTIME: False
 
 # Arguments for WEPP that can be customized by pathogens
 PATHOGENS: "default,sars_cov_2"
@@ -34,6 +31,11 @@ PATHOGENS: "default,sars_cov_2"
 CLADE_LIST: ",nextstrain:pango"
 
 CLADE_IDX: "-1,1"
+
+CORES_PER_PATHOGEN: ",32"
+
+# Need complete path for the BED file with comma-separated paths ordered per-species
+PRIMER_BED: ""
 
 # Argumnets for deciding when to run WEPP
 MIN_DEPTH_FOR_WEPP: "10"

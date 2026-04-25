@@ -402,7 +402,7 @@ The metaWEPP Snakemake pipeline requires the following arguments, which can be p
 1. `DIR` - Folder containing the metagenomic reads.
 2. `KRAKEN_DB` - Folder containing the Kraken2 database. 
 3. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
-4. `PRIMER_BED` - BED file argument for primers, which requires complete path to the file.
+4. `PRIMER_BED` - Absolute path(s) to the BED file(s) for primers. Comma-separated paths ordered to match `PATHOGENS` for per-species primer trimming. Leave a slot blank for species without primer trimming.
 5. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%) by WEPP.
 6. `MIN_DEPTH` - Sites with read depth below this threshold will be masked by WEPP.
 7. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked by WEPP.
@@ -412,10 +412,11 @@ The metaWEPP Snakemake pipeline requires the following arguments, which can be p
 11. `DASHBOARD_ENABLED` - Enables WEPP dashboard for visualization of haplotype results.
 12. `ADD_SPECIES_RUNTIME` - Asks users to add pathogen species at runtime when enabled.
 13. `PATHOGENS` - List of pathogens with custom WEPP settings. Any species not listed here will use the `default` settings.
-14. `CLADE_LIST` - Comma-separated list of clade annotation schemes present in the MAT file. Each element corresponds to the pathogen species in the order specified in `PATHOGENS`. If there is no clade annotation for a pathogen species, do not provide any value for that species.
-15. `CLADE_IDX` - Comma-separated list of clade indices for each pathogen. If a pathogen has no lineage annotations, use **-1**. Each element corresponds to the pathogen species in the order specified by `PATHOGENS`.
+14. `CLADE_LIST` - Clade annotation schemes in the MAT file. Either a single value broadcast to every species, or use comma-separated values ordered to match `PATHOGENS`. Leave a slot blank for species without clade annotations.
+15. `CLADE_IDX` - Clade indices for each pathogen. Either a single value broadcast to every species, or use comma-separated values ordered to match `PATHOGENS`. Use `-1` for species without lineage annotations.
 16. `MIN_DEPTH_FOR_WEPP` - Minimum read coverage required to run WEPP for any pathogen species.
 17. `MIN_PROP_FOR_WEPP` - Minimum relative abundance of a species before metaWEPP prompts to add it for haplotype-level analysis.
+18. `CORES_PER_PATHOGEN` - Cores allocated to each concurrent WEPP species run. Either a single value is broadcast to every species, or comma-separated values ordered to match `PATHOGENS` are used for per-species allocation. Empty values in per-species allocation list, or 'auto' evenly divides whatever threads remain from the `--cores` after subtracting the explicit allocations.
 
 
 #### <a name="argexample"> Example of species-specific arguments:
