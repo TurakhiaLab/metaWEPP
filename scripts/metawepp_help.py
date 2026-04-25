@@ -9,7 +9,7 @@ import sys
 
 OPTIONS = [
     ("DIR", "Folder containing the metagenomic reads."),
-    ("KRAKEN_DB", "Folder containing the Kraken2 database."),
+    ("KRAKEN_DB", "Either (a) the path to an existing Kraken2 database folder, or (b) an HTTP(S) URL to a '.tar.gz' archive (e.g. https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20251015.tar.gz)."),
     ("SEQUENCING_TYPE", "Sequencing read type (s: Illumina single-ended, d: Illumina double-ended, n: ONT long reads)."),
     ("MIN_AF", "Alleles with an allele frequency below this threshold are masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%)."),
     ("MIN_DEPTH", "Sites with read depth below this threshold are masked by WEPP."),

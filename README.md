@@ -181,6 +181,7 @@ mkdir -p viral_kraken_db
 tar -xvzf k2_viral_20251015.tar.gz -C viral_kraken_db
 rm k2_viral_20251015.tar.gz
 ```
+⚠️ You can skip this step entirely by passing the `.tar.gz` URL straight to `KRAKEN_DB=` in the next command. metaWEPP will download and extract it on first run, and reuse it on subsequent runs.
 
 **Step 3:** Run the pipeline
 
@@ -269,6 +270,7 @@ mkdir -p viral_kraken_db
 tar -xvzf k2_viral_20251015.tar.gz -C viral_kraken_db
 rm k2_viral_20251015.tar.gz
 ```
+⚠️ You can skip this step entirely by passing the `.tar.gz` URL straight to `KRAKEN_DB=` in the next command. metaWEPP will download and extract it on first run, and reuse it on subsequent runs.
 
 **Step 6:** Run the pipeline 
 ```
@@ -400,7 +402,7 @@ Visualization of metaWEPP's workflow directories
 The metaWEPP Snakemake pipeline requires the following arguments, which can be provided either via the configuration file (`config/config.yaml`) or passed directly on the command line using the `--config` argument. The command line arguments take precedence over the config file.
 
 1. `DIR` - Folder containing the metagenomic reads.
-2. `KRAKEN_DB` - Folder containing the Kraken2 database. 
+2. `KRAKEN_DB` - Either (a) the path to an existing Kraken2 database folder, or (b) an HTTP(S) URL to a `.tar.gz` archive (e.g. `https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20251015.tar.gz`). When a URL is given, the archive is downloaded into a directory named after the tarball stem on first run and reused on subsequent runs.
 3. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
 4. `PRIMER_BED` - Absolute path(s) to the BED file(s) for primers. Comma-separated paths ordered to match `PATHOGENS` for per-species primer trimming. Leave a slot blank for species without primer trimming.
 5. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%) by WEPP.
@@ -454,6 +456,8 @@ Mutation-annotated trees (MATs) for some pathogen species are maintained by the 
 
 ##  <a name="build-database"></a> Kraken2 Database
 Users can either download prebuilt databases available online or create custom databases using their own genome sequences.
+
+⚠️ For prebuilt databases, the easiest option is to pass the `.tar.gz` URL directly to `KRAKEN_DB=` on the metaWEPP command line. For example,`KRAKEN_DB=https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20251015.tar.gz`. metaWEPP downloads the database into a folder on first run and reuses it on subsequent runs. The manual `wget`/`tar` instructions below are equivalent and let you choose your own folder name.
 
 ### <a name="prebuilt"> Downloading prebuilt database
 **Step 1:** Get the link of `.tar.gz` file of the genome collection you want from [here](https://benlangmead.github.io/aws-indexes/k2). Download the database using either `wget` or `curl` command.

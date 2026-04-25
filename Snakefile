@@ -17,6 +17,9 @@ import itertools, json
 # This gets the directory where the Snakefile is located
 BASE_DIR = Path(workflow.basedir)
 
+sys.path.insert(0, str(BASE_DIR / "scripts"))
+from download_kraken_db import resolve_kraken_db  
+
 # Load default config from the package location
 configfile: str(BASE_DIR / "config/config.yaml")
 
@@ -188,10 +191,11 @@ def gzip_if_needed(file_path):
     return file_path
 
 def check_input_files():
+    global KRAKEN_DB
     if not DIR:
         raise ValueError("No DIR folder specified. Call snakemake with --config DIR=TEST_DIR")
-    if not KRAKEN_DB:
-        raise ValueError("Please provide KRAKEN_DB via --config KRAKEN_DB=<path>")
+    # KRAKEN_DB may be a local path or a downloadable .tar.gz URL.
+    KRAKEN_DB = resolve_kraken_db(KRAKEN_DB)
 
     # User data is expected in the CURRENT working directory's "data/" folder
     fq_dir = Path("data") / config["DIR"]
@@ -581,11 +585,22 @@ def _aggregate_wepp_done(wildcards):
         pathogen=pathogens,
     )
 
+_ANSI_ESCAPE_RE = re.compile(
+    rb'(?:'
+    rb'\x1B[@-Z\\-_]'              # 2-byte escapes (ESC c, ESC =, ...)
+    rb'|\x1B\[[0-?]*[ -/]*[@-~]'   # CSI sequences (colors, cursor moves)
+    rb'|\x1B\][^\x07]*\x07'        # OSC sequences (terminal title, etc.)
+    rb')'
+)
+
 
 def _run_under_pty(cmd, log_path, env):
     """Run *cmd* in a child process attached to a pseudo-TTY and append
     every byte the child writes (stdout + stderr, in chronological order)
     to *log_path*. Returns the child's exit status.
+
+    ANSI escape sequences are stripped from the captured stream so the log
+    file stays grep- and ``less``-friendly.
     """
     import pty
     import termios
@@ -611,6 +626,24 @@ def _run_under_pty(cmd, log_path, env):
         os.close(slave_fd)
         slave_fd = -1
 
+        carry = b""
+
+        def _strip(chunk, *, final=False):
+            nonlocal carry
+            buf = carry + chunk
+            if not final:
+                # If the tail looks like a partial escape, defer it.
+                last_esc = buf.rfind(b"\x1B", max(0, len(buf) - 32))
+                if last_esc != -1 and not _ANSI_ESCAPE_RE.fullmatch(
+                    buf[last_esc:]
+                ):
+                    head, carry = buf[:last_esc], buf[last_esc:]
+                else:
+                    head, carry = buf, b""
+            else:
+                head, carry = buf, b""
+            return _ANSI_ESCAPE_RE.sub(b"", head)
+
         with open(log_path, "ab") as logf:
             while True:
                 try:
@@ -619,7 +652,13 @@ def _run_under_pty(cmd, log_path, env):
                     break
                 if not data:
                     break
-                logf.write(data)
+                cleaned = _strip(data)
+                if cleaned:
+                    logf.write(cleaned)
+                    logf.flush()
+            tail = _strip(b"", final=True)
+            if tail:
+                logf.write(tail)
                 logf.flush()
         return proc.wait()
     finally:
