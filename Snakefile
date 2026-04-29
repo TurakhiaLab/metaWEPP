@@ -1,5 +1,5 @@
 import os
-import csv, re, itertools
+import csv, math, re, itertools
 import subprocess
 import pandas as pd
 import shutil
@@ -23,8 +23,16 @@ from download_kraken_db import resolve_kraken_db
 # Load default config from the package location
 configfile: str(BASE_DIR / "config/config.yaml")
 
-# 2) Constants from config
-DIR = config.get("DIR")
+# DIR may be a single string or a comma-separated string 
+def _parse_dir_list(raw):
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple)):
+        return [str(x).strip() for x in raw if str(x).strip()]
+    return [x.strip() for x in str(raw).split(",") if x.strip()]
+
+
+DIRS = _parse_dir_list(config.get("DIR"))
 KRAKEN_DB = config.get("KRAKEN_DB")
 
 requested_rules = set()
@@ -66,11 +74,11 @@ IS_SINGLE_END = config.get("SEQUENCING_TYPE", "d").lower() in {"s", "n"}
 
 rule all:
     input:
-        f"results/{DIR}/classification_proportions.png",
-        f"results/{DIR}/.split_read.done",
-        f"results/{DIR}/run_wepp.txt",
-        f"results/{DIR}/.wepp.done",
-        f"results/{DIR}/.wepp_dashboard.done"
+        expand("results/{DIR}/classification_proportions.png", DIR=DIRS),
+        expand("results/{DIR}/.split_read.done", DIR=DIRS),
+        expand("results/{DIR}/run_wepp.txt", DIR=DIRS),
+        expand("results/{DIR}/.wepp.done", DIR=DIRS),
+        expand("results/{DIR}/.wepp_dashboard.done", DIR=DIRS),
 
 # ────────────────────────────────────────────────────────────────
 # 3. HELPER FUNCTIONS
@@ -175,9 +183,6 @@ if not RUNNING_HELP and os.environ.get("METAWEPP_CONFIG_PRINTED") != "1":
     print("", file=sys.stderr)
     os.environ["METAWEPP_CONFIG_PRINTED"] = "1"
 
-FQ1 = ""
-FQ2 = ""
-
 def gzip_if_needed(file_path):
     """Gzips a file if it's not already gzipped, returns new path."""
     if not str(file_path).endswith(".gz"):
@@ -190,51 +195,123 @@ def gzip_if_needed(file_path):
         return Path(str(file_path) + ".gz")
     return file_path
 
-def check_input_files():
-    global KRAKEN_DB
-    if not DIR:
-        raise ValueError("No DIR folder specified. Call snakemake with --config DIR=TEST_DIR")
-    # KRAKEN_DB may be a local path or a downloadable .tar.gz URL.
-    KRAKEN_DB = resolve_kraken_db(KRAKEN_DB)
 
-    # User data is expected in the CURRENT working directory's "data/" folder
-    fq_dir = Path("data") / config["DIR"]
+FQ_CACHE = {}
+
+
+def get_fastqs(dir_name):
+    """Resolve and (lazily) gzip the FASTQ files for a single sample DIR."""
+    if dir_name in FQ_CACHE:
+        return FQ_CACHE[dir_name]
+
+    fq_dir = Path("data") / dir_name
     if not fq_dir.exists():
-        raise FileNotFoundError(f"Input folder {DIR} does not exist")
+        raise FileNotFoundError(f"Input folder data/{dir_name} does not exist")
 
     if IS_SINGLE_END:
         r1_files = sorted(fq_dir.glob("*.fastq*"))
-        if len(r1_files) != 1: raise RuntimeError("Single-end requires one file")
+        if len(r1_files) != 1:
+            raise RuntimeError(
+                f"data/{dir_name}: single-end requires exactly one *.fastq[.gz] file"
+            )
         fq1 = str(gzip_if_needed(r1_files[0]))
         fq2 = ""
     else:
         r1_files = sorted(fq_dir.glob("*_R1.fastq*"))
         r2_files = sorted(fq_dir.glob("*_R2.fastq*"))
-        if len(r1_files) != 1 or len(r2_files) != 1: raise RuntimeError("Paired-end requires exactly one *_R1.fastq and *_R2.fastq")
+        if len(r1_files) != 1 or len(r2_files) != 1:
+            raise RuntimeError(
+                f"data/{dir_name}: paired-end requires exactly one *_R1.fastq and *_R2.fastq"
+            )
         fq1 = str(gzip_if_needed(r1_files[0]))
         fq2 = str(gzip_if_needed(r2_files[0]))
-    return fq1, fq2
+
+    FQ_CACHE[dir_name] = (fq1, fq2)
+    return FQ_CACHE[dir_name]
+
+
+def fq1_for(wildcards):
+    return get_fastqs(wildcards.DIR)[0]
+
+
+def fq2_for(wildcards):
+    return [] if IS_SINGLE_END else [get_fastqs(wildcards.DIR)[1]]
+
+
+def per_dir_threads(_wildcards=None):
+    """Cap a per-DIR rule's threads so multi-DIR jobs can run in parallel.
+
+    With N DIRs each per-DIR rule (kraken, split_read) gets
+    ``workflow.cores // N`` slots, letting Snakemake run all N samples
+    concurrently within the same ``--cores`` budget.
+    """
+    return max(1, math.ceil(int(workflow.cores) / max(1, len(DIRS))))
+
 
 if not RUNNING_HELP:
-    FQ1, FQ2 = check_input_files()
+    if not DIRS:
+        raise ValueError(
+            "No DIR folder specified. Provide one or more sample folders, e.g. "
+            "--config DIR=TEST_DIR  (or DIR=sample_1,sample_2 for parallel runs)."
+        )
+    KRAKEN_DB = resolve_kraken_db(KRAKEN_DB)
+    for dir in DIRS:
+        get_fastqs(dir)
     
 # ────────────────────────────────────────────────────────────────
 # 4. Auto-update added_taxons.csv using Kraken2 on ref FASTAs
 # ────────────────────────────────────────────────────────────────
 
 rule check_pathogen:
+    """Prepare the pathogen catalogue used by every downstream per-DIR run.
+
+    Produces (and uses as the workflow's "pathogens are ready" marker) a
+    single file: ``data/pathogens_for_wepp/added_taxons.csv``. Steps:
+
+      1. (optional) Run ``add_ref_mat.py`` so the user can interactively add
+         new pathogen species; that script creates new sub-folders under
+         ``data/pathogens_for_wepp/`` and appends to ``added_taxons.csv``
+         itself, so its work is captured in the same output file.
+      2. Warn about any pathogen sub-folder that doesn't have exactly one
+         FASTA and one ``.pb``/``.pb.gz`` (these dirs are silently skipped
+         in step 3 anyway, but the warning helps debugging).
+      3. Scan ``data/pathogens_for_wepp/`` for sub-folders that aren't yet
+         in ``added_taxons.csv``, run ``kraken2`` to look up each one's
+         taxon id, and append the new ``taxid,folder`` rows.
+    """
     output:
         ADDED_TAXONS
     params:
-        pathogen_root = PATHOGEN_ROOT, 
-        kraken_db = KRAKEN_DB
+        pathogen_root = PATHOGEN_ROOT,
+        kraken_db = KRAKEN_DB,
+        add_species = config.get("ADD_SPECIES_RUNTIME", True),
+        add_ref_mat_script = BASE_DIR / "scripts/add_ref_mat.py",
+    threads: workflow.cores
     run:
-        # Logic remains mostly the same, just using absolute params.pathogen_root
         pathogen_root = Path(params.pathogen_root)
         added_taxons = Path(output[0])
         pathogen_root.mkdir(parents=True, exist_ok=True)
-        
-        # Load existing added_taxons.csv (if present)
+
+        # 1. Interactive add_ref_mat.py (mutates pathogen_root + the csv).
+        if params.add_species:
+            subprocess.run(
+                ["python", str(params.add_ref_mat_script),
+                 "--db", params.kraken_db, "--threads", str(threads)],
+                check=True,
+            )
+
+        # 2. Warn about malformed pathogen folders.
+        for pathogen_dir in sorted(filter(Path.is_dir, pathogen_root.iterdir())):
+            fasta_files = list(pathogen_dir.glob("*.[fF][aAn]*"))
+            pb_files = list(pathogen_dir.glob("*.pb*"))
+            if len(fasta_files) == 1 and len(pb_files) == 1:
+                continue
+            if len(fasta_files) != 1:
+                print(f"\n[WARN]: Expected 1 FASTA file in {pathogen_dir}, but found {len(fasta_files)}.\n", file=sys.stderr)
+            if len(pb_files) != 1:
+                print(f"\n[WARN]: Expected 1 .pb or .pb.gz file in {pathogen_dir}, but found {len(pb_files)}.\n", file=sys.stderr)
+
+        # 3. Discover any pathogen sub-folders not yet in the csv.
         csv_dirs = set()
         if added_taxons.exists():
             with open(added_taxons, "r") as f:
@@ -304,51 +381,15 @@ rule check_pathogen:
                 for taxid, folder_name in new_lines:
                     f.write(f"{taxid},{folder_name}\n")
 
-rule add_pathogen:
-    input:
-        rules.check_pathogen.output
-    output:
-        f"results/{DIR}/.add_pathogen.done"
-    params:
-        db = KRAKEN_DB,
-        script = BASE_DIR / "scripts/add_ref_mat.py",
-        add_species = config.get("ADD_SPECIES_RUNTIME", True)
-    threads: workflow.cores
-    run:
-        if params.add_species:
-            subprocess.run(
-                ["python", str(params.script), "--db", params.db, "--threads", str(threads)],
-                check=True
-            )
-        
-        # Using the absolute PATHOGEN_ROOT defined at top
-        if PATHOGEN_ROOT.exists() and PATHOGEN_ROOT.is_dir():
-            for pathogen_dir in filter(Path.is_dir, PATHOGEN_ROOT.iterdir()):
-                fasta_files = list(pathogen_dir.glob("*.[fF][aAn]*"))
-                pb_files = list(pathogen_dir.glob("*.pb*"))
-                num_fasta = len(fasta_files)
-                num_pb = len(pb_files)
-                if num_fasta == 1 and num_pb == 1:
-                    continue
-
-                if num_fasta != 1:
-                    print(f"\n[WARN]: Expected 1 FASTA file in {pathogen_dir}, but found {num_fasta}.\n", file=sys.stderr)
-
-                if num_pb != 1:
-                    print(f"\n[WARN]: Expected 1 .pb or .pb.gz file in {pathogen_dir}, but found {num_pb}.\n", file=sys.stderr)
-
-        Path(output[0]).parent.mkdir(parents=True, exist_ok=True)
-        Path(output[0]).touch()
-
 rule kraken:
     input:
-        r1 = FQ1,
-        r2 = lambda wc: [] if IS_SINGLE_END else [FQ2],
-        add_pathogen_done = rules.add_pathogen.output,
+        r1 = fq1_for,
+        r2 = fq2_for,
+        added_taxons = rules.check_pathogen.output,
     output:
-        kraken_report = f"results/{DIR}/kraken_report.txt",
-        kraken_out    = f"results/{DIR}/kraken_output.txt",
-    threads: workflow.cores
+        kraken_report = "results/{DIR}/kraken_report.txt",
+        kraken_out    = "results/{DIR}/kraken_output.txt",
+    threads: per_dir_threads
     params:
         db = KRAKEN_DB,
         mode_flag = "" if IS_SINGLE_END else "--paired",
@@ -364,7 +405,7 @@ rule kraken_visualization:
     input:
         kraken_report = rules.kraken.output.kraken_report,
     output:
-        png = f"results/{DIR}/classification_proportions.png"
+        png = "results/{DIR}/classification_proportions.png"
     params:
         min_prop = float(config.get("MIN_PROP_FOR_WEPP", 0.01)),
         script = BASE_DIR / "scripts/kraken_data_visualization.py",
@@ -380,15 +421,15 @@ rule split_read:
         kraken_out = rules.kraken.output.kraken_out,
         kraken_report = rules.kraken.output.kraken_report,
         png = rules.kraken_visualization.output.png,
-        r1 = FQ1,
-        r2 = lambda wc: [] if IS_SINGLE_END else [FQ2],
+        r1 = fq1_for,
+        r2 = fq2_for,
     output:
         "results/{DIR}/pathogen_coverage.tsv",
         "results/{DIR}/.split_read.done"
     params:
         script = BASE_DIR / "scripts/split_read.py",
         sequencing_type = config.get("SEQUENCING_TYPE"),
-    threads: workflow.cores
+    threads: per_dir_threads
     run:
         output_dir = Path(output[0]).parent
         cmd = [
@@ -496,7 +537,7 @@ checkpoint prepare_for_wepp:
                 pathogen_dir = PATHOGEN_ROOT / pathogen
                 
                 # Destination Directory inside WEPP
-                dest_dir = WEPP_DATA / "data" / f"{DIR}_{pathogen}"
+                dest_dir = WEPP_DATA / "data" / f"{wildcards.DIR}_{pathogen}"
                 dest_dir.mkdir(parents=True, exist_ok=True)
                 
                 # 1. Copy files from data/pathogens_for_wepp/{pathogen}
@@ -504,7 +545,7 @@ checkpoint prepare_for_wepp:
                     if file.is_file(): shutil.copy2(file, dest_dir)
                 
                 # 2. Copy files from results/{pathogen} if present
-                result_dir = Path(f"results/{DIR}/{pathogen}")
+                result_dir = Path(f"results/{wildcards.DIR}/{pathogen}")
                 if result_dir.exists():
                     for file in result_dir.glob("*"):
                         if file.is_file(): shutil.copy2(file, dest_dir)
@@ -525,7 +566,7 @@ checkpoint prepare_for_wepp:
                     f"-s {WEPP_SNAKEFILE} "
                     f"--directory {WEPP_DATA} "
                     f"--use-conda "
-                    f"--config DIR={DIR}_{pathogen} FILE_PREFIX=metaWEPP_run "
+                    f"--config DIR={wildcards.DIR}_{pathogen} FILE_PREFIX=metaWEPP_run "
                     f"TREE={tree_name} REF={ref_name} "
                     f"SEQUENCING_TYPE={config.get('SEQUENCING_TYPE', 'd')} "
                     f"PRIMER_BED={primer_bed} "
@@ -770,13 +811,16 @@ rule run_wepp:
 
 rule print_dashboard_instructions:
     input:
-        f"results/{DIR}/.wepp.done"
+        "results/{DIR}/.wepp.done"
     output:
-        f"results/{DIR}/.wepp_dashboard.done"
+        "results/{DIR}/.wepp_dashboard.done"
     run:
         if not config.get("DASHBOARD_ENABLED"):
-            print("\n\n\n\nTo view the dashboard, run the following commands:\n")
-            with open(f"results/{DIR}/run_wepp.txt", "r") as f:
+            print(
+                f"\n\n\n\nTo view the dashboard for '{wildcards.DIR}', run "
+                "the following commands:\n"
+            )
+            with open(f"results/{wildcards.DIR}/run_wepp.txt", "r") as f:
                 for line in f:
                     line = line.strip()
                     if "DASHBOARD_ENABLED" in line:

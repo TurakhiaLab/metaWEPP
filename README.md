@@ -40,7 +40,7 @@
 
 ## <a name="intro"></a> Introduction
 
-metaWEPP is a Snakemake-based bioinformatics pipeline that achieves near-haplotype resolution in metagenomic analysis. As illustrated in the figure, metaWEPP can analyze metagenomic or mixed-genome samples from environmental sources and clinical specimens. metaWEPP first uses standard taxonomic classifiers to assign sequencing reads to known species, then applies [WEPP](https://github.com/TurakhiaLab/WEPP) to phylogenetically place these reads onto updated, species-specific mutation-annotated trees built from all publicly available clinical sequences,  and finally selects the subset of haplotypes that best explains the sample. It also reports unaccounted alleles that are indicative of novel variants and includes an interactive dashboard to provide a detailed read-level visualization for each species. 
+metaWEPP is a Snakemake-based bioinformatics pipeline that achieves near-haplotype resolution in metagenomic analysis. As illustrated in the figure, metaWEPP can analyze metagenomic or mixed-genome samples from environmental sources and clinical specimens. metaWEPP first uses standard taxonomic classifiers to assign sequencing reads to known species (any taxonomic level for which a separate MAT has been constructed). It then applies [WEPP](https://github.com/TurakhiaLab/WEPP) to phylogenetically place these reads onto updated, species-specific mutation-annotated trees built from all publicly available clinical sequences, and finally selects the subset of haplotypes that best explains the sample. It also reports unaccounted alleles that are indicative of novel variants and includes an interactive dashboard to provide a detailed read-level visualization for each species. 
 
 <div align="center">
     <img src="metaWEPP_Overview.png" width="1000">
@@ -401,7 +401,7 @@ Visualization of metaWEPP's workflow directories
 
 The metaWEPP Snakemake pipeline requires the following arguments, which can be provided either via the configuration file (`config/config.yaml`) or passed directly on the command line using the `--config` argument. The command line arguments take precedence over the config file.
 
-1. `DIR` - Folder containing the metagenomic reads.
+1. `DIR` - Folder(s) containing metagenomic reads. Multiple samples can be analyzed in parallel by specifying a comma-separated list of folders.
 2. `KRAKEN_DB` - Either (a) the path to an existing Kraken2 database folder, or (b) an HTTP(S) URL to a `.tar.gz` archive (e.g. `https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20251015.tar.gz`). When a URL is given, the archive is downloaded into a directory named after the tarball stem on first run and reused on subsequent runs.
 3. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
 4. `PRIMER_BED` - Absolute path(s) to the BED file(s) for primers. Comma-separated paths ordered to match `PATHOGENS` for per-species primer trimming. Leave a slot blank for species without primer trimming.

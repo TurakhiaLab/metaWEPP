@@ -1,3 +1,5 @@
+# DIR: "sample_1,sample_2"
+
 # Use s: single-end Illumina, d: double-end Illumina, n: ONT for alignment with minimap2
 SEQUENCING_TYPE: "d"
 
