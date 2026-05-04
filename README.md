@@ -282,16 +282,16 @@ On being prompted to add a new species for haplotype-level analysis, press `y`, 
 RSV-A:
 ```txt
 a) Type "respiratory syncytial virus a" as the virus of interest.
-b) Select "Rhinovirus A" by pressing "1" and pressing Enter.
-c) Select "NC_038235.1" by pressing "2" and pressing Enter.
+b) Select "human respiratory syncytial virus" by pressing "2" and pressing Enter.
+c) Select "NC_001617.1" by pressing "2" and pressing Enter.
 d) Provide the MAT file path: "./rsvA.2025-04-25.pb.gz".
 ```
 
 Rhinovirus-A:
 ```txt
 a) Type "rhinovirus a" as the virus of interest.
-b) Select "human respiratory syncytial virus" by pressing "2" and pressing Enter.
-c) Select "NC_001617.1" by pressing "2" and pressing Enter.
+b) Select "Rhinovirus A" by pressing "1" and pressing Enter.
+c) Select "NC_038235.1" by pressing "2" and pressing Enter.
 d) Provide the MAT file path: "./rhinovirus_a.pb.gz".
 ```
 
