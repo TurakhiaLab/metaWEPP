@@ -25,7 +25,7 @@ MAX_READS: "1000000000"
 DASHBOARD_ENABLED: False 
 
 # Does not ask to add pathogen species at runtime if False
-ADD_SPECIES_RUNTIME: False
+ADD_SPECIES_RUNTIME: True
 
 # Arguments for WEPP that can be customized by pathogens
 PATHOGENS: "default,sars_cov_2"
