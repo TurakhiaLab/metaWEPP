@@ -9,6 +9,7 @@ from pathlib import Path
 from collections import defaultdict
 from itertools import zip_longest
 import itertools, json
+from snakemake.io import unpack
 
 # ────────────────────────────────────────────────────────────────
 # 1. DEFINE BASE DIRECTORY & LOAD CONFIG
@@ -18,7 +19,13 @@ import itertools, json
 BASE_DIR = Path(workflow.basedir)
 
 sys.path.insert(0, str(BASE_DIR / "scripts"))
-from download_kraken_db import resolve_kraken_db  
+from download_kraken_db import resolve_kraken_db
+from wepp_conda import (
+    effective_wepp_cores,
+    freyja_conda_env_ready,
+    run_wepp_single_inputs,
+    warn_if_serial_wepp,
+)
 
 # Load default config from the package location
 configfile: str(BASE_DIR / "config/config.yaml")
@@ -459,6 +466,9 @@ rule split_read:
 # is dispatched as an independent `run_wepp_single` job.
 # ────────────────────────────────────────────────────────────────
 
+def _run_wepp_single_inputs(wildcards):
+    return run_wepp_single_inputs(wildcards, WEPP_DATA, WEPP_ROOT)
+
 checkpoint prepare_for_wepp:
     input:
         "results/{DIR}/.split_read.done",
@@ -524,6 +534,11 @@ checkpoint prepare_for_wepp:
                 return auto_share
             return max(1, int(requested))
 
+        serial_wepp = (
+            len(selected_pathogens) > 1
+            and not freyja_conda_env_ready(WEPP_DATA, WEPP_ROOT)
+        )
+
         with open(output.run_wepp_txt, "w") as run_wepp_f:
             for pathogen in selected_pathogens:
                 raw_meta = WEPP_METADATA.get(pathogen, DEFAULT_META)
@@ -532,6 +547,9 @@ checkpoint prepare_for_wepp:
                 cl_idx = f"{raw_meta['clade_idx']}"
                 primer_bed = raw_meta["primer_bed"]
                 pathogen_cores = resolve_cores(pathogen)
+                run_cores = effective_wepp_cores(
+                    pathogen_cores, workflow.cores, serial=serial_wepp
+                )
 
                 # Source directory (shared read-only pathogen assets)
                 pathogen_dir = PATHOGEN_ROOT / pathogen
@@ -588,9 +606,13 @@ checkpoint prepare_for_wepp:
                 # `--nolock` is required because concurrent WEPP invocations
                 # share the same --directory (WEPP).
                 per_cmd = (
-                    f"{WEPP_EXECUTABLE} --nolock --cores {pathogen_cores} {wepp_args}\n"
+                    f"{WEPP_EXECUTABLE} --nolock --cores {run_cores} {wepp_args}\n"
                 )
                 (cmd_dir / f"{pathogen}.cmd").write_text(per_cmd)
+
+        warn_if_serial_wepp(
+            WEPP_DATA, WEPP_ROOT, cmd_dir, total_cores=workflow.cores
+        )
 
 
 def _cores_per_pathogen_threads(wildcards):
@@ -716,11 +738,13 @@ def _run_under_pty(cmd, log_path, env):
 
 rule run_wepp_single:
     """Run WEPP for a single species. Multiple instances of this rule run
-    concurrently; Snakemake schedules them based on ``threads`` vs
-    ``--cores``, while the per-species ``--cores N`` baked into the command
-    file is what WEPP actually uses (may exceed ``--cores``)."""
+    concurrently when the shared freyja conda env already exists; otherwise
+    they are serialized via ``prev_done`` dependencies. Snakemake schedules
+    jobs based on ``threads`` vs ``--cores``, while the per-species ``--cores
+    N`` baked into the command file is what WEPP actually uses (may exceed
+    ``--cores``)."""
     input:
-        cmd = "results/{DIR}/wepp_cmds/{pathogen}.cmd"
+        unpack(_run_wepp_single_inputs),
     output:
         done = "results/{DIR}/wepp_done/{pathogen}.done"
     threads: _cores_per_pathogen_threads
@@ -748,8 +772,7 @@ rule run_wepp_single:
 
         print(
             f"[metaWEPP] Launching WEPP for '{wildcards.pathogen}' with "
-            f"{requested_cores} cores (scheduler slot: {threads}) "
-            f"-> {log_path}",
+            f"{threads} cores -> {log_path}",
             file=sys.stderr,
         )
         sys.stderr.flush()
@@ -757,7 +780,7 @@ rule run_wepp_single:
         # Header written before the PTY-attached child appends.
         log_path.write_text(
             f"# metaWEPP log for pathogen='{wildcards.pathogen}'\n"
-            f"# requested cores: {requested_cores}\n"
+            f"# cores: {threads}\n"
             f"# command:\n{base_cmd}\n\n"
         )
 

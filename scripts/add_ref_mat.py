@@ -370,7 +370,7 @@ def run_viral_usher_interactive(species, refseq_id, workdir):
             print("[INFO] Skipping build to avoid overwriting existing file.")
             return pb_files
 
-    print(f"\n\n!!![IMPORTANT] When prompted for a directory to download the sequences and build the tree, please enter the following path to ensure outputs are saved correctly:")
+    print(f"\n\n!!![IMPORTANT] DO NOT use the pre-built viral_usher trees. These trees have been re-rooted and are constructed using reference genomes that differ from those selected within the metaWEPP workflow, which can lead to inconsistencies in the downstream analyses. \n\n !!![IMPORTANT] DO NOT give title to your trees when prompted by the viral_usher. \n\n !!![IMPORTANT] When prompted for a directory to download the sequences and build the tree, please enter the following path to ensure outputs are saved correctly:")
     print(f"  {workdir}\n")
 
 

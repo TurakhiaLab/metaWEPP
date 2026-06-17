@@ -57,7 +57,15 @@ RUN git clone https://github.com/TurakhiaLab/metaWEPP.git
 WORKDIR /metaWEPP
 RUN git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 
+WORKDIR /metaWEPP/WEPP
+RUN conda config --set channel_priority strict && \
+    snakemake -s workflow/Snakefile help \
+        --directory /metaWEPP/WEPP \
+        --use-conda \
+        --cores 1
+
 # Clone and install Kraken2
+WORKDIR /metaWEPP
 RUN git clone https://github.com/DerrickWood/kraken2.git && \
     cd kraken2 && \
     ./install_kraken2.sh . && \

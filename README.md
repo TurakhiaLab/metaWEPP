@@ -6,9 +6,10 @@
 [license-link]: https://github.com/TurakhiaLab/WEPP/blob/main/LICENSE
 
 [![License][license-badge]][license-link]
-[<img src="https://img.shields.io/badge/Install%20with-Bioconda-brightgreen.svg?style=flat">](https://bioconda.github.io/recipes/metawepp/README.html)
 [<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
 [![Build Status](https://github.com/TurakhiaLab/metaWEPP/actions/workflows/ci.yml/badge.svg)](https://github.com/TurakhiaLab/metaWEPP/actions)
+[<img src="https://img.shields.io/badge/Install%20with-Bioconda-brightgreen.svg?style=flat">](https://bioconda.github.io/recipes/metawepp/README.html)
+[![Published in NAR Genomics and Bioinformatics](https://img.shields.io/badge/Published%20in-NAR%20Genomics%20and%20Bioinformatics-blue)](https://doi.org/10.1371/journal.pcbi.1014124)
 
 <div align="center">
   <img src="docs/images/metaWEPP_logo.svg" width="300"/>
@@ -32,6 +33,7 @@
   - [Run Command](#run) 
   - [MAT for pathogen species](#mat) 
 - [Kraken2 Database](#build-database)
+  - [Passing URL of database](#url)
   - [Downloading prebuilt database](#prebuilt)
   - [Creating custom database](#custom)
 
@@ -54,8 +56,6 @@ metaWEPP offers multiple installation methods.
 2. Dockerfile 
 3. Shell Commands
 
-⚠️ If you plan to generate the MAT for a pathogen within the metaWEPP workflow using viral_usher, you must have Docker access on your system.
-
 ### <a name="conda"></a> Option-1: Install via Bioconda (Recommended).
 **Step 1:** Create a new conda environment for metaWEPP.
 ```bash
@@ -77,6 +77,8 @@ run-metawepp help --cores 1
 **Step 3:** Create a `data` directory and start analyzing your samples with metaWEPP. If you are running samples from multiple `data` directories, specify the `.snakemake` directory created in one run as the `--conda-prefix` for the others to avoid redundant creation of Snakemake conda environments.
 
 Before trying the [examples](#example), please ensure that you have downloaded the `simulated_metagenomic_sample` into the `data` directory from [here](https://github.com/TurakhiaLab/metaWEPP/tree/main/data/simulated_metagenomic_sample).
+
+⚠️ If you plan to generate a MAT for any species within the metaWEPP workflow using viral_usher, Docker access must be available on your system. 
 
 ### <a name="docker"></a> Option-2: Install via Dockerfile.
 
@@ -104,10 +106,9 @@ docker run -it -p 80:80 metawepp
 run-metawepp help --cores 1
 ```
 
-⚠️ If you do not have a MAT for a pathogen and wish to generate one using viral_usher while running metaWEPP in a Docker container, you should run viral_usher outside the metaWEPP container and then copy the resulting MAT into the container.
-
 All set to try the [examples](#example).
 
+⚠️ If you do not already have a MAT for a pathogen and wish to generate one using viral_usher, you must run viral_usher outside the metaWEPP Docker container and then copy the resulting MAT into the container. This is necessary because viral_usher invokes its own Docker instance during execution and will fail when run from within another Docker container. 
 
 ### <a name="shell"></a> Option-3: Install via Shell Commands (requires sudo access).
 
@@ -154,7 +155,7 @@ git clone --recurse-submodules https://github.com/TurakhiaLab/WEPP.git
 cd WEPP
 chmod +x run-wepp
 ```
-View the WEPP installation guide starting from Option 3 in the [WEPP repository](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
+View the WEPP installation guide starting from Option 3 of the [WEPP](https://github.com/TurakhiaLab/WEPP/tree/main?tab=readme-ov-file#-option-3-install-via-shell-commands-requires-sudo-access).
 
 
 **Step 6:** Confirm proper working by running the following command. This should print metaWEPP's help menu.
@@ -163,6 +164,8 @@ run-metawepp help --cores 1
 ```
 
 All set to try the [examples](#example).
+
+⚠️ If you plan to generate a MAT for any species within the metaWEPP workflow using viral_usher, Docker access must be available on your system. 
 
 
 ##  <a name="example"></a> Quick Start
@@ -184,48 +187,49 @@ rm k2_viral_20251015.tar.gz
 ⚠️ You can skip this step entirely by passing the `.tar.gz` URL straight to `KRAKEN_DB=` in the next command. metaWEPP will download and extract it on first run, and reuse it on subsequent runs.
 
 **Step 3:** Run the pipeline
-
-Follow the command prompts to add the pathogens.
-
 ```
-run-metawepp --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample MIN_PROP=0.05 PATHOGENS=default,respiratory_syncytial_virus_a,sars_cov_2 CLADE_LIST=,nextstrain,nextstrain:pango CLADE_IDX=-1,0,1 --cores 32
+run-metawepp --config KRAKEN_DB=viral_kraken_db DIR=simulated_metagenomic_sample MIN_PROP=0.05 PATHOGENS=default,respiratory_syncytial_virus_a,sars_cov_2 CLADE_LIST=,nextstrain,nextstrain:pango CLADE_IDX=-1,0,1 CORES_PER_PATHOGEN=,8,24 --cores 32
 ```
 
-For SARS-CoV-2:
+When prompted to add a new species for haplotype-level analysis, press `y`. Then follow the steps below to add the SARS-CoV-2 and RSV-A mutation-annotated trees (MATs).
+
+SARS-CoV-2:
 ```txt
 a) Type "sars cov 2" as the virus of interest.
-b) Select "Severe acute respiratory syndrome coronavirus 2" by pressing "1" and pressing Enter.
-c) Select "NC_045512.2" by pressing "1" and pressing Enter.
+b) Select "Severe acute respiratory syndrome coronavirus 2" by entering "1" and pressing Enter.
+c) Select "NC_045512.2" by entering "1" and pressing Enter.
 d) Provide the MAT file path: "./public-2023-04-01.all.masked.pb.gz".
 ```
+
+Press `y` when prompted again to add a new species for haplotype-level analysis. Next, follow the steps below to add the RSV-A MAT.
 
 RSV-A:
 ```txt
 a) Type "respiratory syncytial virus a" as the virus of interest.
-b) Select "human respiratory syncytial virus" by pressing "2" and pressing Enter.
-c) Select "NC_038235.1" by pressing "2" and pressing Enter.
+b) Select "human respiratory syncytial virus" by entering "2" and pressing Enter.
+c) Select "NC_038235.1" by entering "1" and pressing Enter.
 d) Provide the MAT file path: "./rsvA.2025-04-25.pb.gz".
 ```
 
-**Step 5:**  Analyze Results.
+**Step 4:**  Analyze Results.
 
 Species proportions can be viewed in `results/simulated_metagenomic_sample/classification_proportions.png`, which shows the following proportions:
 ```txt
 - 66.33%  Severe acute respiratory syndrome coronavirus 2
 - 31.38%  Human respiratory syncytial virus A
-- 1.94%   human respiratory syncytial virus
+- 1.95%   human respiratory syncytial virus
 ```
 
 Haplotype-level results generated by WEPP for SARS-CoV-2 and RSV-A are available in `WEPP/results/simulated_metagenomic_sample_sars_cov_2/metaWEPP_run_haplotype_abundance.csv` and `WEPP/results/simulated_metagenomic_sample_respiratory_syncytial_virus_a/metaWEPP_run_haplotype_abundance.csv`, respectively.
 
 
-SARS-CoV-2 Haplotype abundances
+SARS-CoV-2 haplotype abundances
 ```txt
 node_701971,B.1.1.186,0.500000
 node_1159601,XBB.1.5,0.500000
 ```
 
-RSV-A Haplotype abundances
+RSV-A haplotype abundances
 ```txt
 Argentina/BA-HNRG-369/2017|ON237340.1|2017-06-26,A.D.2.2,0.500000
 USA/MA-Broad_MGB-13815/2022|OQ171906.1|2022-07-27,A.D.1.5,0.500000
@@ -247,23 +251,7 @@ cd ../../
 wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
 ```
 
-**Step 3:** Create the Rhinovirus-A MAT with viral_usher. Make sure you are not inside metaWEPP's docker container [Only for this step]. 
-```
-a) pip install viral_usher
-b) viral_usher init
-c) Type "rhinovirus a" as the virus of interest.
-d) Select "Rhinovirus A" by pressing "1" and pressing Enter.
-e) Select "NC_001617.1" by pressing "2" and pressing Enter.
-f) Type "0.1" for minimum length proportion of the RefSeq length and press Enter.
-g) Type "0.5" for maximum 'N' proportion and press Enter.
-h) Use default values for maxmimum private and branch substitutions by pressing Enter.
-i) Press Enter when it asks for more fasta files, and metadata files.
-j) Give "./rhinovirus_a_MAT" as the directory for building MAT and press Enter.
-k) Run "viral_usher build --config ./rhinovirus_a_MAT/viral_usher_config_NC_001617.1_3428501.toml"
-l) Copy the MAT inside the docker container: docker cp ./rhinovirus_a_MAT/viz.pb.gz <CONTAINER ID>:/metaWEPP/rhinovirus_a.pb.gz
-```
-
-**Step 5:** Download Viral Kraken2 database.
+**Step 3:** Download Viral Kraken2 database.
 ```
 wget https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20251015.tar.gz
 mkdir -p viral_kraken_db
@@ -272,30 +260,38 @@ rm k2_viral_20251015.tar.gz
 ```
 ⚠️ You can skip this step entirely by passing the `.tar.gz` URL straight to `KRAKEN_DB=` in the next command. metaWEPP will download and extract it on first run, and reuse it on subsequent runs.
 
-**Step 6:** Run the pipeline 
+**Step 4:** Run the pipeline 
 ```
 run-metawepp --config KRAKEN_DB=viral_kraken_db DIR=real_metagenomic_sample MIN_PROP=0.05 PATHOGENS=default,respiratory_syncytial_virus_a CLADE_LIST=,nextstrain CLADE_IDX=-1,0 --cores 32
 ```
 
-On being prompted to add a new species for haplotype-level analysis, press `y`, and follow the steps below for RSV-A and Rhinovirus-A.
+When prompted to add a new species for haplotype-level analysis, press `y`. Then follow the steps below to add the RSV-A and Rhinovirus-A mutation-annotated trees (MATs).
 
 RSV-A:
 ```txt
 a) Type "respiratory syncytial virus a" as the virus of interest.
-b) Select "human respiratory syncytial virus" by pressing "2" and pressing Enter.
-c) Select "NC_038235.1" by pressing "2" and pressing Enter.
+b) Select "human respiratory syncytial virus" by entering "2" and pressing Enter.
+c) Select "NC_038235.1" by entering "1" and pressing Enter.
 d) Provide the MAT file path: "./rsvA.2025-04-25.pb.gz".
 ```
+
+Press `y` when prompted again to add a new species for haplotype-level analysis. Next, follow the steps below to build the Rhinovirus-A MAT using viral_usher. Does NOT work if you are using metaWEPP Docker container.   
 
 Rhinovirus-A:
 ```txt
 a) Type "rhinovirus a" as the virus of interest.
 b) Select "Rhinovirus A" by pressing "1" and pressing Enter.
 c) Select "NC_001617.1" by pressing "2" and pressing Enter.
-d) Provide the MAT file path: "./rhinovirus_a.pb.gz".
+d) Press Enter when asks to build a MAT with viral_usher.
+e) Type "0.1" for minimum length proportion of the RefSeq length and press Enter.
+f) Type "0.5" for maximum 'N' proportion and press Enter.
+g) Use default values for maxmimum private and branch substitutions by pressing Enter.
+h) Press Enter when it asks for more fasta files files.
+i) Press Enter when it asks for title for your tree.
+j) Enter the directory path that was displayed before the start of this questionnaire for downloading sequences and building trees. It should look similar to: "path_to_metaWEPP/data/pathogens_for_wepp/rhinovirus_a/viral_usher_build"
 ```
 
-**Step 7:**  Analyze Results.
+**Step 5:**  Analyze Results.
 
 Species proportions can be viewed in `results/real_metagenomic_sample/classification_proportions.png`, which shows the following proportions:
 ```txt
@@ -323,10 +319,12 @@ HRVA/PUNE/NIV108127/10|KM109984.1|2010-01-26,,1.000000
 ## <a name="guide"></a> User Guide
 
 ### <a name="data"> Data Organization
-We assume that all metagenomic samples are stored in the `data` directory, each within its own subdirectory given by DIR argument (see [Run Command](#run)). Pathogen species to be analyzed with WEPP at the haplotype level can be added either manually or automatically fetched by metaWEPP based on user inputs. For manual addition, create a directory for each species and place the reference genome fasta file and mat file at: 
-```
+We assume that all metagenomic samples are stored in the `data` directory, each within its own subdirectory given by DIR argument (see [Run Command](#run)). Pathogen species to be analyzed with WEPP at the haplotype level can be added either manually or automatically through the metaWEPP workflow based on user input during the analysis. For manual addition, create a separate directory for each species and place the corresponding reference genome FASTA file and mutation-annotated tree (MAT) file in that directory. The files should be placed under:
+```txt
 data/pathogens_for_wepp/<pathogen_species_name>
 ```
+
+After adding a new species manually, delete the file `data/pathogens_for_wepp/added_taxons.csv` to ensure that metaWEPP refreshes the list of available species on the next run. 
 
 Each created `DIR` inside `data` is expected to contain only the metagenomic sequencing reads, with filenames ending in `*_R{1/2}.fastq.gz` for paired-end reads, and `*.fastq.gz` for single-end reads. For each metagenomic sample, metaWEPP generates species-level results in the corresponding sample subdirectories under `results`. Haplotype-level results for each pathogen in a sample are located within the respective pathogen directories under `WEPP/results` as shown below. 
 
@@ -404,16 +402,16 @@ The metaWEPP Snakemake pipeline requires the following arguments, which can be p
 1. `DIR` - Folder(s) containing metagenomic reads. Multiple samples can be analyzed in parallel by specifying a comma-separated list of folders.
 2. `KRAKEN_DB` - Either (a) the path to an existing Kraken2 database folder, or (b) an HTTP(S) URL to a `.tar.gz` archive (e.g. `https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20251015.tar.gz`). When a URL is given, the archive is downloaded into a directory named after the tarball stem on first run and reused on subsequent runs.
 3. `SEQUENCING_TYPE` - Sequencing read type (s:Illumina single-ended, d:Illumina double-ended, or n:ONT long reads)
-4. `PRIMER_BED` - Absolute path(s) to the BED file(s) for primers. Comma-separated paths ordered to match `PATHOGENS` for per-species primer trimming. Leave a slot blank for species without primer trimming.
-5. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%) by WEPP.
-6. `MIN_DEPTH` - Sites with read depth below this threshold will be masked by WEPP.
-7. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked by WEPP.
-8. `MIN_PROP` -  Minimum Proportion of haplotypes detected by WEPP (Wastewater Samples: 0.5%, Clinical Samples: 5%).
-9. `MIN_LEN` -  Minimum read length to be considered after ivar trim (Default: 80).
-10. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.
-11. `DASHBOARD_ENABLED` - Enables WEPP dashboard for visualization of haplotype results.
-12. `ADD_SPECIES_RUNTIME` - Asks users to add pathogen species at runtime when enabled.
-13. `PATHOGENS` - List of pathogens with custom WEPP settings. Any species not listed here will use the `default` settings.
+4. `MIN_AF` - Alleles with an allele frequency below this threshold in the reads will be masked (Illumina: 0.5%, Ion Torrent: 1.5%, ONT: 2%) by WEPP.
+5. `MIN_DEPTH` - Sites with read depth below this threshold will be masked by WEPP.
+6. `MIN_Q` - Alleles with a Phred score below this threshold in the reads will be masked by WEPP.
+7. `MIN_PROP` -  Minimum Proportion of haplotypes detected by WEPP (Wastewater Samples: 0.5%, Clinical Samples: 5%).
+8. `MIN_LEN` -  Minimum read length to be considered after ivar trim (Default: 80).
+9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.
+10. `DASHBOARD_ENABLED` - Enables WEPP dashboard for visualization of haplotype results.
+11. `ADD_SPECIES_RUNTIME` - Asks users to add pathogen species at runtime when enabled.
+12. `PATHOGENS` - List of pathogens with custom WEPP settings. Any species not listed here will use the `default` settings.
+13. `PRIMER_BED` - Absolute path(s) to the BED file(s) for primers. Comma-separated paths ordered to match `PATHOGENS` for per-species primer trimming. Leave a slot blank for species without primer trimming.
 14. `CLADE_LIST` - Clade annotation schemes in the MAT file. Either a single value broadcast to every species, or use comma-separated values ordered to match `PATHOGENS`. Leave a slot blank for species without clade annotations.
 15. `CLADE_IDX` - Clade indices for each pathogen. Either a single value broadcast to every species, or use comma-separated values ordered to match `PATHOGENS`. Use `-1` for species without lineage annotations.
 16. `MIN_DEPTH_FOR_WEPP` - Minimum read coverage required to run WEPP for any pathogen species.
@@ -426,14 +424,19 @@ The metaWEPP Snakemake pipeline requires the following arguments, which can be p
 PATHOGENS: "default,SARS_COV_2,RSV_A"
 CLADE_LIST: ",nextstrain:pango,nextstrain"
 CLADE_IDX: "-1,1,0"
+CORES_PER_PATHOGEN: ",20,8"
+PRIMER_BED: ",/path_to_sars/sars.bed,/path_to_rsv/rsv.bed"
 ```
 
 These arguments are applied by first checking whether the species listed in `PATHOGENS` are present in `data/pathogens_for_wepp`. Then, the corresponding `CLADE_LIST` and `CLADE_IDX` values are used for WEPP analysis as follows:
 
 **SARS_COV_2** - `CLADE_LIST` is **nextstrain,pango**, and `CLADE_IDX` is **1**. 
+
 **RSV_A** - `CLADE_LIST` is **nextstrain** and `CLADE_IDX` is **0**.
+
 **All other species** - `CLADE_LIST` is not passed, and `CLADE_IDX` is **-1**.
 
+⚠️ When generating MAT with viral_usher, DO NOT use pre-built trees. These trees have been re-rooted and are constructed using reference genomes that differ from those selected within the metaWEPP workflow, which can lead to inconsistencies in the downstream analyses. 
 
 ### <a name="run"> Run Command
 
@@ -457,7 +460,13 @@ Mutation-annotated trees (MATs) for some pathogen species are maintained by the 
 ##  <a name="build-database"></a> Kraken2 Database
 Users can either download prebuilt databases available online or create custom databases using their own genome sequences.
 
-⚠️ For prebuilt databases, the easiest option is to pass the `.tar.gz` URL directly to `KRAKEN_DB=` on the metaWEPP command line. For example,`KRAKEN_DB=https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20251015.tar.gz`. metaWEPP downloads the database into a folder on first run and reuses it on subsequent runs. The manual `wget`/`tar` instructions below are equivalent and let you choose your own folder name.
+### <a name="url"> Passing URL of database
+For prebuilt databases, the easiest option is to pass the `.tar.gz` URL directly through the `KRAKEN_DB=` parameter when running metaWEPP. For example:
+```
+KRAKEN_DB=https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20251015.tar.gz
+```
+
+On the first run, metaWEPP will automatically download and extract the database into a local directory, and will reuse the downloaded database in subsequent runs. The manual `wget` and `tar` commands provided below achieve the same result while allowing you to choose a custom download location and directory name.
 
 ### <a name="prebuilt"> Downloading prebuilt database
 **Step 1:** Get the link of `.tar.gz` file of the genome collection you want from [here](https://benlangmead.github.io/aws-indexes/k2). Download the database using either `wget` or `curl` command.
