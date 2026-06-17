@@ -21,7 +21,7 @@ metaWEPP is a Snakemake-based bioinformatics pipeline that achieves near-haploty
 ### <b>Species-Level Classification</b>
 metaWEPP uses Kraken2 to classify sequencing reads and assign them to pathogen species, producing species-level abundance estimates.
 
-### <b>Haplotype-Level Resolution via WEPP</b>
+### <b>Haplotype-Level Resolution</b>
 For user-specified species, metaWEPP uses [WEPP](https://github.com/TurakhiaLab/WEPP) to perform phylogenetic placement on species-specific mutation-annotated trees (MATs), enabling the identification of haplotypes, estimation of their relative abundances, and detection of unaccounted alleles.
 
 ### <b>Unaccounted Alleles</b>
@@ -29,6 +29,3 @@ metaWEPP reports *Unaccounted Alleles* for each user-specified species—alleles
 
 ### <b>Interactive Dashboard</b>
 An interactive dashboard enables visualization of the detected haplotypes within the global phylogenetic tree and supports detailed read-level analysis for each species analyzed at the haplotype level.
-
-### <b>Flexible MAT Support</b>
-metaWEPP supports pre-built MATs from the UShER team as well as on-the-fly MAT generation for new pathogen species using [viral_usher](https://github.com/AngieHinrichs/viral_usher) within the workflow.
