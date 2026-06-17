@@ -1,0 +1,90 @@
+site_name: metaWEPP
+site_url: https://turakhia.ucsd.edu/metaWEPP
+repo_name: TurakhiaLab/metaWEPP
+repo_url: https://github.com/TurakhiaLab/metaWEPP
+
+theme:
+  name: material
+
+  logo: images/metaWEPP_logo.svg
+  favicon: images/metaWEPP_logo.svg
+  features:
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+    - content.tooltips
+    - toc.follow
+    - toc.integrate
+    - navigation.tabs
+    - navigation.sections
+    - navigation.path
+    - navigation.tabs.sticky
+    - navigation.instant.prefetch
+    - navigation.tracking
+    - navigation.footer
+    - navigation.expand
+    - search.highlight
+    - search.suggest
+
+  language: en
+
+  palette:
+    # Light Mode
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+      primary: custom
+      accent: custom
+
+    # Dark Mode
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+      primary: custom
+      accent: custom
+
+extra_css:
+  - styles/logo.css
+
+plugins:
+  - social
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/TurakhiaLab/metaWEPP
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+
+use_directory_urls: false
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Quick Start: quickstart.md
+  - User Guide: usage.md
+  - Contributions: contribution.md
+  - Cite metaWEPP: cite.md
+
+copyright: |
+  &copy; 2025 <a href="https://github.com/TurakhiaLab" target="_blank" rel="noopener">Turakhia Lab</a>

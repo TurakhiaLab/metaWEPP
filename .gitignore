@@ -1,0 +1,5 @@
+site/
+.cache/
+.snakemake/
+__pycache__/
+*.pyc
