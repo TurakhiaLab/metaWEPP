@@ -9,7 +9,7 @@
 [<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
 [![Build Status](https://github.com/TurakhiaLab/metaWEPP/actions/workflows/ci.yml/badge.svg)](https://github.com/TurakhiaLab/metaWEPP/actions)
 [<img src="https://img.shields.io/badge/Install%20with-Bioconda-brightgreen.svg?style=flat">](https://bioconda.github.io/recipes/metawepp/README.html)
-[![Published in NAR Genomics and Bioinformatics](https://img.shields.io/badge/Published%20in-NAR%20Genomics%20and%20Bioinformatics-blue)](https://doi.org/10.1371/journal.pcbi.1014124)
+[![Published in NAR Genomics and Bioinformatics](https://img.shields.io/badge/Published%20in-NAR%20Genomics%20and%20Bioinformatics-blue)]()
 
 <div align="center">
   <img src="docs/images/metaWEPP_logo.svg" width="300"/>
