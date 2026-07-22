@@ -9,7 +9,7 @@
 [<img src="https://img.shields.io/badge/Made with-Snakemake-aquamarine.svg?logo=snakemake">](https://snakemake.readthedocs.io/en/v7.19.1/index.html)
 [![Build Status](https://github.com/TurakhiaLab/metaWEPP/actions/workflows/ci.yml/badge.svg)](https://github.com/TurakhiaLab/metaWEPP/actions)
 [<img src="https://img.shields.io/badge/Install%20with-Bioconda-brightgreen.svg?style=flat">](https://bioconda.github.io/recipes/metawepp/README.html)
-[![Published in NAR Genomics and Bioinformatics](https://img.shields.io/badge/Published%20in-NAR%20Genomics%20and%20Bioinformatics-blue)]()
+[![Published in NAR Genomics and Bioinformatics](https://img.shields.io/badge/Published%20in-NAR%20Genomics%20and%20Bioinformatics-blue)](https://doi.org/10.1093/nargab/lqag080)
 
 <div align="center">
   <img src="docs/images/metaWEPP_logo.svg" width="300"/>
@@ -36,6 +36,7 @@
   - [Passing URL of database](#url)
   - [Downloading prebuilt database](#prebuilt)
   - [Creating custom database](#custom)
+- [Citing metaWEPP](#cite)
 
 <br>
 
@@ -501,3 +502,25 @@ kraken2-build --build --db <custom_database> --kmer-len <kmer_length> --minimize
 ```
 
 More information about creating custom databases can be found [here](https://github.com/DerrickWood/kraken2/wiki/Manual#custom-databases).
+
+##  <a name="cite"></a> Citing metaWEPP
+If you use metaWEPP in your research or publications, please cite the following paper:<br><br>
+Gangwar P, Xu Q, Seangmany J, Katte P, Turakhia Y (2026) *metaWEPP: leveraging biobank-scale intra-species phylogenies for near-haplotype resolution in metagenomic analysis*. NAR Genom Bioinform 8(3): lqag080. [https://doi.org/10.1093/nargab/lqag080](https://doi.org/10.1093/nargab/lqag080)
+
+### BibTeX
+
+```bibtex
+@article{gangwar2026metawepp,
+    author = {Gangwar, Pranav and Xu, Qiwen and Seangmany, Jaden and Katte, Pratik and Turakhia, Yatish},
+    title = {metaWEPP: leveraging biobank-scale intra-species phylogenies for near-haplotype resolution in metagenomic analysis},
+    journal = {NAR Genomics and Bioinformatics},
+    volume = {8},
+    number = {3},
+    pages = {lqag080},
+    year = {2026},
+    month = {September},
+    publisher = {Oxford University Press},
+    doi = {10.1093/nargab/lqag080},
+    url = {https://doi.org/10.1093/nargab/lqag080}
+}
+```
