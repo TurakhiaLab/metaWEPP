@@ -60,13 +60,15 @@ metaWEPP offers multiple installation methods.
 ### <a name="conda"></a> Option-1: Install via Bioconda (Recommended).
 **Step 1:** Create a new conda environment for metaWEPP.
 ```bash
-conda create --name metawepp-env
+conda create --name metawepp-env python=3.11
 conda activate metawepp-env
 conda config --env --add channels bioconda 
 conda config --env --add channels conda-forge 
 conda config --env --set channel_priority flexible
 conda install metawepp
 ```
+
+⚠️ Python 3.11 is required. The latest `wepp` builds that metaWEPP depends on are only available for Python 3.11, so environments pinned to Python 3.12 silently fall back to an older `wepp`, and Python 3.13 fails to solve altogether.
 
 ⚠️ You can use `conda install metawepp --solver=libmamba` to enable a faster dependency resolution and installation.
 
@@ -175,7 +177,7 @@ All set to try the [examples](#example).
 **Step 1:** Download the MAT for SARS-CoV-2 and RSV-A.
 ```
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2023/04/01/public-2023-04-01.all.masked.pb.gz
-wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
+wget -O rsvA.2025-04-25.pb.gz https://web.archive.org/web/20250629165644id_/https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
 ```
 
 **Step 2:** Download Viral Kraken2 database.
@@ -249,7 +251,7 @@ cd ../../
 
 **Step 2:** Download the RSV-A MAT.
 ```
-wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
+wget -O rsvA.2025-04-25.pb.gz https://web.archive.org/web/20250629165644id_/https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
 ```
 
 **Step 3:** Download Viral Kraken2 database.

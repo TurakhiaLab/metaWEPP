@@ -7,7 +7,7 @@ The following examples demonstrate metaWEPP on simulated and real-world metageno
 **Step 1:** Download the MAT for SARS-CoV-2 and RSV-A.
 ```bash
 wget https://hgdownload.gi.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/2023/04/01/public-2023-04-01.all.masked.pb.gz
-wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
+wget -O rsvA.2025-04-25.pb.gz https://web.archive.org/web/20250629165644id_/https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
 ```
 
 **Step 2:** Download Viral Kraken2 database.
@@ -84,7 +84,7 @@ cd ../../
 
 **Step 2:** Download the RSV-A MAT.
 ```bash
-wget https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
+wget -O rsvA.2025-04-25.pb.gz https://web.archive.org/web/20250629165644id_/https://hgdownload.gi.ucsc.edu/hubs/GCF/002/815/475/GCF_002815475.1/UShER_RSV-A/2025/04/25/rsvA.2025-04-25.pb.gz
 ```
 
 **Step 3:** Download Viral Kraken2 database.

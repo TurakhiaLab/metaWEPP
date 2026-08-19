@@ -10,13 +10,16 @@ metaWEPP offers multiple installation methods.
 
 **Step 1:** Create a new conda environment for metaWEPP.
 ```bash
-conda create --name metawepp-env
+conda create --name metawepp-env python=3.11
 conda activate metawepp-env
 conda config --env --add channels bioconda
 conda config --env --add channels conda-forge
 conda config --env --set channel_priority flexible
 conda install metawepp
 ```
+
+!!!Note
+    ⚠️ Python 3.11 is required. The latest `wepp` builds that metaWEPP depends on are only available for Python 3.11, so environments pinned to Python 3.12 silently fall back to an older `wepp`, and Python 3.13 fails to solve altogether.
 
 !!!Note
     ⚠️ You can use `conda install metawepp --solver=libmamba` to enable a faster dependency resolution and installation.
