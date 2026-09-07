@@ -14,7 +14,7 @@
 <div align="center">
   <img src="docs/images/metaWEPP_logo.svg" width="300"/>
 </div>
-
+<h3>User Guide: <a href="https://turakhia.ucsd.edu/metaWEPP">https://turakhia.ucsd.edu/metaWEPP</a></h3>
 </div>
 
 ## Table of Contents
