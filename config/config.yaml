@@ -21,6 +21,9 @@ MIN_LEN: "80"
 # Subsampling Reads to reduce WEPP's runtime
 MAX_READS: "1000000000"
 
+# Extra arguments passed to minimap2 that get applied to every species, e.g. "-O 12,48 -E 4,2"
+MINIMAP2_ARGS: ""
+
 # True to view WEPP results on dashboard, otherwise False. 
 DASHBOARD_ENABLED: False 
 
@@ -38,6 +41,10 @@ CORES_PER_PATHOGEN: ",32"
 
 # Need complete path for the BED file with comma-separated paths ordered per-species
 PRIMER_BED: ""
+
+# BED of reference regions to soft-clip from reads (list the regions to REMOVE, not the target)
+# Need complete path for the BED file with comma-separated paths ordered per-species
+CLIP_BED: ""
 
 # Argumnets for deciding when to run WEPP
 MIN_DEPTH_FOR_WEPP: "10"

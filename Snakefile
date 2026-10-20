@@ -1,5 +1,5 @@
 import os
-import csv, math, re, itertools
+import csv, math, re, itertools, shlex
 import subprocess
 import pandas as pd
 import shutil
@@ -109,6 +109,8 @@ def _parse_per_pathogen(raw, pathogens, default, caster=str, name="option"):
       - ``CLADE_IDX``          → ``-1``   (no lineage annotations)
       - ``PRIMER_BED``         → ``""``   (no primer trimming for this
         species; absolute paths that only split on commas, never on slashes)
+      - ``CLIP_BED``           → ``""``   (no read clipping for this
+        species; absolute paths that only split on commas, never on slashes)
       - ``CORES_PER_PATHOGEN`` → ``"auto"`` sentinel, resolved later by
         the checkpoint so it can share leftover ``--cores`` across the
         species that asked for auto allocation.
@@ -157,6 +159,9 @@ CLADE_IDX_MAP = _parse_per_pathogen(
 PRIMER_BED_MAP = _parse_per_pathogen(
     config.get("PRIMER_BED"), PATHOGENS, default="", name="PRIMER_BED"
 )
+CLIP_BED_MAP = _parse_per_pathogen(
+    config.get("CLIP_BED"), PATHOGENS, default="", name="CLIP_BED"
+)
 CORES_PER_PATHOGEN_MAP = _parse_per_pathogen(
     config.get("CORES_PER_PATHOGEN"),
     PATHOGENS,
@@ -166,8 +171,8 @@ CORES_PER_PATHOGEN_MAP = _parse_per_pathogen(
 )
 
 
-def build_wepp_metadata(pathogens, clade_list_map, clade_idx_map, primer_bed_map, cores_map):
-    """Build pathogen -> {clade_list, clade_idx, primer_bed, cores} metadata."""
+def build_wepp_metadata(pathogens, clade_list_map, clade_idx_map, primer_bed_map, clip_bed_map, cores_map):
+    """Build pathogen -> {clade_list, clade_idx, primer_bed, clip_bed, cores} metadata."""
     if not pathogens:
         raise ValueError("ERROR: PATHOGENS is required and must include 'default'.")
     if "default" not in pathogens:
@@ -179,6 +184,7 @@ def build_wepp_metadata(pathogens, clade_list_map, clade_idx_map, primer_bed_map
             "clade_list": str(clade_list_map.get(pathogen, "")).strip(),
             "clade_idx": int(clade_idx_map.get(pathogen, -1)),
             "primer_bed": str(primer_bed_map.get(pathogen, "")).strip(),
+            "clip_bed": str(clip_bed_map.get(pathogen, "")).strip(),
             "cores": cores_map.get(pathogen, "auto"),
         }
     return meta
@@ -503,6 +509,7 @@ checkpoint prepare_for_wepp:
             CLADE_LIST_MAP,
             CLADE_IDX_MAP,
             PRIMER_BED_MAP,
+            CLIP_BED_MAP,
             CORES_PER_PATHOGEN_MAP,
         )
         DEFAULT_META = WEPP_METADATA["default"]
@@ -546,6 +553,8 @@ checkpoint prepare_for_wepp:
                 clade_list_arg = f"CLADE_LIST={cl} " if cl else ""
                 cl_idx = f"{raw_meta['clade_idx']}"
                 primer_bed = raw_meta["primer_bed"]
+                clip_bed = raw_meta["clip_bed"]
+                clip_bed_arg = f"CLIP_BED={shlex.quote(clip_bed)} " if clip_bed else ""
                 pathogen_cores = resolve_cores(pathogen)
                 run_cores = effective_wepp_cores(
                     pathogen_cores, workflow.cores, serial=serial_wepp
@@ -580,6 +589,12 @@ checkpoint prepare_for_wepp:
                 taxonium_files = list(dest_dir.glob("*.jsonl")) + list(dest_dir.glob("*.jsonl.gz"))
                 taxonium_arg = f"TAXONIUM_FILE={taxonium_files[0].name} " if taxonium_files else ""
 
+                # Shared by every species; quoted because the value contains spaces
+                minimap2_args = str(config.get("MINIMAP2_ARGS") or "").strip()
+                minimap2_arg = (
+                    f"MINIMAP2_ARGS={shlex.quote(minimap2_args)} " if minimap2_args else ""
+                )
+
                 wepp_args = (
                     f"-s {WEPP_SNAKEFILE} "
                     f"--directory {WEPP_DATA} "
@@ -588,6 +603,7 @@ checkpoint prepare_for_wepp:
                     f"TREE={tree_name} REF={ref_name} "
                     f"SEQUENCING_TYPE={config.get('SEQUENCING_TYPE', 'd')} "
                     f"PRIMER_BED={primer_bed} "
+                    f"{clip_bed_arg}{minimap2_arg}"
                     f"MIN_AF={config.get('MIN_AF')} "
                     f"MIN_DEPTH={config.get('MIN_DEPTH')} "
                     f"MIN_Q={config.get('MIN_Q')} "

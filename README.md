@@ -60,15 +60,13 @@ metaWEPP offers multiple installation methods.
 ### <a name="conda"></a> Option-1: Install via Bioconda (Recommended).
 **Step 1:** Create a new conda environment for metaWEPP.
 ```bash
-conda create --name metawepp-env python=3.11
+conda create --name metawepp-env
 conda activate metawepp-env
 conda config --env --add channels bioconda 
 conda config --env --add channels conda-forge 
 conda config --env --set channel_priority flexible
 conda install metawepp
 ```
-
-⚠️ Python 3.11 is required. The latest `wepp` builds that metaWEPP depends on are only available for Python 3.11, so environments pinned to Python 3.12 silently fall back to an older `wepp`, and Python 3.13 fails to solve altogether.
 
 ⚠️ You can use `conda install metawepp --solver=libmamba` to enable a faster dependency resolution and installation.
 
@@ -411,15 +409,17 @@ The metaWEPP Snakemake pipeline requires the following arguments, which can be p
 7. `MIN_PROP` -  Minimum Proportion of haplotypes detected by WEPP (Wastewater Samples: 0.5%, Clinical Samples: 5%).
 8. `MIN_LEN` -  Minimum read length to be considered after ivar trim (Default: 80).
 9. `MAX_READS` - Maximum number of reads considered by WEPP from the sample. Helpful for reducing runtime.
-10. `DASHBOARD_ENABLED` - Enables WEPP dashboard for visualization of haplotype results.
-11. `ADD_SPECIES_RUNTIME` - Asks users to add pathogen species at runtime when enabled.
-12. `PATHOGENS` - List of pathogens with custom WEPP settings. Any species not listed here will use the `default` settings.
-13. `PRIMER_BED` - Absolute path(s) to the BED file(s) for primers. Comma-separated paths ordered to match `PATHOGENS` for per-species primer trimming. Leave a slot blank for species without primer trimming.
-14. `CLADE_LIST` - Clade annotation schemes in the MAT file. Either a single value broadcast to every species, or use comma-separated values ordered to match `PATHOGENS`. Leave a slot blank for species without clade annotations.
-15. `CLADE_IDX` - Clade indices for each pathogen. Either a single value broadcast to every species, or use comma-separated values ordered to match `PATHOGENS`. Use `-1` for species without lineage annotations.
-16. `MIN_DEPTH_FOR_WEPP` - Minimum read coverage required to run WEPP for any pathogen species.
-17. `MIN_PROP_FOR_WEPP` - Minimum relative abundance of a species before metaWEPP prompts to add it for haplotype-level analysis.
-18. `CORES_PER_PATHOGEN` - Cores allocated to each concurrent WEPP species run. Either a single value is broadcast to every species, or comma-separated values ordered to match `PATHOGENS` are used for per-species allocation. Empty values in per-species allocation list, or 'auto' evenly divides whatever threads remain from the `--cores` after subtracting the explicit allocations.
+10. `MINIMAP2_ARGS` - Extra arguments passed to `minimap2` for every species, e.g. `MINIMAP2_ARGS="-O 12,48 -E 4,2"`.
+11. `DASHBOARD_ENABLED` - Enables WEPP dashboard for visualization of haplotype results.
+12. `ADD_SPECIES_RUNTIME` - Asks users to add pathogen species at runtime when enabled.
+13. `PATHOGENS` - List of pathogens with custom WEPP settings. Any species not listed here will use the `default` settings.
+14. `PRIMER_BED` - Absolute path(s) to the BED file(s) for primers. Comma-separated paths ordered to match `PATHOGENS` for per-species primer trimming. Leave a slot blank for species without primer trimming.
+15. `CLIP_BED` - Absolute path(s) to BED file(s) of reference regions to soft-clip from reads with `samtools ampliconclip`. List the regions to **remove** (e.g. everything outside your target), not the target itself. Comma-separated paths ordered to match `PATHOGENS` for per-species clipping. Leave a slot blank for species without clipping.
+16. `CLADE_LIST` - Clade annotation schemes in the MAT file. Either a single value broadcast to every species, or use comma-separated values ordered to match `PATHOGENS`. Leave a slot blank for species without clade annotations.
+17. `CLADE_IDX` - Clade indices for each pathogen. Either a single value broadcast to every species, or use comma-separated values ordered to match `PATHOGENS`. Use `-1` for species without lineage annotations.
+18. `MIN_DEPTH_FOR_WEPP` - Minimum read coverage required to run WEPP for any pathogen species.
+19. `MIN_PROP_FOR_WEPP` - Minimum relative abundance of a species before metaWEPP prompts to add it for haplotype-level analysis.
+20. `CORES_PER_PATHOGEN` - Cores allocated to each concurrent WEPP species run. Either a single value is broadcast to every species, or comma-separated values ordered to match `PATHOGENS` are used for per-species allocation. Empty values in per-species allocation list, or 'auto' evenly divides whatever threads remain from the `--cores` after subtracting the explicit allocations.
 
 
 #### <a name="argexample"> Example of species-specific arguments:
@@ -429,6 +429,7 @@ CLADE_LIST: ",nextstrain:pango,nextstrain"
 CLADE_IDX: "-1,1,0"
 CORES_PER_PATHOGEN: ",20,8"
 PRIMER_BED: ",/path_to_sars/sars.bed,/path_to_rsv/rsv.bed"
+CLIP_BED: ",,/path_to_rsv/rsv_clip.bed"
 ```
 
 These arguments are applied by first checking whether the species listed in `PATHOGENS` are present in `data/pathogens_for_wepp`. Then, the corresponding `CLADE_LIST` and `CLADE_IDX` values are used for WEPP analysis as follows:
